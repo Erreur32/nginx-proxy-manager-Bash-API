@@ -405,15 +405,15 @@ search_proxy_host() {
   echo "Searching for proxy host for $SEARCH_HOSTNAME..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-  echo "$RESPONSE" | jq -c --arg search "$SEARCH_HOSTNAME" '.[] | select(.domain_names[] | contains($search))' | while IFS= read -r line; do
-    domain_names=$(echo "$line" | jq -r '.domain_names[]')
-    advanced_config=$(echo "$line" | jq -r '.advanced_config')
 
-    echo "domain_names: $domain_names"
-    echo "$advanced_config" | sed 's/^/ /'
-    echo
+  echo "$RESPONSE" | jq -c --arg search "$SEARCH_HOSTNAME" '.[] | select(.domain_names[] | contains($search))' | while IFS= read -r line; do
+    id=$(echo "$line" | jq -r '.id')
+    domain_names=$(echo "$line" | jq -r '.domain_names[]')
+
+    echo -e "id: ${COLOR_YELLOW}$id${COLOR_RESET} ${COLOR_GREEN}$domain_names${COLOR_RESET}"
   done
 }
+
 
 # Function to list all SSL certificates
 list_ssl_certificates() {
