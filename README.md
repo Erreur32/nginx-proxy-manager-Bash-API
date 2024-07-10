@@ -18,10 +18,10 @@ only edit thoses variables
 #### Variables to edit
 
 # Address IP server Nginx (your nginx ip server)
-NGINX_IP="192.168.1.1"
+NGINX_IP="127.0.0.1"
 
-# Token creation (user pass) with valid user on npm.
-API_USER="your@email.com"
+# Existing user (user pass) on npm.
+API_USER="existingUser@mail.com"
 API_PASS="password"
 ```
 
