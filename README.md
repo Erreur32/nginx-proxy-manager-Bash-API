@@ -9,6 +9,22 @@ _by Erreur32_
 
 ⚙️ It provides functionalities such as creating/deleting proxy hosts, managing users, and displaying configurations and more.
 
+
+## settings:
+
+only edit thoses variables
+
+```
+#### Variables to edit
+
+# Address IP server Nginx (your nginx ip server)
+NGINX_IP="192.168.1.1"
+
+# Token creation (user pass) with valid user on npm.
+API_USER="your@email.com"
+API_PASS="password"
+```
+
 ## Usage:
 ```bash
 ./nginx_proxy_manager_cli.sh [OPTIONS]
