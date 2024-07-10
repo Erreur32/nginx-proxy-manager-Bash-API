@@ -38,3 +38,6 @@ This script allows you to manage Nginx Proxy Manager via the API. It provides fu
 ./nginx_proxy_manager_cli.sh --create-user newuser password123
 ./nginx_proxy_manager_cli.sh --list-hosts
 ```
+
+## TODO:
+- Translate all text in english :p !
