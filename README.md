@@ -1,5 +1,6 @@
-
 # Nginx Proxy Manager CLI Script
+
+## Description
 
 _by Erreur32_
 
@@ -9,6 +10,18 @@ _by Erreur32_
 
 ⚙️ It provides functionalities such as creating/deleting proxy hosts, managing users, and displaying configurations and more.
 
+Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations.
+
+## Prérequis
+
+- `curl`
+- `jq`
+
+## Installation jq
+
+```bash
+sudo apt-get install jq
+```
 
 ## settings:
 
