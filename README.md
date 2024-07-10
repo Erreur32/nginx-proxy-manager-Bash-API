@@ -3,9 +3,11 @@
 
 _by Erreur32_
 
-This script allows you to manage Nginx Proxy Manager via the API.
+🛠️  This script allows you to manage Nginx Proxy Manager via the API.
 
-It provides functionalities such as creating proxy hosts, managing users, and displaying configurations.
+🔑  Genrate TOKEN automaticly !! ;)
+
+It provides functionalities such as creating/deleting proxy hosts, managing users, and displaying configurations and more.
 
 ## Usage:
 ```bash
