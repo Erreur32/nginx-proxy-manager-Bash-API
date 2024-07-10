@@ -40,24 +40,28 @@
 ###############################################################################
 
 
-#### Variables to edit
+######## Variables to edit ##########
 # Address IP server Nginx (your nginx ip server)
 NGINX_IP="192.168.1.1"
-# File storage token
-TOKEN_FILE="token.txt"
 # Token creation (user pass) with valid user on npm.
 API_USER="your@email.com"
 API_PASS="password"
 
-#################################
+# Colors
+COLOR_TRUE="\e[42;1mtrue\e[0m"  # Vert clair pour true
+COLOR_FALSE="\e[93mfalse\e[0m"  # Rouge pour false
+
+
+############################
+# Don't need to touch bellow
+############################
 # Definition variables TOKEN
 BASE_URL="http://$NGINX_IP:81/api"
 API_ENDPOINT="/tokens"
 EXPIRY_FILE="expiry.txt"
+# File storage token
+TOKEN_FILE="token.txt"
 
-# Couleurs pour l'affichage
-COLOR_TRUE="\e[42;1mtrue\e[0m"  # Vert clair pour true
-COLOR_FALSE="\e[93mfalse\e[0m"  # Rouge pour false
 
 # Fonction pour générer le token
 generate_token() {
