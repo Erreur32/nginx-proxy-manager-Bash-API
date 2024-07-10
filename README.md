@@ -64,5 +64,5 @@ API_PASS="password"
 ![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/nginx-proxy-script.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/nginx-proxy-script.png)
 
 ## TODO:
-- Check for the SSL generated option
-- Translate all text in english :p !
+- add setting for ADVANCED configuration in `location / { ... }`
+ 
