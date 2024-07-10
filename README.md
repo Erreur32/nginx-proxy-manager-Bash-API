@@ -17,23 +17,22 @@ Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctio
 - `curl`
 - `jq`
 
-## Installation jq
-
 ```bash
-sudo apt-get install jq
+sudo apt-get install jq curl
 ```
 
-## settings:
+## Installation 
+```
+wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-API/main/nginx_proxy_manager_cli.sh
+```
 
-only edit thoses variables
+## Settings:
+Only edit these 3 variables:
 
 ```
-#### Variables to edit
-
-# Address IP server Nginx (your nginx ip server)
+## IP address of the Nginx server (your Nginx server IP)
 NGINX_IP="127.0.0.1"
-
-# Existing user (user pass) on npm.
+## Existing user (user and password) on NPM
 API_USER="existingUser@mail.com"
 API_PASS="password"
 ```
