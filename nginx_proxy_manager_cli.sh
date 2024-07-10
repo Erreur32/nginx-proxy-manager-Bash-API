@@ -63,6 +63,7 @@ COLOR_ERROR="\e[41;1m"          # Red for errors
 # Definition variables TOKEN
 BASE_URL="http://$NGINX_IP:81/api"
 API_ENDPOINT="/tokens"
+EXPIRY_FILE="expiry.txt"
 # File storage token
 TOKEN_FILE="token.txt"
 
@@ -85,6 +86,7 @@ generate_token() {
 
   if [ "$token" != "null" ]; then
     echo $token > $TOKEN_FILE
+    echo $expires > $EXPIRY_FILE
     echo "Token: $token"
     echo "Expiry: $expires"
   else
@@ -95,11 +97,12 @@ generate_token() {
 
 # Function to validate the token
 validate_token() {
-  if [ ! -f "$TOKEN_FILE" ]; then
+  if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
     return 1
   fi
 
   token=$(cat $TOKEN_FILE)
+  expires=$(cat $EXPIRY_FILE)
   current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   if [[ "$current_time" < "$expires" ]]; then
@@ -111,8 +114,8 @@ validate_token() {
   fi
 }
 
-# Check if Nginx is accessible
-check_nginx_access
+# Check if Nginx is accessible // inprogress
+#check_nginx_access
 
 # Check if the token file exists
 if ! validate_token; then
