@@ -1,7 +1,11 @@
-###############################################################################
-# Nginx Proxy Manager CLI Script by Erreur32
 
-This script allows you to manage Nginx Proxy Manager via the API. It provides functionalities such as creating proxy hosts, managing users, and displaying configurations.
+# Nginx Proxy Manager CLI Script
+
+_by Erreur32_
+
+This script allows you to manage Nginx Proxy Manager via the API.
+
+It provides functionalities such as creating proxy hosts, managing users, and displaying configurations.
 
 ## Usage:
 ```bash
@@ -38,6 +42,8 @@ This script allows you to manage Nginx Proxy Manager via the API. It provides fu
 ./nginx_proxy_manager_cli.sh --create-user newuser password123
 ./nginx_proxy_manager_cli.sh --list-hosts
 ```
+
+![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/nginx-proxy-script.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/nginx-proxy-script.png)
 
 ## TODO:
 - Translate all text in english :p !
