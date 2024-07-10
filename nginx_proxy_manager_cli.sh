@@ -1,39 +1,15 @@
 #!/bin/bash
 
 ###############################################################################
-# Nginx Proxy Manager CLI Script by Erreur32  July 2024
+# Nginx Proxy Manager CLI Script
+# Erreur32 - July 2024
 #
-# This script allows you to manage Nginx Proxy Manager via the API. It provides
+# This script allows you to manage Nginx Proxy Manager via l'API. It provides
 # functionalities such as creating proxy hosts, managing users, and displaying
 # configurations.
 #
 # Usage:
 #   ./nginx_proxy_manager_cli.sh [OPTIONS]
-#
-# Options:
-#   -d DOMAIN_NAMES                  Domain name (required)
-#   -i FORWARD_HOST                  IP address or domain name of the target server (required)
-#   -p FORWARD_PORT                  Port of the target server (required)
-#   -f FORWARD_SCHEME                Scheme for forwarding (http/https, default: http)
-#   -s SSL_FORCED                    Force SSL (true/false, default: false)
-#   -c CACHING_ENABLED               Enable caching (true/false, default: false)
-#   -b BLOCK_EXPLOITS                Block exploits (true/false, default: true)
-#   -w ALLOW_WEBSOCKET_UPGRADE       Allow WebSocket upgrade (true/false, default: false)
-#   -h HTTP2_SUPPORT                 Support HTTP/2 (true/false, default: true)
-#   -a ADVANCED_CONFIG               Advanced configuration (string)
-#   -e LETS_ENCRYPT_AGREE            Accept Let's Encrypt (true/false, default: false)
-#   -m LETS_ENCRYPT_EMAIL            Email for Let's Encrypt (required if LETS_ENCRYPT_AGREE is true)
-#   -n DNS_CHALLENGE                 DNS challenge (true/false, default: false)
-#   -t TOKEN_EXPIRY                  Token expiry duration (default: 1y)
-#   --create-user username password  Create a user with a username and password
-#   --delete-user username           Delete a user by username
-#   --delete-host id                 Delete a proxy host by ID
-#   --list-hosts                     List the names of all proxy hosts
-#   --list-hosts-full                List all proxy hosts with full details
-#   --list-ssl-certificates          List all SSL certificates
-#   --list-users                     List all users
-#   --search-host hostname           Search for a proxy host by domain name
-#   --help                           Display this help
 #
 # Examples:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -s true
@@ -42,129 +18,33 @@
 #
 ###############################################################################
 
+# Variables to edit (required)
+NGINX_IP="127.0.0.1"
+# Existing nginx user
+API_USER="user@nginx"
+API_PASS="pass nginx"
 
-######## Variables to edit ##########
-# Address IP server Nginx (your nginx ip server)
-NGINX_IP="192.168.1.1"
-# Token creation (user pass) with valid user on npm.
-API_USER="your@email.com"
-API_PASS="password"
-# Default token expiry duration
-TOKEN_EXPIRY="1y"
-
+################################
 # Colors
-COLOR_TRUE="\e[42;1mtrue\e[0m"  # Light green for true
-COLOR_FALSE="\e[93mfalse\e[0m"  # Red for false
-COLOR_ERROR="\e[41;1m"          # Red for errors
+#COLOR_GREEN="\e[32m"
+#COLOR_RED="\e[41;1m"
+#COLOR_ORANGE="\e[38;5;202m"
+#COLOR_YELLOW="\e[93m"
+#COLOR_RESET="\e[0m"
 
-############################
-# Don't need to touch below
-############################
-# Definition variables TOKEN
+COLOR_GREEN="\033[32m"
+COLOR_RED="\033[41;1m"
+COLOR_ORANGE="\033[38;5;202m"
+COLOR_YELLOW="\033[93m"
+COLOR_RESET="\033[0m"
+
+
+# API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
 API_ENDPOINT="/tokens"
 EXPIRY_FILE="expiry.txt"
-# File storage token
 TOKEN_FILE="token.txt"
-
-# Check if Nginx IP and port are accessible
-check_nginx_access() {
-  if ! curl -s --head --request GET "$BASE_URL" | grep "200 OK" > /dev/null; then
-    echo -e "${COLOR_ERROR}Error: Nginx is not accessible at $NGINX_IP:81${COLOR_FALSE}"
-    exit 1
-  fi
-}
-
-# Function to generate the token
-generate_token() {
-  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
-    -H "Content-Type: application/json; charset=UTF-8" \
-    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
-
-  token=$(echo $response | jq -r '.token')
-  expires=$(echo $response | jq -r '.expires')
-
-  if [ "$token" != "null" ]; then
-    echo $token > $TOKEN_FILE
-    echo $expires > $EXPIRY_FILE
-    echo "Token: $token"
-    echo "Expiry: $expires"
-  else
-    echo -e "${COLOR_ERROR}Error generating token.${COLOR_FALSE}"
-    exit 1
-  fi
-}
-
-# Function to validate the token
-validate_token() {
-  if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
-    return 1
-  fi
-
-  token=$(cat $TOKEN_FILE)
-  expires=$(cat $EXPIRY_FILE)
-  current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-  if [[ "$current_time" < "$expires" ]]; then
-    echo -e "\e[42;1mThe token is valid. Expiry: $expires\033[0m"
-    return 0
-  else
-    echo -e "\e[41;1mThe token is invalid. Expiry: $expires\033[0m"
-    return 1
-  fi
-}
-
-# Check if Nginx is accessible // inprogress
-#check_nginx_access
-
-# Check if the token file exists
-if ! validate_token; then
-  echo "No valid token found. Generating a new token..."
-  generate_token
-fi
-
-# Function to colorize true and false values
-colorize_boolean() {
-  local value=$1
-  if [ "$value" = true ]; then
-    echo -e "\e[92mtrue\e[0m"
-  else
-    echo -e "\e[93mfalse\e[0m"
-  fi
-}
-
-# Display help
-usage() {
-  echo -e "\n\e[33mUsage: $0 -d domain -i ip -p port [-f forward_scheme] [-s ssl_forced] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-h http2_support] [-a advanced_config] [-e lets_encrypt_agree] [-m lets_encrypt_email] [-n dns_challenge] [-t token_expiry] [--create-user username password] [--delete-user username] [--delete-host id] [--list-hosts] [--list-hosts-full] [--list-ssl-certificates] [--list-users] [--search-host hostname] [--help]\e[0m"
-
-  echo -e ""
-  echo -e "Options:"
-  echo -e "  -d \e[33mDOMAIN_NAMES\e[0m            Domain name (\e[41;1m required \e[0m)"
-  echo -e "  -i \e[33mFORWARD_HOST\e[0m            IP address or domain name of the target server (\e[41;1m required \e[0m)"
-  echo -e "  -p \e[33mFORWARD_PORT\e[0m            Port of the target server (\e[41;1m required \e[0m)"
-  echo -e "  -f \e[33mFORWARD_SCHEME\e[0m          Scheme for forwarding (http/https, default: http)"
-  echo -e "  -s SSL_FORCED              Force SSL (true/false, default: $(colorize_boolean $SSL_FORCED))"
-  echo -e "  -c CACHING_ENABLED         Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
-  echo -e "  -b BLOCK_EXPLOITS          Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
-  echo -e "  -w ALLOW_WEBSOCKET_UPGRADE Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
-  echo -e "  -h HTTP2_SUPPORT           Support HTTP/2 (true/false, default: $(colorize_boolean $HTTP2_SUPPORT))"
-  echo -e "  -a ADVANCED_CONFIG         Advanced configuration (string)"
-  echo -e "  -e LETS_ENCRYPT_AGREE      Accept Let's Encrypt (true/false, default: $(colorize_boolean $LETS_ENCRYPT_AGREE))"
-  echo -e "  -m LETS_ENCRYPT_EMAIL      Email for Let's Encrypt (required if LETS_ENCRYPT_AGREE is true)"
-  echo -e "  -n DNS_CHALLENGE           DNS challenge (true/false, default: $(colorize_boolean $DNS_CHALLENGE))"
-  echo -e "  -t TOKEN_EXPIRY            Token expiry duration (default: 1y)"
-  echo -e "  --create-user username password Create a user with a username and password"
-  echo -e "  --delete-user username     Delete a user by username"
-  echo -e "  --delete-host id           Delete a proxy host by ID"
-  echo -e "  --list-hosts               List the names of all proxy hosts"
-  echo -e "  --list-hosts-full          List all proxy hosts with full details"
-  echo -e "  --list-ssl-certificates    List all SSL certificates"
-  echo -e "  --list-users               List all users"
-  echo -e "  --search-host hostname     Search for a proxy host by domain name"
-  echo -e "  --help                     Display this help"
-        echo
-  exit 1
-}
+TOKEN_EXPIRY="1y"
 
 # Default variables
 SSL_FORCED=false
@@ -187,6 +67,67 @@ LIST_HOSTS_FULL=false
 LIST_SSL_CERTIFICATES=false
 LIST_USERS=false
 SEARCH_HOST=false
+
+# Check if necessary dependencies are installed
+check_dependencies() {
+  local dependencies=("curl" "jq")
+  for dep in "${dependencies[@]}"; do
+    if ! command -v $dep &> /dev/null; then
+      echo -e "${COLOR_RED}Dependency $dep is not installed. Please install it before running this script.${COLOR_RESET}"
+      exit 1
+    fi
+  done
+}
+
+# Check if necessary dependencies are installed
+check_dependencies
+
+# Display help
+usage() {
+  echo -e "\n${COLOR_YELLOW}Usage: $0 -d domain -i ip -p port [-f forward_scheme] [-s ssl_forced] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-h http2_support] [-a advanced_config] [-e lets_encrypt_agree] [-m lets_encrypt_email] [-n dns_challenge] [-t token_expiry] [--create-user username password] [--delete-user username] [--delete-host id] [--list-hosts] [--list-hosts-full] [--list-ssl-certificates] [--list-users] [--search-host hostname] [--help]${COLOR_RESET}"
+  echo ""
+  echo -e "Examples:"
+  echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -s true"
+  echo -e "  ./nginx_proxy_manager_cli.sh --create-user newuser password123"
+  echo -e "  ./nginx_proxy_manager_cli.sh --list-hosts"
+  echo -e ""
+  echo -e "Options:"
+  echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}            Domain name (${COLOR_RED} required ${COLOR_RESET})"
+  echo -e "  -i ${COLOR_ORANGE}FORWARD_HOST${COLOR_RESET}            IP address or domain name of the target server (${COLOR_RED} required ${COLOR_RESET})"
+  echo -e "  -p ${COLOR_ORANGE}FORWARD_PORT${COLOR_RESET}            Port of the target server (${COLOR_RED} required ${COLOR_RESET})"
+  echo -e "  -f FORWARD_SCHEME          Scheme for forwarding (http/https, default: http)"
+  echo -e "  -s SSL_FORCED              Force SSL (true/false, default: $(colorize_boolean $SSL_FORCED))"
+  echo -e "  -c CACHING_ENABLED         Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
+  echo -e "  -b BLOCK_EXPLOITS          Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
+  echo -e "  -w ALLOW_WEBSOCKET_UPGRADE Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
+  echo -e "  -h HTTP2_SUPPORT           Support HTTP/2 (true/false, default: $(colorize_boolean $HTTP2_SUPPORT))"
+  echo -e "  -a ADVANCED_CONFIG         Advanced configuration (string)"
+  echo -e "  -e LETS_ENCRYPT_AGREE      Accept Let's Encrypt (true/false, default: $(colorize_boolean $LETS_ENCRYPT_AGREE))"
+  echo -e "  -m LETS_ENCRYPT_EMAIL      Email for Let's Encrypt (${COLOR_ORANGE}required${COLOR_RESET} if LETS_ENCRYPT_AGREE is true)"
+  echo -e "  -n DNS_CHALLENGE           DNS challenge (true/false, default: $(colorize_boolean $DNS_CHALLENGE))"
+  echo -e "  -t TOKEN_EXPIRY            Token expiry duration (default: ${COLOR_YELLOW}1y${COLOR_RESET})"
+  echo -e "  --create-user user pass    Create a user with a username and password"
+  echo -e "  --delete-user username     Delete a user by username"
+  echo -e "  --delete-host id           Delete a proxy host by ID"
+  echo -e "  --list-hosts               List the names of all proxy hosts"
+  echo -e "  --list-hosts-full          List all proxy hosts with full details"
+  echo -e "  --list-ssl-certificates    List all SSL certificates"
+  echo -e "  --list-users               List all users"
+  echo -e "  --search-host hostname     Search for a proxy host by domain name"
+  echo -e "  --help                     Display this help"
+  echo
+  exit 0
+}
+
+# Function to colorize true and false values
+colorize_boolean() {
+  local value=$1
+  if [ "$value" = true ]; then
+    echo -e "${COLOR_GREEN}true${COLOR_RESET}"
+  else
+    echo -e "${COLOR_YELLOW}false${COLOR_RESET}"
+  fi
+}
 
 # Parse command-line options
 while getopts "d:i:p:f:s:c:b:w:h:a:e:m:n:t:-:" opt; do
@@ -235,12 +176,73 @@ while getopts "d:i:p:f:s:c:b:w:h:a:e:m:n:t:-:" opt; do
   esac
 done
 
+# Check if Nginx IP and port are accessible
+check_nginx_access() {
+  if ping -c 2 -W 2 $NGINX_IP &> /dev/null; then
+    if curl --output /dev/null --silent --head --fail "$BASE_URL"; then
+      echo "Nginx url ✅ $BASE_URL"
+    else
+      echo "Nginx url ⛔ $BASE_URL is NOT accessible."
+      exit 1
+    fi
+  else
+    echo "$NGINX_IP ⛔ is not responding. Houston, we have a problem."
+    exit 1
+  fi
+}
+
+# Function to generate the token
+generate_token() {
+  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
+
+  token=$(echo $response | jq -r '.token')
+  expires=$(echo $response | jq -r '.expires')
+
+  if [ "$token" != "null" ]; then
+    echo $token > $TOKEN_FILE
+    echo $expires > $EXPIRY_FILE
+    echo "Token: $token"
+    echo "Expiry: $expires"
+  else
+    echo -e "${COLOR_RED}Error generating token.${COLOR_RESET}"
+    exit 1
+  fi
+}
+
+# Function to validate the token
+validate_token() {
+  if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
+    return 1
+  fi
+
+  token=$(cat $TOKEN_FILE)
+  expires=$(cat $EXPIRY_FILE)
+  current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  if [[ "$current_time" < "$expires" ]]; then
+    echo -e " ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
+    return 0
+  else
+    echo -e " ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+    return 1
+  fi
+}
+
+# Check if Nginx is accessible
+check_nginx_access
+
+# Check if the token file exists
+if ! validate_token; then
+  echo "No valid token found. Generating a new token..."
+  generate_token
+fi
+
 # Check required parameters for displaying help
 if [ -z "$DOMAIN_NAMES" ] && ! $CREATE_USER && ! $DELETE_USER && ! $DELETE_HOST && ! $LIST_HOSTS && ! $LIST_HOSTS_FULL && ! $LIST_SSL_CERTIFICATES && ! $LIST_USERS && ! $SEARCH_HOST; then
   usage
 fi
-
-###################################################
 
 # Function to check if proxy host exists
 check_existing_proxy_host() {
@@ -249,22 +251,24 @@ check_existing_proxy_host() {
   EXISTING_HOST=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
 
   if [ -n "$EXISTING_HOST" ]; then
-    echo "Proxy host for $DOMAIN_NAMES already exists."
-    read -p "Do you want to update it with the new configuration? (y/n): " -r
+    echo -e "\n 🔔 Proxy host for $DOMAIN_NAMES already exists.${COLOR_GREEN}"
+    read -p " Do you want to update it with the new configuration? (y/n): " -r
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id')
       update_proxy_host $HOST_ID
     else
-      echo "No changes made."
+      echo -e "${COLOR_RESET} No changes made."
       exit 0
     fi
+  else
+    create_new_proxy_host
   fi
 }
 
 # Function to update a proxy host
 update_proxy_host() {
   HOST_ID=$1
-  echo "Updating proxy host for $DOMAIN_NAMES..."
+  echo -e "\n Updating proxy host for $DOMAIN_NAMES..."
   DATA='{
     "domain_names": ["'"$DOMAIN_NAMES"'"],
     "forward_host": "'"$FORWARD_HOST"'",
@@ -287,29 +291,19 @@ update_proxy_host() {
     "locations": []
   }'
 
-  echo "Data sent: $DATA"
-
   RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
   -H "Content-Type: application/json; charset=UTF-8" \
   --data-raw "$DATA")
-  echo "Response from updating proxy host: $RESPONSE"
-  echo "$RESPONSE" | jq
+  if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+    echo -e " ${COLOR_GREEN}Proxy host updated successfully!${COLOR_RESET} ✅"
+  else
+    echo -e " ${COLOR_RED}Failed to update proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  fi
 }
 
-# Function to create a proxy host
-create_proxy_host() {
-  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
-    echo "The -d, -i, and -p options are required to create a proxy host."
-    usage
-  fi
-  if $LETS_ENCRYPT_AGREE && [ -z "$LETS_ENCRYPT_EMAIL" ]; then
-    echo "The -m option is required when -e is true."
-    usage
-  fi
-
-  check_existing_proxy_host
-
+# Function to create a new proxy host
+create_new_proxy_host() {
   echo "Creating proxy host for $DOMAIN_NAMES..."
   DATA='{
     "domain_names": ["'"$DOMAIN_NAMES"'"],
@@ -333,14 +327,29 @@ create_proxy_host() {
     "locations": []
   }'
 
-  echo "Data sent: $DATA"
-
   RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
   -H "Content-Type: application/json; charset=UTF-8" \
   --data-raw "$DATA")
-  echo "Response from creating proxy host: $RESPONSE"
-  echo "$RESPONSE" | jq
+  if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+    echo -e " ${COLOR_GREEN}Proxy host created successfully!${COLOR_RESET} ✅"
+  else
+    echo -e " ${COLOR_RED}Failed to create proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  fi
+}
+
+# Function to create or update a proxy host
+create_or_update_proxy_host() {
+  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
+    echo "The -d, -i, and -p options are required to create or update a proxy host."
+    usage
+  fi
+  if $LETS_ENCRYPT_AGREE && [ -z "$LETS_ENCRYPT_EMAIL" ]; then
+    echo "The -m option is required when -e is true."
+    usage
+  fi
+
+  check_existing_proxy_host
 }
 
 # Function to delete a proxy host
@@ -349,11 +358,14 @@ delete_proxy_host() {
     echo "The --delete-host option requires a host ID."
     usage
   fi
-  echo "Deleting proxy host ID: $HOST_ID..."
+  echo " Deleting proxy host ID: $HOST_ID..."
   RESPONSE=$(curl -s -X DELETE "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-  echo "Response from deleting proxy host: $RESPONSE"
-  echo "$RESPONSE" | jq
+  if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+    echo -e " ${COLOR_GREEN}Proxy host deleted successfully!${COLOR_RESET} ✅"
+  else
+    echo -e " ${COLOR_RED}Failed to delete proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  fi
 }
 
 # Function to list all proxy hosts (simple)
@@ -362,12 +374,12 @@ list_proxy_hosts() {
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
-  echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names[])"' | awk '{ printf "  id: \033[33m%-4s\033[0m \033[32m%s\033[0m\n", $1, $2 }'
+ echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names[])"' | awk -v yellow="$COLOR_YELLOW" -v green="$COLOR_GREEN" -v reset="$COLOR_RESET" '{ printf "  id: " yellow "%-4s" reset " " green "%s" reset "\n", $1, $2 }'
 }
 
 # Function to list all proxy hosts with full details
 list_proxy_hosts_full() {
-  echo "List of proxy hosts with full details..."
+  echo -e "\n${COLOR_ORANGE} List of proxy hosts with full details...${COLOR_RESET}\n"
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
@@ -375,14 +387,11 @@ list_proxy_hosts_full() {
     domain_names=$(echo "$line" | jq -r '.domain_names[]')
     advanced_config=$(echo "$line" | jq -r '.advanced_config')
 
-    # Colorize domain names in green
-    echo -e "\033[32m$domain_names\033[0m"
-
-    # Colorize IPs in yellow without overlap
+    echo -e "${COLOR_GREEN}$domain_names${COLOR_RESET}"
     echo -e "$advanced_config" | awk '{
-      gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/, "\033[33m&\033[0m");
+      gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/, "'${COLOR_ORANGE}'&'${COLOR_RESET}'");
       print
-    }' | sed 's/^/ /'  # Indentation of each line
+    }' | sed 's/^/ /'
     echo
   done
 }
@@ -401,7 +410,7 @@ search_proxy_host() {
     advanced_config=$(echo "$line" | jq -r '.advanced_config')
 
     echo "domain_names: $domain_names"
-    echo "$advanced_config" | sed 's/^/ /'  # Indentation of each line
+    echo "$advanced_config" | sed 's/^/ /'
     echo
   done
 }
@@ -437,8 +446,11 @@ create_user() {
     "password": "'"$PASSWORD"'",
     "roles": ["user"]
   }')
-  echo "Response from creating user: $RESPONSE"
-  echo "$RESPONSE" | jq
+  if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+    echo -e " ${COLOR_GREEN}User created successfully!${COLOR_RESET} ✅"
+  else
+    echo -e " ${COLOR_RED}Failed to create user. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  fi
 }
 
 # Function to delete a user
@@ -454,8 +466,11 @@ delete_user() {
   if [ -n "$USER_ID" ]; then
     RESPONSE=$(curl -s -X DELETE "$BASE_URL/users/$USER_ID" \
     -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-    echo "Response from deleting user: $RESPONSE"
-    echo "$RESPONSE" | jq
+    if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+      echo -e " ${COLOR_GREEN}User deleted successfully!${COLOR_RESET} ✅"
+    else
+      echo -e " ${COLOR_RED}Failed to delete user. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+    fi
   else
     echo "User not found: $USERNAME"
   fi
@@ -479,5 +494,5 @@ elif [ "$LIST_USERS" = true ]; then
 elif [ "$SEARCH_HOST" = true ]; then
   search_proxy_host
 else
-  create_proxy_host
+  create_or_update_proxy_host
 fi
