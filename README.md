@@ -4,11 +4,11 @@
 
 _by Erreur32_
 
-🛠️  This BASH script allows you to manage Nginx Proxy Manager via the API.
+🛠️ This BASH script allows you to manage Nginx Proxy Manager via the API.
 
-🔑  it generates and manages the TOKENS automatically and check validity !! no more worries about that ;)
+🔑 It automatically generates and manages the tokens, ensuring their validity, so you don't have to worry about token expiration.
 
-⚙️ It provides functionalities such as creating/deleting proxy hosts, managing users, and displaying configurations and more.
+⚙️ It provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, and more.
 
 Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations.
 
