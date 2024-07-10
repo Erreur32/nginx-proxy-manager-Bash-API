@@ -3,7 +3,7 @@
 
 _by Erreur32_
 
-🛠️  This script allows you to manage Nginx Proxy Manager via the API.
+🛠️  This BASH script allows you to manage Nginx Proxy Manager via the API.
 
 🔑  it generates and manages the TOKENS automatically and check validity !! no more worries about that ;)
 
