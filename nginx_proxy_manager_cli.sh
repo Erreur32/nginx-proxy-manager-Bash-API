@@ -36,8 +36,9 @@ WHITE_ON_GREEN="\033[97m\033[42m"
 # API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
 API_ENDPOINT="/tokens"
-EXPIRY_FILE="expiry.txt"
-TOKEN_FILE="token.txt"
+EXPIRY_FILE="expiry_${NGINX_IP}.txt"
+TOKEN_FILE="token_${NGINX_IP}.txt"
+# Change Time velidity here
 TOKEN_EXPIRY="1y"
 
 # Default variables
