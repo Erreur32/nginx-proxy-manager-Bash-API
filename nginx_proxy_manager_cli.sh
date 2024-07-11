@@ -213,6 +213,7 @@ generate_token() {
     echo "Expiry: $expires"
   else
     echo -e "${COLOR_RED}Error generating token.${COLOR_RESET}"
+		echo -e "Check your [user] and [pass] and [IP]"
     exit 1
   fi
 }
