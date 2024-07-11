@@ -4,7 +4,7 @@
 # Nginx Proxy Manager CLI Script
 # Erreur32 - July 2024
 #
-# This script allows you to manage Nginx Proxy Manager via l'API. It provides
+# This script allows you to manage Nginx Proxy Manager via the API. It provides
 # functionalities such as creating proxy hosts, managing users, and displaying
 # configurations.
 #
@@ -26,18 +26,12 @@ API_PASS="pass nginx"
 
 ################################
 # Colors
-#COLOR_GREEN="\e[32m"
-#COLOR_RED="\e[41;1m"
-#COLOR_ORANGE="\e[38;5;202m"
-#COLOR_YELLOW="\e[93m"
-#COLOR_RESET="\e[0m"
-
 COLOR_GREEN="\033[32m"
 COLOR_RED="\033[41;1m"
 COLOR_ORANGE="\033[38;5;202m"
 COLOR_YELLOW="\033[93m"
 COLOR_RESET="\033[0m"
-
+WHITE_ON_GREEN="\033[97m\033[42m"
 
 # API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
@@ -67,6 +61,8 @@ LIST_HOSTS_FULL=false
 LIST_SSL_CERTIFICATES=false
 LIST_USERS=false
 SEARCH_HOST=false
+ENABLE_HOST=false
+DISABLE_HOST=false
 
 # Check if necessary dependencies are installed
 check_dependencies() {
@@ -84,7 +80,7 @@ check_dependencies
 
 # Display help
 usage() {
-  echo -e "\n${COLOR_YELLOW}Usage: $0 -d domain -i ip -p port [-f forward_scheme] [-s ssl_forced] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-h http2_support] [-a advanced_config] [-e lets_encrypt_agree] [-m lets_encrypt_email] [-n dns_challenge] [-t token_expiry] [--create-user username password] [--delete-user username] [--delete-host id] [--list-hosts] [--list-hosts-full] [--list-ssl-certificates] [--list-users] [--search-host hostname] [--help]${COLOR_RESET}"
+  echo -e "\n${COLOR_YELLOW}Usage: $0 -d domain -i ip -p port [-f forward_scheme] [-s ssl_forced] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-h http2_support] [-a advanced_config] [-e lets_encrypt_agree] [-m lets_encrypt_email] [-n dns_challenge] [-t token_expiry] [--create-user username password] [--delete-user username] [--delete-host id] [--list-hosts] [--list-hosts-full] [--list-ssl-certificates] [--list-users] [--search-host hostname] [--enable-host id] [--disable-host id] [--help]${COLOR_RESET}"
   echo ""
   echo -e "Examples:"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -s true"
@@ -114,6 +110,8 @@ usage() {
   echo -e "  --list-ssl-certificates    List all SSL certificates"
   echo -e "  --list-users               List all users"
   echo -e "  --search-host hostname     Search for a proxy host by domain name"
+  echo -e "  --enable-host id           Enable a proxy host by ID"
+  echo -e "  --disable-host id          Disable a proxy host by ID"
   echo -e "  --help                     Display this help"
   echo
   exit 0
@@ -169,6 +167,14 @@ while getopts "d:i:p:f:s:c:b:w:h:a:e:m:n:t:-:" opt; do
         search-host)
           SEARCH_HOST=true
           SEARCH_HOSTNAME="${!OPTIND}"; shift
+          ;;
+        enable-host)
+          ENABLE_HOST=true
+          HOST_ID="${!OPTIND}"; shift
+          ;;
+        disable-host)
+          DISABLE_HOST=true
+          HOST_ID="${!OPTIND}"; shift
           ;;
         *) echo "Unknown option --${OPTARG}" ; usage ;;
       esac ;;
@@ -240,7 +246,7 @@ if ! validate_token; then
 fi
 
 # Check required parameters for displaying help
-if [ -z "$DOMAIN_NAMES" ] && ! $CREATE_USER && ! $DELETE_USER && ! $DELETE_HOST && ! $LIST_HOSTS && ! $LIST_HOSTS_FULL && ! $LIST_SSL_CERTIFICATES && ! $LIST_USERS && ! $SEARCH_HOST; then
+if [ -z "$DOMAIN_NAMES" ] && ! $CREATE_USER && ! $DELETE_USER && ! $DELETE_HOST && ! $LIST_HOSTS && ! $LIST_HOSTS_FULL && ! $LIST_SSL_CERTIFICATES && ! $LIST_USERS && ! $SEARCH_HOST && ! $ENABLE_HOST && ! $DISABLE_HOST; then
   usage
 fi
 
@@ -352,6 +358,7 @@ create_or_update_proxy_host() {
   check_existing_proxy_host
 }
 
+
 # Function to delete a proxy host
 delete_proxy_host() {
   if [ -z "$HOST_ID" ]; then
@@ -369,13 +376,40 @@ delete_proxy_host() {
 }
 
 # Function to list all proxy hosts (simple)
-list_proxy_hosts() {
+list_proxy_hosts_old() {
   echo "List of proxy hosts..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
- echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names[])"' | awk -v yellow="$COLOR_YELLOW" -v green="$COLOR_GREEN" -v reset="$COLOR_RESET" '{ printf "  id: " yellow "%-4s" reset " " green "%s" reset "\n", $1, $2 }'
+  echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled)"' | while read -r id domain enabled; do
+    if [ "$enabled" = "true" ]; then
+      status="${COLOR_GREEN}enabled${COLOR_RESET}"
+    else
+#      status="${COLOR_RED}disabled${COLOR_RESET}"
+                         status="disabled"
+    fi
+
+    printf "  id: ${COLOR_YELLOW}%-4s${COLOR_RESET} ${COLOR_GREEN}%-40s${COLOR_RESET} %b\n" "$id" "$domain" "$status"
+  done
 }
+
+# Function to list all proxy hosts (simple)
+list_proxy_hosts() {
+  echo -e "\n${COLOR_ORANGE} List of proxy hosts (simple)${COLOR_RESET}"
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled)"' | while read -r id domain enabled; do
+    if [ "$enabled" -eq 1 ]; then
+      status="[${WHITE_ON_GREEN}enabled ${COLOR_RESET}]"
+    else
+      status="[${COLOR_RED}disabled${COLOR_RESET}]"
+    fi
+
+    printf "  id: ${COLOR_YELLOW}%-4s${COLOR_RESET} ${COLOR_GREEN}%-20s${COLOR_RESET} %b\n" "$id" "$domain" "$status"
+  done
+}
+
 
 # Function to list all proxy hosts with full details
 list_proxy_hosts_full() {
@@ -383,18 +417,43 @@ list_proxy_hosts_full() {
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
+# Parcourt chaque élément du tableau JSON et l'affiche
+echo "$RESPONSE" | jq -c '.[]' | while read -r proxy; do
+  echo "$proxy" | jq .
+done
+
+#  echo "$RESPONSE" | jq -c '.[]' | while IFS= read -r line; do
+#    domain_names=$(echo "$line" | jq -r '.domain_names[]')
+#    advanced_config=$(echo "$line" | jq -r '.advanced_config')
+#
+#    echo -e "${COLOR_GREEN}$domain_names${COLOR_RESET}"
+#    echo -e "$advanced_config" | awk '{
+#      gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/, "'${COLOR_ORANGE}'&'${COLOR_RESET}'");
+#      print
+#    }' | sed 's/^/ /'
+#    echo
+#  done
+}
+
+# todo
+list_proxy_hosts_advanced() {
+  echo -e "\n${COLOR_ORANGE} List of proxy hosts with full details...${COLOR_RESET}\n"
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   echo "$RESPONSE" | jq -c '.[]' | while IFS= read -r line; do
     domain_names=$(echo "$line" | jq -r '.domain_names[]')
     advanced_config=$(echo "$line" | jq -r '.advanced_config')
 
     echo -e "${COLOR_GREEN}$domain_names${COLOR_RESET}"
     echo -e "$advanced_config" | awk '{
-      gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/, "'${COLOR_ORANGE}'&'${COLOR_RESET}'");
+     gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/, "'${COLOR_ORANGE}'&'${COLOR_RESET}'");
       print
     }' | sed 's/^/ /'
     echo
   done
 }
+
+
 
 # Function to search for a proxy host and display details if found
 search_proxy_host() {
@@ -402,7 +461,7 @@ search_proxy_host() {
     echo "The --search-host option requires a domain name."
     usage
   fi
-  echo "Searching for proxy host for $SEARCH_HOSTNAME..."
+  echo -e "\n Searching for proxy host for $SEARCH_HOSTNAME..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
@@ -410,10 +469,9 @@ search_proxy_host() {
     id=$(echo "$line" | jq -r '.id')
     domain_names=$(echo "$line" | jq -r '.domain_names[]')
 
-    echo -e "id: ${COLOR_YELLOW}$id${COLOR_RESET} ${COLOR_GREEN}$domain_names${COLOR_RESET}"
+    echo -e " id: ${COLOR_YELLOW}$id${COLOR_RESET} ${COLOR_GREEN}$domain_names${COLOR_RESET}"
   done
 }
-
 
 # Function to list all SSL certificates
 list_ssl_certificates() {
@@ -476,6 +534,40 @@ delete_user() {
   fi
 }
 
+# Function to enable a proxy host
+enable_proxy_host() {
+  if [ -z "$HOST_ID" ]; then
+    echo "The --enable-host option requires a host ID."
+    usage
+  fi
+  echo " Enabling proxy host ID: $HOST_ID..."
+  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID/enable" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+  -H "Content-Type: application/json; charset=UTF-8")
+  if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+    echo -e " ${COLOR_GREEN}Proxy host enabled successfully!${COLOR_RESET} ✅"
+  else
+    echo -e " ${COLOR_RED}Failed to enable proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  fi
+}
+
+# Function to disable a proxy host
+disable_proxy_host() {
+  if [ -z "$HOST_ID" ]; then
+    echo "The --disable-host option requires a host ID."
+    usage
+  fi
+  echo " Disabling proxy host ID: $HOST_ID..."
+  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID/disable" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+  -H "Content-Type: application/json; charset=UTF-8")
+  if [ $(echo "$RESPONSE" | jq -r '.error | length') -eq 0 ]; then
+    echo -e " ${COLOR_GREEN}Proxy host disabled successfully!${COLOR_RESET} ✅"
+  else
+    echo -e " ${COLOR_RED}Failed to disable proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  fi
+}
+
 # Call functions based on options
 if [ "$CREATE_USER" = true ]; then
   create_user
@@ -493,6 +585,10 @@ elif [ "$LIST_USERS" = true ]; then
   list_users
 elif [ "$SEARCH_HOST" = true ]; then
   search_proxy_host
+elif [ "$ENABLE_HOST" = true ]; then
+  enable_proxy_host
+elif [ "$DISABLE_HOST" = true ]; then
+  disable_proxy_host
 else
   create_or_update_proxy_host
 fi
