@@ -27,7 +27,7 @@ wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-API/main/ngi
 chmod +x nginx_proxy_manager_cli.sh
 ```
 
-## Settings:
+## Settings
 Only edit these 3 variables:
 
 ```
@@ -38,12 +38,12 @@ API_USER="existingUser@mail.com"
 API_PASS="password"
 ```
 
-## Usage:
+## Usage
 ```bash
 ./nginx_proxy_manager_cli.sh [OPTIONS]
 ```
 
-## Options:
+## Options
 ```tcl
    -d DOMAIN_NAMES                  Domain name (required)
    -i FORWARD_HOST                  IP address or domain name of the target server (required)
@@ -67,7 +67,7 @@ API_PASS="password"
    --help                           Display this help
 ```
 
-## Examples:
+## Examples
 ```bash
 ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -s true
 ./nginx_proxy_manager_cli.sh --create-user newuser password123
@@ -77,5 +77,6 @@ API_PASS="password"
 ![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-script.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-script.png)
 
 ## TODO:
-- add setting for ADVANCED configuration in `location / { ... }`
- 
+- [x] add setting for ADVANCED configuration in `location / { ... }`
+- [ ] Need some documentation
+- [ ] SSL check
