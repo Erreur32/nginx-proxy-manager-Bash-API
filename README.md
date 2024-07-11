@@ -79,4 +79,6 @@ API_PASS="password"
 ## TODO:
 - [x] add setting for ADVANCED configuration in `location / { ... }`
 - [ ] Add documentation on certain functions
-- [ ] SSL check
+- [ ] Domain TLS check validity
+- [ ] ADD: a configuration function for Custom Locations
+- [ ] Backup / Export  all settings from NPM
