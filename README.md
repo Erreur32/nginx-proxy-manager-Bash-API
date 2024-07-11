@@ -12,7 +12,7 @@ _by Erreur32_
 
 Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations.
 
-## Prérequis
+## Prerequisites
 
 - `curl`
 - `jq`
