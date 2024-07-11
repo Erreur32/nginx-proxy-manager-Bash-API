@@ -24,6 +24,7 @@ NGINX_IP="127.0.0.1"
 API_USER="user@nginx"
 API_PASS="pass nginx"
 
+
 ################################
 # Colors
 COLOR_GREEN="\033[32m"
