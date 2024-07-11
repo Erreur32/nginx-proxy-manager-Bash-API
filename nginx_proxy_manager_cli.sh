@@ -376,24 +376,6 @@ delete_proxy_host() {
 }
 
 # Function to list all proxy hosts (simple)
-list_proxy_hosts_old() {
-  echo "List of proxy hosts..."
-  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-
-  echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled)"' | while read -r id domain enabled; do
-    if [ "$enabled" = "true" ]; then
-      status="${COLOR_GREEN}enabled${COLOR_RESET}"
-    else
-#      status="${COLOR_RED}disabled${COLOR_RESET}"
-                         status="disabled"
-    fi
-
-    printf "  id: ${COLOR_YELLOW}%-4s${COLOR_RESET} ${COLOR_GREEN}%-40s${COLOR_RESET} %b\n" "$id" "$domain" "$status"
-  done
-}
-
-# Function to list all proxy hosts (simple)
 list_proxy_hosts() {
   echo -e "\n${COLOR_ORANGE} List of proxy hosts (simple)${COLOR_RESET}"
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
@@ -401,7 +383,7 @@ list_proxy_hosts() {
 
   echo "$RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled)"' | while read -r id domain enabled; do
     if [ "$enabled" -eq 1 ]; then
-      status="[${WHITE_ON_GREEN}enabled ${COLOR_RESET}]"
+      status="[${WHITE_ON_GREEN}enabled${COLOR_RESET}]"
     else
       status="[${COLOR_RED}disabled${COLOR_RESET}]"
     fi
