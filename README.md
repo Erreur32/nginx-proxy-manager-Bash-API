@@ -74,7 +74,7 @@ API_PASS="password"
 ./nginx_proxy_manager_cli.sh --list-hosts
 ```
 
-![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/nginx-proxy-script.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/nginx-proxy-script.png)
+![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-script.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-script.png)
 
 ## TODO:
 - add setting for ADVANCED configuration in `location / { ... }`
