@@ -31,7 +31,7 @@ chmod +x nginx_proxy_manager_cli.sh
 Only edit these 3 variables:
 
 ```
-## IP address of the Nginx server (your Nginx server IP)
+## Nginx proxy IP address (your Nginx IP)
 NGINX_IP="127.0.0.1"
 ## Existing user (user and password) on NPM
 API_USER="existingUser@mail.com"
