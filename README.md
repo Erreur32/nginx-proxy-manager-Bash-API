@@ -78,5 +78,5 @@ API_PASS="password"
 
 ## TODO:
 - [x] add setting for ADVANCED configuration in `location / { ... }`
-- [ ] Need some documentation
+- [ ] Add documentation on certain functions
 - [ ] SSL check
