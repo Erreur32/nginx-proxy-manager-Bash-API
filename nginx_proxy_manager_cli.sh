@@ -18,7 +18,7 @@
 #   ./nginx_proxy_manager_cli.sh --backup
 #
 # Advanced proxy tab example:
-#   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a "proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+#   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 #
 # Options:
 #   -d DOMAIN_NAMES            Domain name (required for creating/updating hosts)
@@ -131,7 +131,7 @@ usage() {
   echo -e "  ./nginx_proxy_manager_cli.sh --delete-user 'username'"
   echo -e "  ./nginx_proxy_manager_cli.sh --list-hosts"
   echo -e " Advanced example:"
-  echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;'"
+  echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'"
   echo ""
   echo -e "Options:"
   echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}            Domain name (${COLOR_RED}required${COLOR_RESET})"
