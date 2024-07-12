@@ -282,9 +282,9 @@ fi
 check_nginx_access() {
   if ping -c 2 -W 2 $NGINX_IP &> /dev/null; then
     if curl --output /dev/null --silent --head --fail "$BASE_URL"; then
-      echo -e "\n  ✅ Nginx url: $BASE_URL"
+      echo -e "\n ✅ Nginx url: $BASE_URL"
     else
-      echo -e "\n  ⛔ Nginx url ⛔ $BASE_URL is NOT accessible."
+      echo -e "\n ⛔ Nginx url ⛔ $BASE_URL is NOT accessible."
       exit 1
     fi
   else
