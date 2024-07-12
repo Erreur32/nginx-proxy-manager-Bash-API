@@ -50,16 +50,20 @@
 #   --help                     Display this help
 
 
-# Variables to edit (required)
+################################
+# Variables to Edit (required) #
+################################
+
 NGINX_IP="127.0.0.1"
 # Existing nginx user
 API_USER="user@nginx"
 API_PASS="pass nginx"
 
 
-####################
-# Edit (optionnal) #
-####################
+#################################
+# Variables to Edit (optionnal) #
+#################################
+
 BACKUP_DIR="./backups"
 DATE=$(date +"%Y%m%d%H%M%S")
 BACKUP_FILE="$BACKUP_DIR/backup_${NGINX_IP//./_}_$DATE.json"
