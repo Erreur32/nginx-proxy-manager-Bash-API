@@ -11,7 +11,7 @@
 #   ./nginx_proxy_manager_cli.sh [OPTIONS]
 #
 # Examples:
-#   Backup Frist !
+#   Backup First !
 #   ./nginx_proxy_manager_cli.sh --backup
 #
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
