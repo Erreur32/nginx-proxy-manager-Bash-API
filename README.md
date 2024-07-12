@@ -88,8 +88,7 @@ API_PASS="password"
    ./nginx_proxy_manager_cli.sh --backup
 
  Advanced proxy tab example:
-	 ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
-
+   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 ```
 
 ![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-script.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-script.png)
