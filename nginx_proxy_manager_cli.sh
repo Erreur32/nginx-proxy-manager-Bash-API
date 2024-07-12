@@ -837,7 +837,7 @@ show_host() {
 
 # Display default settings for creating hosts
 show_default() {
-  echo -e "\n 🛠 ${COLOR_YELLOW}Default settings for creating hosts (Changed to your needs):${COLOR_RESET}"
+  echo -e "\n 🛠 ${COLOR_YELLOW}Default settings for creating hosts (change according to your needs):${COLOR_RESET}"
   echo -e "  - FORWARD_SCHEME: ${COLOR_ORANGE}${FORWARD_SCHEME}${COLOR_RESET}"
   echo -e "  - SSL_FORCED: ${COLOR_ORANGE}${SSL_FORCED}${COLOR_RESET}"
   echo -e "  - CACHING_ENABLED: ${COLOR_ORANGE}${CACHING_ENABLED}${COLOR_RESET}"
