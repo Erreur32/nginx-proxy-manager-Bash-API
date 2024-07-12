@@ -8,9 +8,9 @@ _by Erreur32_
 
 🔑 Automatically generates and manages the tokens, ensuring their validity, so you don't have to worry about token expiration.
 
-⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, and more.
+⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, BACKUP! and more.
 
-Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations.
+Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
 
 ## Prerequisites
 
@@ -78,7 +78,7 @@ API_PASS="password"
 
 ## TODO:
 - [x] add setting for ADVANCED configuration in `location / { ... }`
-- [x ] Add documentation on certain functions
+- [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
 - [x] Backup / Export  all settings from NPM
 - [ ] Domain TLS check validity
