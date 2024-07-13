@@ -112,7 +112,53 @@ This command will show the full details of the proxy host with ID *10*, includin
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
+You should now see the parameters activated: 
+  - "ssl_forced": 1,
+  - "letsencrypt_agree": true,
+  - "http2_support": 1
 
+```
+ ./nginx_proxy_manager_cli_.sh --show-host 10
+
+ ✅ Nginx url: http://127.0.0.1:81/api
+ ✅ The token is valid. Expiry: 2025-07-12T08:14:58.521Z
+
+ 👉 Full details for proxy host ID: 59...
+
+{
+  "id": 10,
+  "created_on": "2024-07-11 13:16:34",
+  "modified_on": "2024-07-13 09:42:40",
+  "owner_user_id": 1,
+  "domain_names": [
+    "test.domain.com"
+  ],
+  "forward_host": "127.0.0.1",
+  "forward_port": 80,
+  "access_list_id": 0,
+  "certificate_id": 81,
+  "ssl_forced": 1,
+  "caching_enabled": 0,
+  "block_exploits": 1,
+  "advanced_config": "",
+  "meta": {
+    "letsencrypt_agree": true,
+    "letsencrypt_email": "",
+    "nginx_online": true,
+    "nginx_err": null
+  },
+  "allow_websocket_upgrade": 1,
+  "http2_support": 1,
+  "forward_scheme": "http",
+  "enabled": 1,
+  "locations": [],
+  "hsts_enabled": 1,
+  "hsts_subdomains": 0
+}
+
+```
+
+ 
 ## Screens:
 ```
 # ./nginx_proxy_manager_cli.sh --backup
