@@ -1,14 +1,25 @@
 # Nginx Proxy Manager CLI Script
 
+## Table of Contents
+
+1. [Description](#description)
+2. [Reference API](#reference)
+3. [Prerequisites](#prerequisites)
+4. [Installation](#installation)
+5. [Settings](#settings)
+6. [Usage](#usage)
+7. [Options](#options)
+8. [Examples](#examples)
+9. [Screens](#screens)
+10. [TODO](#todo)
+
 ## Description
-
-
 
 🛠️ This BASH script enables the management of Nginx Proxy Manager through its API.
 
-🔑 Automatically generates and manages the tokens, ensuring their validity, so you don't have to worry about token expiration.
+🔑 Automatically generates and manages tokens, ensuring their validity, so you don't have to worry about token expiration.
 
-⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, BACKUP! and more.
+⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating BACKUPs, and more.
 
 Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
 
