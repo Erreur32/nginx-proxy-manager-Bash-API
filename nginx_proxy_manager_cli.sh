@@ -20,7 +20,8 @@
 #   ./nginx_proxy_manager_cli.sh --delete-user 'username'
 #   ./nginx_proxy_manager_cli.sh --list-hosts
 #
-#   ./nginx_proxy_manager_cli.sh --ssl-host-enable 32
+#   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom
+#   ./nginx_proxy_manager_cli.sh --ssl-host-enable 1
 #
 # Advanced proxy tab example:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
@@ -48,9 +49,9 @@
 #   --search-host hostname                Search for a proxy host by domain name
 #   --enable-host id                      Enable a proxy host by ID
 #   --disable-host id                     Disable a proxy host by ID
-#   --ssl-host-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host (don't need to generate a custom cert)
+#   --ssl-host-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host ( don't need to generate a custom cert. )
 #   --ssl-host-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-#   --generate-cert domain email          Generate a Let's Encrypt or Custom certificate for the given domain and email
+#   --generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email ( not finish )
 #   --help                                Display this help
 
 ################################
@@ -152,34 +153,35 @@ usage() {
   echo -e "\n  🔧 Advanced Example:"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;'"
   echo -e "  ./nginx_proxy_manager_cli.sh --ssl-host-enable 32"
+  echo -e "  ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom"
   echo -e ""
   echo -e "Options:"
   echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}                           Domain name (${COLOR_RED}required${COLOR_RESET})"
   echo -e "  -i ${COLOR_ORANGE}FORWARD_HOST${COLOR_RESET}                           IP address or domain name of the target server (${COLOR_RED}required${COLOR_RESET})"
   echo -e "  -p ${COLOR_ORANGE}FORWARD_PORT${COLOR_RESET}                           Port of the target server (${COLOR_RED}required${COLOR_RESET})"
-  echo -e "  -f FORWARD_SCHEME                         Scheme for forwarding (http/https, default: http)"
+  echo -e "  -f FORWARD_SCHEME                         Scheme for forwarding (http/https, default:  $(colorize_booleanh $FORWARD_SCHEME))"
   echo -e "  -c CACHING_ENABLED                        Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
   echo -e "  -b BLOCK_EXPLOITS                         Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
   echo -e "  -w ALLOW_WEBSOCKET_UPGRADE                Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
-  echo -e "  -a ADVANCED_CONFIG                        Advanced configuration (string)"
-  echo -e "  --backup                                  Backup all configurations to a file"
-  echo -e "  --check-token                             Check if the current token is valid"
-  echo -e "  --create-user user pass email             Create a user with a username, password and email"
-  echo -e "  --delete-user username                    Delete a user by username"
-  echo -e "  --delete-host id                          Delete a proxy host by ID"
-  echo -e "  --show-default                            Show default settings for creating hosts"
-  echo -e "  --show-host id                            Show full details for a specific host by ID"
-  echo -e "  --list-hosts                              List the names of all proxy hosts"
-  echo -e "  --list-hosts-full                         List all proxy hosts with full details"
-  echo -e "  --list-ssl-certificates                   List all SSL certificates"
-  echo -e "  --list-users                              List all users"
-  echo -e "  --search-host hostname                    Search for a proxy host by domain name"
-  echo -e "  --enable-host id                          Enable a proxy host by ID"
-  echo -e "  --disable-host id                         Disable a proxy host by ID"
-  echo -e "  --ssl-host-enable id                      Enable SSL, HTTP/2, and HSTS for a proxy host"
-  echo -e "  --ssl-host-disable id                     Disable SSL, HTTP/2, and HSTS for a proxy host"
-  echo -e "  --generate-cert domain email [--custom]   Generate a Let's Encrypt [or] Custom certificate for the given domain and email"
-  echo -e "  --help                                    Display this help"
+  echo -e "  -a ADVANCED_CONFIG                        Advanced configuration (${COLOR_YELLOW}string${COLOR_RESET})"
+  echo -e "  --backup                                  ${COLOR_GREEN}Backup${COLOR_RESET} all configurations to a differnts files in $BACKUP_DIR"
+  echo -e "  --check-token                             ${COLOR_YELLOW}Check${COLOR_RESET} if the current token is valid"
+  echo -e "  --create-user user pass email             ${COLOR_GREEN}Create${COLOR_RESET} a user with a ${COLOR_YELLOW}username, ${COLOR_YELLOW}password${COLOR_RESET} and ${COLOR_YELLOW}email${COLOR_RESET}"
+  echo -e "  --delete-user username                    ${COLOR_ORANGE}Delete${COLOR_RESET} a user by ${COLOR_YELLOW}username${COLOR_RESET}"
+  echo -e "  --delete-host id                          ${COLOR_ORANGE}Delete${COLOR_RESET} a proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --show-default                            ${COLOR_YELLOW}Show${COLOR_RESET} default settings for creating hosts"
+  echo -e "  --show-host id                            ${COLOR_YELLOW}Show${COLOR_RESET} full details for a specific host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --list-hosts                              ${COLOR_YELLOW}List${COLOR_RESET} the names of all proxy hosts"
+  echo -e "  --list-hosts-full                         ${COLOR_YELLOW}List${COLOR_RESET} all proxy hosts with full details"
+  echo -e "  --list-ssl-certificates                   ${COLOR_YELLOW}List${COLOR_RESET} all SSL certificates"
+  echo -e "  --list-users                              ${COLOR_YELLOW}List${COLOR_RESET} all users"
+  echo -e "  --search-host hostname                    ${COLOR_GREEN}Search${COLOR_RESET} for a proxy host by domain name"
+  echo -e "  --enable-host id                          ${COLOR_GREEN}Enable${COLOR_RESET} a proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --disable-host id                         ${COLOR_ORANGE}Disable${COLOR_RESET} a proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --ssl-host-enable id                      ${COLOR_GREEN}Enable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host ( Will generate Certificat auto if needed )"
+  echo -e "  --ssl-host-disable id                     ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
+  echo -e "  --generate-cert domain email [--custom]   Generate a Let's Encrypt [or] Custom certificate for the given domain and email ( don't use not finish )"
+  echo -e "  --help                                    ${COLOR_YELLOW}Display${COLOR_RESET} this help"
   echo
   exit 0
 }
@@ -192,6 +194,16 @@ colorize_boolean() {
   else
     echo -e "${COLOR_YELLOW}false${COLOR_RESET}"
   fi
+
+}
+colorize_booleanh() {
+  local value=$1
+  if [ "$value" = https ]; then
+    echo -e "${COLOR_GREEN}https${COLOR_RESET}"
+  else
+    echo -e "${COLOR_YELLOW}http${COLOR_RESET}"
+  fi
+
 }
 
 # Parse options
