@@ -56,7 +56,6 @@ API_PASS="password"
    -b BLOCK_EXPLOITS               Block exploits (true/false, default: true)
    -w ALLOW_WEBSOCKET_UPGRADE      Allow WebSocket upgrade (true/false, default: true)
    -a ADVANCED_CONFIG              Advanced configuration (block of configuration settings)
-   -t TOKEN_EXPIRY                 Token expiry duration (default: 1y)
    --backup                        Backup all configurations to a file
    --check-token                   Check if the current token is valid
    --create-user user pass email   Create a user with a username, password and email
