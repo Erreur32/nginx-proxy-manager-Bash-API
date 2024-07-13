@@ -118,6 +118,14 @@ This command will show the full details of the proxy host with ID *1*, including
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
+```
+# ./nginx_proxy_manager_cli.sh --backup
+
+ ✅ Nginx url: http://192.168.1.200:81/api
+ ✅ The token is valid. Expiry: 2025-07-12T08:14:58.521Z
+ ✅ Full backup completed successfully in 📂 './backups'
+
+```
 
 ![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-default.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-default.png)
 
