@@ -4,7 +4,7 @@
 
 
 
-🛠️ This BASH script allows you to manage Nginx Proxy Manager via the API.
+🛠️ This BASH script enables the management of Nginx Proxy Manager through its API.
 
 🔑 Automatically generates and manages the tokens, ensuring their validity, so you don't have to worry about token expiration.
 
