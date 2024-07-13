@@ -17,7 +17,7 @@ Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctio
 
 ## Prerequisites
 
-Of course  NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
+And of course the excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
 
 and simple dependencies:
 
