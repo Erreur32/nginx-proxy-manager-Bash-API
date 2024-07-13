@@ -100,13 +100,13 @@ API_PASS="password"
 ```
  
 
-### Enable SSL for the Host:
+#### Enable SSL for the Host:
 
   Assuming the host ID is *10*, you would enable SSL for the host as follows:
 
     ./nginx_proxy_manager_cli.sh --ssl-host-enable 10
 
-### Verifying the Configuration
+#### Verifying the Configuration
 
   After running the above commands, you can verify the SSL configuration by checking the details of the proxy host.
 
