@@ -71,8 +71,7 @@ API_PASS="password"
    --search-host hostname          Search for a proxy host by domain name
    --enable-host id                Enable a proxy host by ID
    --disable-host id               Disable a proxy host by ID
-   --generate-cert domain email    Generate a Let's Encrypt certificate for the given domain and email
-   --ssl-host-enable id            Enable SSL, HTTP/2, and HSTS for a proxy host (need --generate-cert first)
+   --ssl-host-enable id            Enable SSL, HTTP/2, and HSTS for a proxy host (will generate let's encrypt certif auto)
    --ssl-host-disable id           Disable SSL, HTTP/2, and HSTS for a proxy host
    --help                          Display this help
 
