@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx Proxy Manager CLI Script
+# Nginx Proxy Manager CLI Script  v0.0.2
 # Erreur32 - July 2024
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
