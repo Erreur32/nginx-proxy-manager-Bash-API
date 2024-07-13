@@ -2,7 +2,7 @@
 
 ## Description
 
-_by Erreur32_
+
 
 🛠️ This BASH script allows you to manage Nginx Proxy Manager via the API.
 
