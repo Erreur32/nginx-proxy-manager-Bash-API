@@ -15,11 +15,11 @@
 
 ## Description
 
-🛠️ This BASH script enables the management of Nginx Proxy Manager through its API.
+🛠️ This BASH script enables the management of ![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) through its **API**.
 
-🔑 Automatically generates and manages tokens, ensuring their validity, so you don't have to worry about token expiration.
+🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
-⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating BACKUPs, and more.
+⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating **BACKUPS**, and more.
 
 Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
 
