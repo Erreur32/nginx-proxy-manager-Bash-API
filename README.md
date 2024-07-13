@@ -130,8 +130,10 @@ By following these steps, you can enable SSL for your proxy host for the first t
 ![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-default.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-default.png)
 
 ## TODO:
-- [x] add setting for ADVANCED configuration in `location / { ... }`
+- [x] add setting for ADVANCED configuration in npm `location / { ... }`
 - [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
-- [x] Backup / Export  all settings from NPM
+- [x] Backup  all settings from NPM
+- [ ] Export  all settings from NPM 
 - [ ] Domain TLS check validity
+- [ ] Better Error Messages
