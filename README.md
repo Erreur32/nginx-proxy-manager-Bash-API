@@ -87,33 +87,28 @@ API_PASS="password"
    ./nginx_proxy_manager_cli.sh --delete-user 'username'
    ./nginx_proxy_manager_cli.sh --list-hosts
 
-   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com
-   ./nginx_proxy_manager_cli.sh --ssl-host-enable 1
+   ./nginx_proxy_manager_cli.sh --ssl-host-enable 10
+   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom (not finish)
 
  Advanced proxy tab example:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 
 ```
  
-# Procedure to Enable SSL for the First Time
 
-## Generate SSL Certificate:
+### Enable SSL for the Host:
 
-    ./nginx_proxy_manager_cli.sh --generate-cert example.com admin@example.com
+  Assuming the host ID is *10*, you would enable SSL for the host as follows:
 
-## Enable SSL for the Host:
+    ./nginx_proxy_manager_cli.sh --ssl-host-enable 10
 
-  Assuming the host ID is *1*, you would enable SSL for the host as follows:
-
-    ./nginx_proxy_manager_cli.sh --ssl-host-enable 1
-
-## Verifying the Configuration
+### Verifying the Configuration
 
   After running the above commands, you can verify the SSL configuration by checking the details of the proxy host.
 
-    ./nginx_proxy_manager_cli.sh --show-host 1
+    ./nginx_proxy_manager_cli.sh --show-host 10
 
-This command will show the full details of the proxy host with ID *1*, including whether SSL is enabled.
+This command will show the full details of the proxy host with ID *10*, including whether SSL is enabled.
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
