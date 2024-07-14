@@ -192,6 +192,6 @@ You should now see the parameters activated:
 - [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
 - [x] Backup  all settings from NPM
-- [ ] Export  all settings from NPM 
+- [ ] Export  all settings to NPM 
 - [ ] Domain TLS check validity
 - [ ] Better Error Messages
