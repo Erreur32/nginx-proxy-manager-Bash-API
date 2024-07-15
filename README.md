@@ -63,31 +63,40 @@ API_PASS="password"
 
 ## Options
 ```tcl
-   -d DOMAIN_NAMES                 Domain name (required for creating/updating hosts)
-   -i FORWARD_HOST                 IP address or domain name of the target server (required for creating/updating hosts)
-   -p FORWARD_PORT                 Port of the target server (required for creating/updating hosts)
-   -f FORWARD_SCHEME               Scheme for forwarding (http/https, default: http)
-   -c CACHING_ENABLED              Enable caching (true/false, default: false)
-   -b BLOCK_EXPLOITS               Block exploits (true/false, default: true)
-   -w ALLOW_WEBSOCKET_UPGRADE      Allow WebSocket upgrade (true/false, default: true)
-   -a ADVANCED_CONFIG              Advanced configuration (block of configuration settings)
-   --backup                        Backup all configurations to a file
-   --check-token                   Check if the current token is valid
-   --create-user user pass email   Create a user with a username, password and email
-   --delete-user username          Delete a user by username
-   --delete-host id                Delete a proxy host by ID
-   --show-host id                  Show full details for a specific host by ID
-   --show-default                  Show default settings for creating hosts
-   --list-hosts                    List the names of all proxy hosts
-   --list-hosts-full               List all proxy hosts with full details
-   --list-ssl-certificates         List all SSL certificates
-   --list-users                    List all users
-   --search-host hostname          Search for a proxy host by domain name
-   --enable-host id                Enable a proxy host by ID
-   --disable-host id               Disable a proxy host by ID
-   --ssl-host-enable id            Enable SSL, HTTP/2, and HSTS for a proxy host (will generate let's encrypt certif auto)
-   --ssl-host-disable id           Disable SSL, HTTP/2, and HSTS for a proxy host
-   --help                          Display this help
+🌐 Host proxy Domain creation: 
+   -d DOMAIN_NAMES                       Domain name (required for creating/updating hosts)
+   -i FORWARD_HOST                       IP address or domain name of the target server (required for creating/updating hosts)
+   -p FORWARD_PORT                       Port of the target server (required for creating/updating hosts)
+   -f FORWARD_SCHEME                     Scheme for forwarding (http/https, default: http)
+   -c CACHING_ENABLED                    Enable caching (true/false, default: false)
+   -b BLOCK_EXPLOITS                     Block exploits (true/false, default: true)
+   -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
+   -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
+
+ 📦 Backup and Restore:
+   --host-backup                         Backup all configurations to a file
+   --host-backup-id id                   Backup a single host configuration and its certificate (if exists)
+   --host-restore                        Restore configurations from a backup file
+   --host-restore-id id                  Restore a single host configuration and its certificate (if exists)
+
+ 🔧 Miscellaneous:
+   --host-check-token                    Check if the current token is valid
+   --host-create-user user pass email    Create a user with a username, password and email
+   --host-delete-user username           Delete a user by username
+   --host-delete id                      Delete a proxy host by ID
+   --host-show id                        Show full details for a specific host by ID
+   --host-show-default                   Show default settings for creating hosts
+   --host-list                           List the names of all proxy hosts
+   --host-list-full                      List all proxy hosts with full details
+   --host-list-ssl-certificates          List all SSL certificates
+   --host-list-users                     List all users
+   --host-search hostname                Search for a proxy host by domain name
+   --host-enable id                      Enable a proxy host by ID
+   --host-disable id                     Disable a proxy host by ID
+   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host (don't need to generate a custom cert.)
+   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
+   --host-generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email
+   --host-help                           Display this help
 
 ```
 
