@@ -26,7 +26,7 @@
 # 🔧 Advanced Example:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 #
-#		Custom Certificat:
+#   Custom Certificat:
 #   ./nginx_proxy_manager_cli.sh --host-generate-cert example.com user@example.com --custom
 #
 #   Custom locations:
@@ -160,23 +160,27 @@ usage() {
   echo -e "\n${COLOR_YELLOW}Usage: ./nginx_proxy_manager_cli.sh -d domain -i ip -p port [-f forward_scheme] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-a advanced_config] [-t token_expiry] [--host-create-user username password email] [--host-delete-user username] [--host-delete id] [--host-list] [--host-list-full] [--host-list-ssl-certificates] [--host-list-users] [--host-search hostname] [--host-enable id] [--host-disable id] [--host-check-token] [--host-backup] [--host-backup-id id] [--host-restore] [--host-restore-id id] [--host-generate-cert domain email [--custom]] [--host-ssl-enable id] [--host-ssl-disable id] [--host-show id] [--host-show-default] [--host-help]${COLOR_RESET}"
   echo ""
   echo -e "Examples:"
-  echo -e "\n  📦 Backup First before doing anything!"
+  echo -e "\n 📦 Backup First before doing anything!"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-backup"
-  echo -e "  ./nginx_proxy_manager_cli.sh --host-backup-id 1"
+  echo -e "  ./nginx_proxy_manager_cli.sh --host-backup-id 10"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-restore"
-  echo -e "  ./nginx_proxy_manager_cli.sh --host-restore-id 1"
-  echo -e "\n  🌐 Host Creation"
+  echo -e "  ./nginx_proxy_manager_cli.sh --host-restore-id 10"
+  echo -e "\n 🌐 Host Creation"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-show-default"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080"
+  echo -e "  ./nginx_proxy_manager_cli.sh --host-ssl-enable 10"
+  echo -e "  ./nginx_proxy_manager_cli.sh --host-show 10"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-list"
-  echo -e "  ./nginx_proxy_manager_cli.sh --host-show 1"
-  echo -e "\n  👤 User Management"
+  echo -e "\n 👤 User Management"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-create-user newuser password123 user@example.com"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-delete-user 'username'"
-  echo -e "\n  🔧 Advanced Example:"
+  echo -e "\n 🔧 Advanced Example:"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;'"
-  echo -e "  ./nginx_proxy_manager_cli.sh --host-ssl-enable 32"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-generate-cert example.com user@example.com --custom"
+  echo -e "\n 📁 Custom locations:"
+  echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{\"path\":\"/api\",\"forward_host\":\"192.168.1.11\",\"forward_port\":8081}]'"
+  echo -e "\n 🔖 Full option:"
+  echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{\"path\":\"/api\",\"forward_host\":\"192.168.1.11\",\"forward_port\":8081}]'"
   echo -e ""
   echo -e "Options:"
   echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}                           	 Domain name (${COLOR_RED}required${COLOR_RESET})"
@@ -208,7 +212,7 @@ usage() {
   echo -e "  --host-disable id                         	 ❌ ${COLOR_ORANGE}Disable${COLOR_RESET} Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
   echo -e "  --host-ssl-enable id                      	 🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Will generate Certificat auto if needed)"
   echo -e "  --host-ssl-disable id                          🔓 ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
-  echo -e "  --host-generate-cert domain email [--custom]   🛡️  ${COLOR_GREEN}Generate${COLOR_RESET} Custom certificate for the given domain and email (not finished yet)"
+  echo -e "  --host-generate-cert domain email [--custom]   🛡️  ${COLOR_GREEN}Generate${COLOR_RESET} Custom certificate for the given domain and email (Only for Custom certificat)"
   echo -e "  --host-help                               	 ℹ️  ${COLOR_YELLOW}Display${COLOR_RESET} This help"
   echo ""
   exit 0
