@@ -11,20 +11,27 @@
 #   ./nginx_proxy_manager_cli.sh [OPTIONS]
 #
 # Examples:
-#   📦 Backup First!
+#
+# 📦 Backup First!
 #   ./nginx_proxy_manager_cli.sh --host-backup
 #
-#   🌐 Host Creation:
+# 🌐 Host Creation:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
 #   ./nginx_proxy_manager_cli.sh --host-show-default
 #   ./nginx_proxy_manager_cli.sh --host-create-user newuser password123 user@example.com
 #   ./nginx_proxy_manager_cli.sh --host-delete-user 'username'
 #   ./nginx_proxy_manager_cli.sh --host-list
+#   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 #
-#   🔧 Advanced Example:
+# 🔧 Advanced Example:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
-#   ./nginx_proxy_manager_cli.sh --host-ssl-enable 1
+#
+#		Custom Certificat:
 #   ./nginx_proxy_manager_cli.sh --host-generate-cert example.com user@example.com --custom
+#
+#   Custom locations:
+#   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+#
 #
 # Options:
 #
@@ -36,6 +43,7 @@
 #   -c CACHING_ENABLED                    Enable caching (true/false, default: false)
 #   -b BLOCK_EXPLOITS                     Block exploits (true/false, default: true)
 #   -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
+#   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)"
 #   -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
 #
 # 📦 Backup and Restore:
@@ -85,6 +93,7 @@ BASE_URL="http://$NGINX_IP:81/api"
 API_ENDPOINT="/tokens"
 EXPIRY_FILE="expiry_${NGINX_IP}.txt"
 TOKEN_FILE="token_${NGINX_IP}.txt"
+# Set Token duration validity.
 TOKEN_EXPIRY="1y"
 
 # Default variables
@@ -177,6 +186,7 @@ usage() {
   echo -e "  -c CACHING_ENABLED                        	 Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
   echo -e "  -b BLOCK_EXPLOITS                         	 Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
   echo -e "  -w ALLOW_WEBSOCKET_UPGRADE                	 Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
+	echo -e "  -l CUSTOM_LOCATIONS                  			 Custom locations (${COLOR_YELLOW}JSON array${COLOR_RESET} of location objects)"
   echo -e "  -a ADVANCED_CONFIG                        	 Advanced configuration (${COLOR_YELLOW}string${COLOR_RESET})"
   echo ""
   echo -e "  --host-backup                            	 📦 ${COLOR_GREEN}Backup${COLOR_RESET}  All configurations to a different files in $BACKUP_DIR"
@@ -225,7 +235,7 @@ colorize_booleanh() {
 }
 
 # Parse options
-while getopts "d:i:p:f:c:b:w:a:t:-:" opt; do
+while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
   case $opt in
     d) DOMAIN_NAMES="$OPTARG" ;;
     i) FORWARD_HOST="$OPTARG" ;;
@@ -235,6 +245,7 @@ while getopts "d:i:p:f:c:b:w:a:t:-:" opt; do
     b) BLOCK_EXPLOITS="$OPTARG" ;;
     w) ALLOW_WEBSOCKET_UPGRADE="$OPTARG" ;;
     a) ADVANCED_CONFIG="$OPTARG" ;;
+    l) CUSTOM_LOCATIONS="$OPTARG" ;;
     -)
       case "${OPTARG}" in
         host-help) usage ;;
@@ -512,28 +523,34 @@ check_existing_proxy_host() {
 update_proxy_host() {
   HOST_ID=$1
   echo -e "\n 🌀 Updating proxy host for $DOMAIN_NAMES..."
+  
+  if [ -n "$CUSTOM_LOCATIONS" ]; then
+    CUSTOM_LOCATIONS_ESCAPED=$(printf '%s' "$CUSTOM_LOCATIONS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
+  else
+    CUSTOM_LOCATIONS_ESCAPED="[]"
+  fi
 
   ADVANCED_CONFIG_ESCAPED=$(printf '%s' "$ADVANCED_CONFIG" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
 
   DATA=$(printf '{
-  "domain_names": ["%s"],
-  "forward_host": "%s",
-  "forward_port": %s,
-  "access_list_id": null,
-  "certificate_id": null,
-  "ssl_forced": %s,
-  "caching_enabled": %s,
-  "block_exploits": %s,
-  "advanced_config": "%s",
-  "meta": {
-    "dns_challenge": %s
-  },
-  "allow_websocket_upgrade": %s,
-  "http2_support": %s,
-  "forward_scheme": "%s",
-  "enabled": true,
-  "locations": []
-}' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$SSL_FORCED" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG_ESCAPED" "$DNS_CHALLENGE" "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME")
+    "domain_names": ["%s"],
+    "forward_host": "%s",
+    "forward_port": %s,
+    "access_list_id": null,
+    "certificate_id": null,
+    "ssl_forced": %s,
+    "caching_enabled": %s,
+    "block_exploits": %s,
+    "advanced_config": "%s",
+    "meta": {
+      "dns_challenge": %s
+    },
+    "allow_websocket_upgrade": %s,
+    "http2_support": %s,
+    "forward_scheme": "%s",
+    "enabled": true,
+    "locations": %s
+  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$SSL_FORCED" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG_ESCAPED" "$DNS_CHALLENGE" "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
 
   echo -e "\n Request Data: $DATA"
 
@@ -557,34 +574,51 @@ update_proxy_host() {
   fi
 }
 
+
 # Create a new proxy host
 create_new_proxy_host() {
   echo -e "\n 🌍 Creating proxy host for $DOMAIN_NAMES..."
-  DATA='{
-    "domain_names": ["'"$DOMAIN_NAMES"'"],
-    "forward_host": "'"$FORWARD_HOST"'",
-    "forward_port": '"$FORWARD_PORT"',
+  
+  if [ -n "$CUSTOM_LOCATIONS" ]; then
+    CUSTOM_LOCATIONS_ESCAPED=$(printf '%s' "$CUSTOM_LOCATIONS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
+  else
+    CUSTOM_LOCATIONS_ESCAPED="[]"
+  fi
+
+  DATA=$(printf '{
+    "domain_names": ["%s"],
+    "forward_host": "%s",
+    "forward_port": %s,
     "access_list_id": null,
     "certificate_id": null,
     "ssl_forced": false,
-    "caching_enabled": '"$CACHING_ENABLED"',
-    "block_exploits": '"$BLOCK_EXPLOITS"',
-    "advanced_config": "'"$ADVANCED_CONFIG"'",
+    "caching_enabled": %s,
+    "block_exploits": %s,
+    "advanced_config": "%s",
     "meta": {
-      "dns_challenge": '"$DNS_CHALLENGE"'
+      "dns_challenge": %s
     },
-    "allow_websocket_upgrade": '"$ALLOW_WEBSOCKET_UPGRADE"',
-    "http2_support": '"$HTTP2_SUPPORT"',
-    "forward_scheme": "'"$FORWARD_SCHEME"'",
+    "allow_websocket_upgrade": %s,
+    "http2_support": %s,
+    "forward_scheme": "%s",
     "enabled": true,
-    "locations": []
-  }'
+    "locations": %s
+  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG" "$DNS_CHALLENGE" "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
+
+  echo -e "\n Request Data: $DATA"
+
+  echo "$DATA" | jq . > /dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo -e "\n ${COLOR_RED}Invalid JSON format${COLOR_RESET}"
+    exit 1
+  fi
 
   RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
   -H "Content-Type: application/json; charset=UTF-8" \
   --data-raw "$DATA")
-  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0]; then
+
+  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
     echo -e " ✅ ${COLOR_GREEN}Proxy host created successfully!${COLOR_RESET}"
   else
     echo -e " ⛔ ${COLOR_RED}Failed to create proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
