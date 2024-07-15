@@ -102,7 +102,7 @@ API_PASS="password"
 
 ## Examples
 ```bash
-   Backup First !
+  📦 Backup First !
    ./nginx_proxy_manager_cli.sh --backup
 
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
@@ -110,12 +110,15 @@ API_PASS="password"
    ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
    ./nginx_proxy_manager_cli.sh --delete-user 'username'
    ./nginx_proxy_manager_cli.sh --list-hosts
-
    ./nginx_proxy_manager_cli.sh --ssl-host-enable 10
-   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom (not finish)
+   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom (for custom certificat)
 
- Advanced proxy tab example:
+🔧 Advanced proxy tab example:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
+
+🔖 Full options:
+   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+
 
 ```
  
