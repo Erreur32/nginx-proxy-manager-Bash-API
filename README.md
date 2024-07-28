@@ -138,13 +138,14 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ```
  
 
-#### Enable SSL for the Host:
+#### SSL
+Enable SSL for the Host:
 
   Assuming the host ID is *10*, you would enable SSL for the host as follows:
 
     ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
-#### Verifying the Configuration
+##### Verifying the Configuration
 
   After running the above commands, you can verify the SSL configuration by checking the details of the proxy host.
 
@@ -154,11 +155,20 @@ This command will show the full details of the proxy host with ID *10*, includin
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
-You should now see the parameters activated: 
-  - "ssl_forced": 1,
-  - "letsencrypt_agree": true,
-  - "http2_support": 1
+##### Better way to check if SSL is active
 
+    ./nginx_proxy_manager_cli.sh --host-list
+    
+      👉 List of proxy hosts (simple)
+      ID     Domain                               Status    SSL
+      1      toto.fun                              disable  ✘
+      2      titi.fun                              disable  ✅
+      3      tutu.fun                              enabled  ✅
+
+      
+You should now see the parameters activated ✅ 
+
+##### Host proxy info 
 ```
  ./nginx_proxy_manager_cli_.sh --host-show 10
 
