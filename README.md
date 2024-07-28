@@ -54,6 +54,9 @@ NGINX_IP="127.0.0.1"
 ## Existing user (user and password) on NPM
 API_USER="existingUser@mail.com"
 API_PASS="password"
+# Path to store .txt files and Backups
+BASE_DIR="/path/nginx_proxy_script/data"
+
 ```
 
 ## Usage
@@ -63,7 +66,8 @@ API_PASS="password"
 
 ## Options
 ```tcl
-🌐 Host proxy Domain creation: 
+
+ 🌐 Host proxy creation:
    -d DOMAIN_NAMES                       Domain name (required for creating/updating hosts)
    -i FORWARD_HOST                       IP address or domain name of the target server (required for creating/updating hosts)
    -p FORWARD_PORT                       Port of the target server (required for creating/updating hosts)
@@ -71,21 +75,22 @@ API_PASS="password"
    -c CACHING_ENABLED                    Enable caching (true/false, default: false)
    -b BLOCK_EXPLOITS                     Block exploits (true/false, default: true)
    -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
+   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)"
    -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
 
- 📦 Backup and Restore:
-   --host-backup                         Backup all configurations to a file
-   --host-backup-id id                   Backup a single host configuration and its certificate (if exists)
-   --host-restore                        Restore configurations from a backup file
-   --host-restore-id id                  Restore a single host configuration and its certificate (if exists)
+📦 Backup and Restore:
+   --backup                         Backup all configurations to a file
+   --backup-id id                   Backup a single host configuration and its certificate (if exists)
+   --restore                        Restore configurations from a backup file
+   --restore-id id                  Restore a single host configuration and its certificate (if exists)
 
  🔧 Miscellaneous:
-   --host-check-token                    Check if the current token is valid
-   --host-create-user user pass email    Create a user with a username, password and email
-   --host-delete-user username           Delete a user by username
+   --check-token                    Check if the current token is valid
+   --create-user user pass email    Create a user with a username, password and email
+   --delete-user username           Delete a user by username
    --host-delete id                      Delete a proxy host by ID
    --host-show id                        Show full details for a specific host by ID
-   --host-show-default                   Show default settings for creating hosts
+   --show-default                   Show default settings for creating hosts
    --host-list                           List the names of all proxy hosts
    --host-list-full                      List all proxy hosts with full details
    --host-list-ssl-certificates          List all SSL certificates
@@ -93,10 +98,9 @@ API_PASS="password"
    --host-search hostname                Search for a proxy host by domain name
    --host-enable id                      Enable a proxy host by ID
    --host-disable id                     Disable a proxy host by ID
-   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host (don't need to generate a custom cert.)
+   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
    --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-   --host-generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email
-   --host-help                           Display this help
+   --generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email
 
 ```
 
@@ -105,20 +109,25 @@ API_PASS="password"
   📦 Backup First !
    ./nginx_proxy_manager_cli.sh --backup
 
+ 🌐 Host Creation:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
    ./nginx_proxy_manager_cli.sh --show-default
    ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
    ./nginx_proxy_manager_cli.sh --delete-user 'username'
-   ./nginx_proxy_manager_cli.sh --list-hosts
-   ./nginx_proxy_manager_cli.sh --ssl-host-enable 10
-   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom (for custom certificat)
+   ./nginx_proxy_manager_cli.sh --host-list
+   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
-🔧 Advanced proxy tab example:
+ 🔧 Advanced Example:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
+
+ 🛡️ Custom Certificate:
+   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom
+
+ 🛡️  Custom locations:
+   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 
 🔖 Full options:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
-
 
 ```
  
@@ -127,13 +136,13 @@ API_PASS="password"
 
   Assuming the host ID is *10*, you would enable SSL for the host as follows:
 
-    ./nginx_proxy_manager_cli.sh --ssl-host-enable 10
+    ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
 #### Verifying the Configuration
 
   After running the above commands, you can verify the SSL configuration by checking the details of the proxy host.
 
-    ./nginx_proxy_manager_cli.sh --show-host 10
+    ./nginx_proxy_manager_cli.sh --host-show 10
 
 This command will show the full details of the proxy host with ID *10*, including whether SSL is enabled.
 
@@ -145,7 +154,7 @@ You should now see the parameters activated:
   - "http2_support": 1
 
 ```
- ./nginx_proxy_manager_cli_.sh --show-host 10
+ ./nginx_proxy_manager_cli_.sh --host-show 10
 
  ✅ Nginx url: http://127.0.0.1:81/api
  ✅ The token is valid. Expiry: 2025-07-12T08:14:58.521Z
@@ -207,3 +216,4 @@ You should now see the parameters activated:
 - [x] Export  all settings to NPM 
 - [ ] Domain TLS check validity
 - [ ] Better Error Handeling
+- [ ] Restore Function need to be optimized
