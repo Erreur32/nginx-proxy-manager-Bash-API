@@ -48,7 +48,7 @@ chmod +x nginx_proxy_manager_cli.sh
 ## Settings
 Only edit these 3 variables:
 
-```
+```bash
 ## Nginx proxy IP address (your Nginx IP)
 NGINX_IP="127.0.0.1"
 ## Existing user (user and password) on NPM
@@ -105,12 +105,14 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ```
 
 ## Examples
+
 ```bash
   📦 Backup First !
    ./nginx_proxy_manager_cli.sh --backup
 
  🌐 Host Creation:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
+   ./nginx_proxy_manager_cli.sh --info
    ./nginx_proxy_manager_cli.sh --show-default
    ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
    ./nginx_proxy_manager_cli.sh --delete-user 'username'
