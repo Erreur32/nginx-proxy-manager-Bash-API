@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx Proxy Manager CLI Script v2.3.1
+# Nginx Proxy Manager CLI Script v2.3.2
 # Erreur32 - July 2024
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -88,6 +88,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
 
 # Will create backup directory automatically
 BACKUP_DIR="./backups"
+#DATE=$(date +"%Y%m%d%H%M%S")
 
 # API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
@@ -464,7 +465,7 @@ list_global_backup_files() {
 
 # Function to list SSL backup files
 list_ssl_backup_files() {
-  ls -t "$BACKUP_DIR"/ssl_certificates_*.json
+  ls -t "$BACKUP_DIR"/ssl_certif_*.json
 }
 
 
@@ -496,7 +497,7 @@ regenerate_all_ssl_certificates() {
 restore_ssl_certificates() {
   echo -e "\n🩹 Restoring SSL certificates from backup..."
 
-  local ssl_files=($(ls ./backups/ssl_certificates_*.json 2>/dev/null))
+  local ssl_files=($(ls ./backups/ssl_certif_*.json 2>/dev/null))
   if [ ${#ssl_files[@]} -eq 0 ]; then
     echo " ⛔ No SSL backup files found."
     return 1
@@ -621,7 +622,7 @@ restore_backup() {
   for host_dir in "$BACKUP_DIR"/*/; do
     if [ -d "$host_dir" ]; then
       HOST_FILES=$(ls -t "$host_dir"proxy_host_*.json 2>/dev/null)
-      SSL_FILES=$(ls -t "$host_dir"ssl_certificate_*.json 2>/dev/null)
+      SSL_FILES=$(ls -t "$host_dir"ssl_certifi_*.json 2>/dev/null)
       if [ -n "$HOST_FILES" ]; then
         PROXY_HOST_FILE=$(echo "$HOST_FILES" | head -n 1)
         echo -e "\n 🩹 Restoring proxy host from $PROXY_HOST_FILE..."
@@ -823,7 +824,7 @@ restore_single_host() {
       echo -e "\n ✅ ${COLOR_GREEN}Proxy host restored 🆗 from file: $PROXY_HOST_FILE${COLOR_RESET}\n"
 
       # Restore SSL certificate if it exists
-      SSL_BACKUP_FILE=$(ls "$HOST_DIR/ssl_certificate_${HOST_ID}_${NGINX_IP//./_}_*.json" 2>/dev/null | head -n 1)
+      SSL_BACKUP_FILE=$(ls "$HOST_DIR/ssl_certif_${HOST_ID}_${NGINX_IP//./_}_*.json" 2>/dev/null | head -n 1)
       if [ -f "$SSL_BACKUP_FILE" ]; then
         CERT_RESPONSE=$(cat "$SSL_BACKUP_FILE")
         HTTP_CERT_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/certificates" \
@@ -1395,7 +1396,7 @@ show_default() {
 }
 
 # Perform a full backup of all configurations
-full_backup() {
+full_backup2() {
   mkdir -p "$BACKUP_DIR"
 
   # Get the current date in a formatted string
@@ -1408,13 +1409,18 @@ full_backup() {
     echo "$1" | sed 's/[^a-zA-Z0-9]/_/g'
   }
 
+  # Initialize counters
+  HOST_COUNT=0
+  USER_COUNT=0
+
   # Backup users
   USERS_FILE="$BACKUP_DIR/users_${NGINX_IP//./_}$DATE.json"
   RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   if [ -n "$RESPONSE" ]; then
     echo "$RESPONSE" | jq '.' > "$USERS_FILE"
-    echo -e " ✅ ${COLOR_GREEN}Users backup completed 🆗${COLOR_GREY}: $USERS_FILE${COLOR_RESET}"
+    USER_COUNT=$(echo "$RESPONSE" | jq '. | length')
+    echo -e " ✅ ${COLOR_GREEN}Users backup completed        🆗${COLOR_GREY}: $USERS_FILE${COLOR_RESET}"
   else
     echo -e " ⛔ ${COLOR_RED}Failed to backup users.${COLOR_RESET}"
   fi
@@ -1425,7 +1431,7 @@ full_backup() {
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   if [ -n "$RESPONSE" ]; then
     echo "$RESPONSE" | jq '.' > "$SETTINGS_FILE"
-    echo -e " ✅ ${COLOR_GREEN}Settings backup completed 🆗${COLOR_GREY}: $SETTINGS_FILE${COLOR_RESET}"
+    echo -e " ✅ ${COLOR_GREEN}Settings backup completed     🆗${COLOR_GREY}: $SETTINGS_FILE${COLOR_RESET}"
   else
     echo -e " ⛔ ${COLOR_RED}Failed to backup settings.${COLOR_RESET}"
   fi
@@ -1441,7 +1447,7 @@ full_backup() {
       mkdir -p "$HOST_DIR"
       HOST_ID=$(echo "$proxy" | jq -r '.id')
       echo "$proxy" | jq '.' > "$HOST_DIR/proxy_host_${HOST_ID}_${NGINX_IP//./_}$DATE.json"
-      echo -e " ✅ ${COLOR_GREEN}Proxy host backup completed 🆗${COLOR_GREY}: $HOST_DIR/proxy_host_${HOST_ID}_${NGINX_IP//./_}$DATE.json${COLOR_RESET}"
+      HOST_COUNT=$((HOST_COUNT + 1))
 
       # Backup SSL certificate if it exists
       CERTIFICATE_ID=$(echo "$proxy" | jq -r '.certificate_id')
@@ -1449,18 +1455,21 @@ full_backup() {
         CERT_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
         -H "Authorization: Bearer $(cat $TOKEN_FILE)")
         if [ -n "$CERT_RESPONSE" ]; then
-          echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certificate_${CERTIFICATE_ID}_${NGINX_IP//./_}$DATE.json"
-          echo -e " ✅ ${COLOR_GREEN}SSL certificate backup completed 🆗${COLOR_GREY}: $HOST_DIR/ssl_certificate_${CERTIFICATE_ID}_${NGINX_IP//./_}$DATE.json${COLOR_RESET}"
+          echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certif_${CERTIFICATE_ID}_${NGINX_IP//./_}$DATE.json"
         else
           echo -e " ⛔ ${COLOR_RED}Failed to backup SSL certificate for certificate ID $CERTIFICATE_ID.${COLOR_RESET}"
         fi
       else
         echo -e " ⚠️ ${COLOR_YELLOW}No SSL certificate associated with host ID $HOST_ID.${COLOR_RESET}"
       fi
-    done
+    done    
   else
     echo -e " ⛔ ${COLOR_RED}Failed to backup proxy hosts.${COLOR_RESET}"
+    exit 1
   fi
+
+  echo -e " ✅ ${COLOR_GREEN}Proxy host backup completed   🆗${COLOR_GREY}: $BACKUP_DIR ${COLOR_RESET}"
+ 
 
   # Backup access lists
   ACCESS_LISTS_FILE="$BACKUP_DIR/access_lists_${NGINX_IP//./_}$DATE.json"
@@ -1471,10 +1480,116 @@ full_backup() {
     echo -e " ✅ ${COLOR_GREEN}Access lists backup completed 🆗${COLOR_GREY}: $ACCESS_LISTS_FILE${COLOR_RESET}"
   else
     echo -e " ⛔ ${COLOR_RED}Failed to backup access lists.${COLOR_RESET}"
+    exit 1
   fi
 
-  echo ""
+  # Count total number of backup files
+  TOTAL_BACKUPS=$(find "$BACKUP_DIR" -type f -name "*.json" | wc -l)
+
+  echo -e " ✅ ${COLOR_GREEN}Backup 🆗 ${COLOR_RESET}"
+  echo -e " 📦 ${COLOR_YELLOW}Backup Summary:${COLOR_RESET}"
+  echo -e "   - Number of users backed up: ${COLOR_CYAN}$USER_COUNT${COLOR_RESET}"
+  echo -e "   - Number of proxy hosts backed up: ${COLOR_CYAN}$HOST_COUNT${COLOR_RESET}"
+  echo -e "   - Total number of backup files: ${COLOR_CYAN}$TOTAL_BACKUPS${COLOR_RESET}\n"
 }
+
+full_backup() {
+  mkdir -p "$BACKUP_DIR"
+
+  # Get the current date in a formatted string
+  DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
+
+  echo ""
+
+  # Function to sanitize names for directory
+  sanitize_name() {
+    echo "$1" | sed 's/[^a-zA-Z0-9]/_/g'
+  }
+
+  # Initialize counters
+  USER_COUNT=0
+
+  # Backup users
+  USERS_FILE="$BACKUP_DIR/users_${NGINX_IP//./_}$DATE.json"
+  RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  if [ -n "$RESPONSE" ]; then
+    echo "$RESPONSE" | jq '.' > "$USERS_FILE"
+    USER_COUNT=$(echo "$RESPONSE" | jq '. | length')
+    echo -e " ✅ ${COLOR_GREEN}Users backup completed        🆗${COLOR_GREY}: $USERS_FILE${COLOR_RESET}"
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to backup users.${COLOR_RESET}"
+  fi
+
+  # Backup settings
+  SETTINGS_FILE="$BACKUP_DIR/settings_${NGINX_IP//./_}$DATE.json"
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/settings" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  if [ -n "$RESPONSE" ]; then
+    echo "$RESPONSE" | jq '.' > "$SETTINGS_FILE"
+    echo -e " ✅ ${COLOR_GREEN}Settings backup completed     🆗${COLOR_GREY}: $SETTINGS_FILE${COLOR_RESET}"
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to backup settings.${COLOR_RESET}"
+  fi
+
+  # Backup proxy hosts
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  if [ -n "$RESPONSE" ]; then
+    echo "$RESPONSE" | jq -c '.[]' | while read -r proxy; do
+      HOST_NAME=$(echo "$proxy" | jq -r '.domain_names[0]')
+      SANITIZED_HOST_NAME=$(sanitize_name "$HOST_NAME")
+      HOST_DIR="$BACKUP_DIR/$SANITIZED_HOST_NAME"
+      mkdir -p "$HOST_DIR"
+      HOST_ID=$(echo "$proxy" | jq -r '.id')
+      echo "$proxy" | jq '.' > "$HOST_DIR/proxy_host_${HOST_ID}_${NGINX_IP//./_}$DATE.json"
+
+      # Backup SSL certificate if it exists
+      CERTIFICATE_ID=$(echo "$proxy" | jq -r '.certificate_id')
+      if [ "$CERTIFICATE_ID" != "null" ]; then
+        CERT_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
+        -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+        if [ -n "$CERT_RESPONSE" ]; then
+          echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certif_${CERTIFICATE_ID}_${NGINX_IP//./_}$DATE.json"
+        else
+          echo -e " ⛔ ${COLOR_RED}Failed to backup SSL certificate for certificate ID $CERTIFICATE_ID.${COLOR_RESET}"
+        fi
+      else
+        echo -e " ⚠️ ${COLOR_YELLOW}No SSL certificate associated with host ID $HOST_ID.${COLOR_RESET}"
+      fi
+    done    
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to backup proxy hosts.${COLOR_RESET}"
+    exit 1
+  fi
+
+  echo -e " ✅ ${COLOR_GREEN}Proxy host backup completed   🆗${COLOR_GREY}: $BACKUP_DIR ${COLOR_RESET}"
+
+  # Backup access lists
+  ACCESS_LISTS_FILE="$BACKUP_DIR/access_lists_${NGINX_IP//./_}$DATE.json"
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  if [ -n "$RESPONSE" ]; then
+    echo "$RESPONSE" | jq '.' > "$ACCESS_LISTS_FILE"
+    echo -e " ✅ ${COLOR_GREEN}Access lists backup completed 🆗${COLOR_GREY}: $ACCESS_LISTS_FILE${COLOR_RESET}"
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to backup access lists.${COLOR_RESET}"
+    exit 1
+  fi
+
+  # Count the number of host directories
+  HOST_COUNT=$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
+
+  # Count total number of backup files
+  TOTAL_BACKUPS=$(find "$BACKUP_DIR" -type f -name "*.json" | wc -l)
+
+  echo -e " ✅ ${COLOR_GREEN}Backup 🆗 ${COLOR_RESET}"
+  echo -e " 📦 ${COLOR_YELLOW}Backup Summary:${COLOR_RESET}"
+  echo -e "   - Number of users backed up: ${COLOR_CYAN}$USER_COUNT${COLOR_RESET}"
+  echo -e "   - Number of proxy hosts backed up: ${COLOR_CYAN}$HOST_COUNT${COLOR_RESET}"
+  echo -e "   - Total number of backup files: ${COLOR_CYAN}$TOTAL_BACKUPS${COLOR_RESET}\n"
+}
+
 
 ####
 
@@ -1501,7 +1616,7 @@ backup_single_host() {
     mkdir -p "$HOST_DIR"
 
     echo "$RESPONSE" | jq '.' > "$HOST_DIR/proxy_host_${HOST_ID}_${NGINX_IP//./_}_$DATE.json"
-    echo -e " ✅ ${COLOR_GREEN}Proxy host backup completed 🆗: ${HOST_DIR}/proxy_host_${HOST_ID}_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
+    echo -e " ✅ ${COLOR_GREEN}Proxy host backup completed      🆗${COLOR_GREY}: ${HOST_DIR}/proxy_host_${HOST_ID}_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
 
     # Fetch SSL certificate if it exists
     CERTIFICATE_ID=$(echo "$RESPONSE" | jq -r '.certificate_id')
@@ -1509,8 +1624,8 @@ backup_single_host() {
       CERT_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
       -H "Authorization: Bearer $(cat $TOKEN_FILE)")
       if [ -n "$CERT_RESPONSE" ]; then
-        echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certificate_${CERTIFICATE_ID}_${NGINX_IP//./_}_$DATE.json"
-        echo -e " ✅ ${COLOR_GREEN}SSL certificate backup completed 🆗: ${HOST_DIR}/ssl_certificate_${CERTIFICATE_ID}_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
+        echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certif_${CERTIFICATE_ID}_${NGINX_IP//./_}_$DATE.json"
+        echo -e " ✅ ${COLOR_GREEN}SSL certificate backup completed 🆗${COLOR_GREY}: ${HOST_DIR}/ssl_certif_${CERTIFICATE_ID}_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
       else
         echo -e " ⛔ ${COLOR_RED}Failed to backup SSL certificate for certificate ID $CERTIFICATE_ID.${COLOR_RESET}"
       fi
