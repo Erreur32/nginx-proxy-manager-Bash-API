@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx Proxy Manager CLI Script v2.3.3
+# Nginx Proxy Manager CLI Script v2.3.4
 # Erreur32 - July 2024
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -1381,16 +1381,16 @@ host_show() {
 # Display default settings for creating hosts
 show_default() {
   echo -e "\n ⭐ ${COLOR_YELLOW}Default settings Token:${COLOR_RESET}"
-  echo -e "  - TOKEN_EXPIRY: ${COLOR_ORANGE}${TOKEN_EXPIRY}${COLOR_RESET}"
+  echo -e "  - TOKEN_EXPIRY    : ${COLOR_ORANGE}${TOKEN_EXPIRY}${COLOR_RESET}"
   echo -e "\n ⭐ ${COLOR_YELLOW}Default settings for creating hosts (change according to your needs):${COLOR_RESET}"
-  echo -e "  - FORWARD_SCHEME: ${COLOR_ORANGE}${FORWARD_SCHEME}${COLOR_RESET}"
-  echo -e "  - SSL_FORCED: ${COLOR_ORANGE}${SSL_FORCED}${COLOR_RESET}"
-  echo -e "  - CACHING_ENABLED: ${COLOR_ORANGE}${CACHING_ENABLED}${COLOR_RESET}"
-  echo -e "  - BLOCK_EXPLOITS: ${COLOR_ORANGE}${BLOCK_EXPLOITS}${COLOR_RESET}"
-  echo -e "  - ALLOW_WEBSOCKET_UPGRADE: ${COLOR_ORANGE}${ALLOW_WEBSOCKET_UPGRADE}${COLOR_RESET}"
-  echo -e "  - HTTP2_SUPPORT: ${COLOR_ORANGE}${HTTP2_SUPPORT}${COLOR_RESET}"
-  echo -e "  - HSTS_ENABLED: ${COLOR_ORANGE}${HSTS_ENABLED}${COLOR_RESET}"
-  echo -e "  - HSTS_SUBDOMAINS: ${COLOR_ORANGE}${HSTS_SUBDOMAINS}${COLOR_RESET}"
+  echo -e "  - FORWARD_SCHEME  : ${COLOR_ORANGE}${FORWARD_SCHEME}${COLOR_RESET}"
+  echo -e "  - SSL_FORCED      : ${COLOR_ORANGE}${SSL_FORCED}${COLOR_RESET}"
+  echo -e "  - CACHING_ENABLED : ${COLOR_ORANGE}${CACHING_ENABLED}${COLOR_RESET}"
+  echo -e "  - BLOCK_EXPLOITS  : ${COLOR_ORANGE}${BLOCK_EXPLOITS}${COLOR_RESET}"
+  echo -e "  - ALLOW_WEBSOCKET : ${COLOR_ORANGE}${ALLOW_WEBSOCKET_UPGRADE}${COLOR_RESET}"
+  echo -e "  - HTTP2_SUPPORT   : ${COLOR_ORANGE}${HTTP2_SUPPORT}${COLOR_RESET}"
+  echo -e "  - HSTS_ENABLED    : ${COLOR_ORANGE}${HSTS_ENABLED}${COLOR_RESET}"
+  echo -e "  - HSTS_SUBDOMAINS : ${COLOR_ORANGE}${HSTS_SUBDOMAINS}${COLOR_RESET}"
   echo
   exit 0
 }
