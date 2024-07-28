@@ -13,6 +13,11 @@
 9. [Screens](#screens)
 10. [TODO](#todo)
 
+> [!WARNING]
+> Sometime Global RESTORE (--restore) function may not works for HOST only (fix will come)
+> 
+> Single RESTORE (--restore-id , add host one by one) should work well.
+
 ## Description
 
 🛠️ This BASH script enables the management of ![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) through its **API**.
