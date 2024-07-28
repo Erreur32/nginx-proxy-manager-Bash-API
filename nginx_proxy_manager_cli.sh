@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx Proxy Manager CLI Script v2.1.0
+# Nginx Proxy Manager CLI Script v1.1.2
 # Erreur32 - July 2024
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -1171,32 +1171,21 @@ disable_proxy_host() {
   fi
   echo -e "\n ❌ Disabling 🌐 proxy host ID: $HOST_ID..."
 
-  # Check if the proxy host exists before disabling
-  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/proxy-hosts/$HOST_ID/disable" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+  -H "Content-Type: application/json")
 
-  if echo "$CHECK_RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
-    # Proxy host exists, proceed to disable
-    DATA=$(echo "$CHECK_RESPONSE" | jq '{enabled: 0}')
+  # Extract the body and the status
+  HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+  HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-    HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
-    -H "Content-Type: application/json; charset=UTF-8" \
-    --data-raw "$DATA")
-
-    # Extract the body and the status
-    HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-    HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-    if [ "$HTTP_STATUS" -eq 200 ]; then
-      echo -e " ✅ ${COLOR_GREEN}Proxy host disabled successfully!${COLOR_RESET}\n"
-    else
-      echo -e " ⛔ ${COLOR_RED}Failed to disable proxy host. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
-    fi
+  if [ "$HTTP_STATUS" -eq 200 ]; then
+    echo -e " ✅ ${COLOR_GREEN}Proxy host disabled successfully!${COLOR_RESET}\n"
   else
-    echo -e " ⛔ ${COLOR_RED}Proxy host with ID $HOST_ID does not exist.${COLOR_RESET}\n"
+    echo -e " ⛔ ${COLOR_RED}Failed to disable proxy host. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
   fi
 }
+
 
 # Generate Let's Encrypt certificate if not exists
 generate_certificate() {
