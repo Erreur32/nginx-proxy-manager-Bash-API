@@ -14,9 +14,9 @@
 10. [TODO](#todo)
 
 > [!WARNING]
-> Sometime Global RESTORE (--restore) function may not works for HOST only (fix will come)
+> The restore function of the --restore command may not work correctly (a fix is in progress)
 > 
-> Single RESTORE (--restore-id , add host one by one) should work well.
+> Single RESTORE --restore-id (necessary to add hosts one by one) should work fine.
 
 ## Description
 
@@ -52,8 +52,8 @@ chmod +x nginx_proxy_manager_cli.sh
 
 
 > [!IMPORTANT]
-> With new version 2.0.0 some commands are changed.
-> 
+> With the new version 2.0.0, some command arguments have been changed to be simpler.
+
 ## Settings
 Only edit these 4 variables:
 
