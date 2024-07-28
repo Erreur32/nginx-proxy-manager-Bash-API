@@ -45,8 +45,12 @@ wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-API/main/ngi
 chmod +x nginx_proxy_manager_cli.sh
 ```
 
+
+> [!IMPORTANT]
+> With new version 2.0.0 some commands are changed.
+> 
 ## Settings
-Only edit these 3 variables:
+Only edit these 4 variables:
 
 ```bash
 ## Nginx proxy IP address (your Nginx IP)
