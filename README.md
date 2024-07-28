@@ -10,8 +10,11 @@
 6. [Usage](#usage)
 7. [Options](#options)
 8. [Examples](#examples)
-9. [Screens](#screens)
-10. [TODO](#todo)
+9.  [SSL](#ssl) |
+  [List HOST](#check) |
+  [Info](#info)
+12. [Screens](#screens)
+13. [TODO](#todo)
 
 > [!WARNING]
 > The restore function of the --restore command may not work correctly (a fix is in progress)
@@ -26,7 +29,9 @@
 
 ⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating **BACKUPS**, and more.
 
+### French description:
 Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
+La fonction RESTORE n'est pas encore terminée.
 
 ## Reference
 ![https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
@@ -94,12 +99,13 @@ BASE_DIR="/path/nginx_proxy_script/data"
    --restore-id id                  Restore a single host configuration and its certificate (if exists)
 
  🔧 Miscellaneous:
-   --check-token                    Check if the current token is valid
-   --create-user user pass email    Create a user with a username, password and email
-   --delete-user username           Delete a user by username
+   --info                                Script and configuration information
+   --check-token                         Check if the current token is valid
+   --create-user user pass email         Create a user with a username, password and email
+   --delete-user username                Delete a user by username
    --host-delete id                      Delete a proxy host by ID
    --host-show id                        Show full details for a specific host by ID
-   --show-default                   Show default settings for creating hosts
+   --show-default                        Show default settings for creating hosts
    --host-list                           List the names of all proxy hosts
    --host-list-full                      List all proxy hosts with full details
    --host-list-ssl-certificates          List all SSL certificates
@@ -160,7 +166,8 @@ This command will show the full details of the proxy host with ID *10*, includin
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
-##### Better way to check if SSL is active
+##### Check
+ Better way to check if SSL is active with command --host-list :
 
     ./nginx_proxy_manager_cli.sh --host-list
     
@@ -173,7 +180,10 @@ By following these steps, you can enable SSL for your proxy host for the first t
       
 You should now see the parameters activated ✅ 
 
-##### Host proxy info 
+##### Info
+
+Host proxy info command --host-show id:
+
 ```
  ./nginx_proxy_manager_cli_.sh --host-show 10
 
