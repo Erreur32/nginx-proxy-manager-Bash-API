@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Nginx Proxy Manager CLI Script v2.3.4
-# Erreur32 - July 2024
+# Nginx Proxy Manager CLI Script 
+#   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
+#   Erreur32 July 2024
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
 # functionalities such as creating proxy hosts, managing users, listing hosts,
@@ -85,7 +86,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
 #################################
 # Variables to Edit (optional) #
 #################################
-
+VERSION="2.3.5"
 # Will create backup directory automatically
 BACKUP_DIR="./backups"
 #DATE=$(date +"%Y%m%d%H%M%S")
@@ -285,6 +286,7 @@ usage() {
 
 # Display script variables info
 display_info() {
+  echo -e "\n${COLOR_YELLOW}Script Info:  ${COLOR_GREEN}${VERSION}${COLOR_RESET}"
   echo -e "\n${COLOR_YELLOW}Script Variables Information:${COLOR_RESET}"
   echo -e "  ${COLOR_GREEN}BASE_URL${COLOR_RESET}    ${BASE_URL}"
   echo -e "  ${COLOR_GREEN}NGINX_IP${COLOR_RESET}    ${NGINX_IP}"
