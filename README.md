@@ -75,7 +75,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    -c CACHING_ENABLED                    Enable caching (true/false, default: false)
    -b BLOCK_EXPLOITS                     Block exploits (true/false, default: true)
    -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
-   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)"
+   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)
    -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
 
 📦 Backup and Restore:
