@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx Proxy Manager CLI Script v2.3.2
+# Nginx Proxy Manager CLI Script v2.3.3
 # Erreur32 - July 2024
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -286,21 +286,21 @@ usage() {
 # Display script variables info
 display_info() {
   echo -e "\n${COLOR_YELLOW}Script Variables Information:${COLOR_RESET}"
-  echo -e "  ${COLOR_GREEN}BASE_URL${COLOR_RESET}   ${BASE_URL}"
-  echo -e "  ${COLOR_GREEN}NGINX_IP${COLOR_RESET}   ${NGINX_IP}"
-  echo -e "  ${COLOR_GREEN}API_USER${COLOR_RESET}   ${API_USER}"
-  echo -e "  ${COLOR_GREEN}BASE_DIR${COLOR_RESET}   ${BASE_DIR}"
-  echo -e "  ${COLOR_GREEN}BACKUP_DIR${COLOR_RESET} ${BACKUP_DIR}"
+  echo -e "  ${COLOR_GREEN}BASE_URL${COLOR_RESET}    ${BASE_URL}"
+  echo -e "  ${COLOR_GREEN}NGINX_IP${COLOR_RESET}    ${NGINX_IP}"
+  echo -e "  ${COLOR_GREEN}API_USER${COLOR_RESET}    ${API_USER}"
+  echo -e "  ${COLOR_GREEN}BASE_DIR${COLOR_RESET}    ${BASE_DIR}"
+  echo -e "  ${COLOR_GREEN}BACKUP_DIR${COLOR_RESET}  ${BACKUP_DIR}"
 
   if [ -d "$BACKUP_DIR" ]; then
     backup_count=$(ls -1 "$BACKUP_DIR" | wc -l)
-    echo -e "  ${COLOR_GREEN}Nb files in backup dir:${COLOR_YELLOW} $backup_count ${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}BACKUP HOST ${COLOR_YELLOW}$backup_count ${COLOR_RESET}"
   else
     echo -e "  ${COLOR_RED}Backup directory does not exist.${COLOR_RESET}"
   fi
 
   if [ -f "$TOKEN_FILE" ]; then
-    echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW} $TOKEN_FILE ${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW}  $TOKEN_FILE ${COLOR_RESET}"
   else
     echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET} \n   Check ./nginx_proxy_manager_cli.sh --check-token  "
      echo -e "  Generating new token..."
