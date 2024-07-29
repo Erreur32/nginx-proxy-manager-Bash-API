@@ -40,7 +40,7 @@ La fonction RESTORE n'est pas encore terminée.
 
 And of course the excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
 
-and simple dependencies:
+required basic dependencies:
 
 - `curl`
 - `jq`
