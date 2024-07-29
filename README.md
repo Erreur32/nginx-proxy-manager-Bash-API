@@ -154,8 +154,23 @@ BASE_DIR="/path/nginx_proxy_script/data"
  
 
 ##### Verifying the Configuration
-######  Info
 
+######  Info
+```
+./nginx_proxy_manager_cli_new.sh --info
+
+Script Info:  2.3.5
+
+Script Variables Information:
+  BASE_URL    http://127.0.0.1:81/api
+  NGINX_IP    127.0.0.1
+  API_USER    user@monmail.com
+  BASE_DIR    /path/to/nginx_proxy
+  BACKUP_DIR  /path/to/nginx_proxy/backups
+  BACKUP HOST 40
+  Token NPM   /path/to/nginx_proxy/token/token_127.0.0.1.txt
+
+```
 Some info settings from scriptwith  `./nginx_proxy_manager_cli_.sh --info`
  
  
@@ -181,21 +196,7 @@ Enable SSL for the Host:
     ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
 
-```
-./nginx_proxy_manager_cli_new.sh --info
 
-Script Info:  2.3.5
-
-Script Variables Information:
-  BASE_URL    http://127.0.0.1:81/api
-  NGINX_IP    127.0.0.1
-  API_USER    user@monmail.com
-  BASE_DIR    /path/to/nginx_proxy
-  BACKUP_DIR  /path/to/nginx_proxy/backups
-  BACKUP HOST 40
-  Token NPM   /path/to/nginx_proxy/token/token_127.0.0.1.txt
-
-```
 
 Other Exemple:
 Host proxy info command `--host-show id`
