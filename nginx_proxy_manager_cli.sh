@@ -1,5 +1,6 @@
 #!/bin/bash
 
+VERSION="2.3.7"
 # Nginx Proxy Manager CLI Script
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
@@ -121,8 +122,6 @@ HSTS_SUBDOMAINS=0
 
 
 # Don't touch below that line (or you know ...)
-VERSION="2.3.7"
-
 # Control variables
 CREATE_USER=false
 DELETE_USER=false
