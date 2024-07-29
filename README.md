@@ -10,16 +10,16 @@
 6. [Usage](#usage)
 7. [Options](#options)
 8. [Examples](#examples)
-9.  [SSL](#ssl) |
-  [List HOST](#check) |
-  [Info](#info)
+   - [Info script](#info)
+   - [List HOST](#list)
+   - [Enable SSL](#ssl)     
 12. [Screens](#screens)
 13. [TODO](#todo)
 
 > [!WARNING]
-> The restore function of the --restore command may not work correctly (a fix is in progress)
-> 
-> Single RESTORE --restore-id (necessary to add hosts one by one) should work fine.
+> The  --restore command may not work correctly (a fix is in progress)
+> instead try:
+> ./nginx_proxy_manager_cli.sh --restore-id id(necessary to add hosts one by one) should work fine.
 
 ## Description
 
@@ -28,6 +28,8 @@
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
 ⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating **BACKUPS**, and more.
+
+ 
 
 ### French description:
 Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
@@ -40,27 +42,27 @@ La fonction RESTORE n'est pas encore terminée.
 
 And of course the excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
 
-required basic dependencies:
+Required basic dependencies. 
+  > The script will automatically check if they are installed and will download them if necessary:
 
 - `curl`
 - `jq`
 
-```bash
-sudo apt-get install jq curl
-```
 
 ## Installation 
 ```
 wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-API/main/nginx_proxy_manager_cli.sh
 chmod +x nginx_proxy_manager_cli.sh
+# Check script
+./nginx_proxy_manager_cli.sh --info
 ```
 
 
-> [!IMPORTANT]
-> With the new version 2.0.0, some command arguments have been changed to be simpler.
+> [!NOTE]
+> With the new `V2.0.0`, some command arguments have been changed to be simpler, and need to set `BASE_DIR` variable to store `Tokens` and `Backups`.
 
 ## Settings
-Only edit these 4 variables:
+Required to edit these 4 variables:
 
 ```bash
 ## Nginx proxy IP address (your Nginx IP)
@@ -76,6 +78,8 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ## Usage
 ```bash
 ./nginx_proxy_manager_cli.sh [OPTIONS]
+./nginx_proxy_manager_cli.sh  --info
+./nginx_proxy_manager_cli.sh  --show-default 
 ```
 
 ## Options
@@ -100,12 +104,12 @@ BASE_DIR="/path/nginx_proxy_script/data"
 
  🔧 Miscellaneous:
    --info                                Script and configuration information
+   --show-default                        Show default settings for creating hosts
    --check-token                         Check if the current token is valid
    --create-user user pass email         Create a user with a username, password and email
    --delete-user username                Delete a user by username
    --host-delete id                      Delete a proxy host by ID
    --host-show id                        Show full details for a specific host by ID
-   --show-default                        Show default settings for creating hosts
    --host-list                           List the names of all proxy hosts
    --host-list-full                      List all proxy hosts with full details
    --host-list-ssl-certificates          List all SSL certificates
@@ -149,25 +153,16 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ```
  
 
-#### SSL
-Enable SSL for the Host:
-
-  Assuming the host ID is *10*, you would enable SSL for the host as follows:
-
-    ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
-
 ##### Verifying the Configuration
+######  Info
 
-  After running the above commands, you can verify the SSL configuration by checking the details of the proxy host.
-
-    ./nginx_proxy_manager_cli.sh --host-show 10
-
-This command will show the full details of the proxy host with ID *10*, including whether SSL is enabled.
-
+Some info settings from scriptwith  `./nginx_proxy_manager_cli_.sh --info`
+ 
+ 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
-##### Check
- Better way to check if SSL is active with command --host-list :
+##### List
+ List all Host in one command and show ´id´ , ´status´ and ´SSL´ status:
 
     ./nginx_proxy_manager_cli.sh --host-list
     
@@ -177,12 +172,33 @@ By following these steps, you can enable SSL for your proxy host for the first t
       2      titi.fun                              disable  ✅
       3      tutu.fun                              enabled  ✅
 
-      
-You should now see the parameters activated ✅ 
 
-##### Info
+##### SSL
+Enable SSL for the Host:
 
-Host proxy info command --host-show id:
+  Assuming the host ID is *10*, you would enable SSL for the host as follows:
+
+    ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
+
+
+```
+./nginx_proxy_manager_cli_new.sh --info
+
+Script Info:  2.3.5
+
+Script Variables Information:
+  BASE_URL    http://127.0.0.1:81/api
+  NGINX_IP    127.0.0.1
+  API_USER    user@monmail.com
+  BASE_DIR    /path/to/nginx_proxy
+  BACKUP_DIR  /path/to/nginx_proxy/backups
+  BACKUP HOST 40
+  Token NPM   /path/to/nginx_proxy/token/token_127.0.0.1.txt
+
+```
+
+Other Exemple:
+Host proxy info command `--host-show id`
 
 ```
  ./nginx_proxy_manager_cli_.sh --host-show 10
@@ -229,10 +245,17 @@ Host proxy info command --host-show id:
 ## Screens:
 ```
 # ./nginx_proxy_manager_cli.sh --backup
+ 
+ ✅ Users backup completed        🆗: /path/to/nginx_proxy/backups/users_127_0_0_1_2024_07_29__14_01_23.json
+ ✅ Settings backup completed     🆗: /path/to/nginx_proxy/backups/settings_127_0_0_1_2024_07_29__14_01_23.json
+ ✅ Proxy host backup completed   🆗: /path/to/nginx_proxy/backups
+ ✅ Access lists backup completed 🆗: /path/to/nginx_proxy/backups/access_lists_127_0_0_1_2024_07_29__14_01_23.json
+ ✅ Backup 🆗
+ 📦 Backup Summary:
+   - Number of users backed up: 1
+   - Number of proxy hosts backed up: 31
+   - Total number of backup files: 42
 
- ✅ Nginx url: http://192.168.1.200:81/api
- ✅ The token is valid. Expiry: 2025-07-12T08:14:58.521Z
- ✅ Full backup completed successfully in 📂 './backups'
 
 ```
 
