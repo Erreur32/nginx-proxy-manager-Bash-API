@@ -195,11 +195,14 @@ Enable SSL for the Host:
 
     ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
-
+ Et Voilà.
 
 
 Other Exemple:
+
+
 Host proxy info command `--host-show id`
+
 
 ```
  ./nginx_proxy_manager_cli_.sh --host-show 10
