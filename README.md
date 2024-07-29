@@ -17,9 +17,11 @@
 13. [TODO](#todo)
 
 > [!WARNING]
-> The  --restore command may not work correctly (a fix is in progress)
+> The  --restore command may not work correctly (a fix is in progress).
+> 
 > instead try:
-> ./nginx_proxy_manager_cli.sh --restore-id id(necessary to add hosts one by one) should work fine.
+> 
+> ./nginx_proxy_manager_cli.sh --restore-id id  (necessary to add hosts one by one and regen certificates).
 
 ## Description
 
@@ -156,8 +158,11 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ##### Verifying the Configuration
 
 ######  Info
+
+Some info settings in the script
+
 ```
-./nginx_proxy_manager_cli_new.sh --info
+./nginx_proxy_manager_cli_.sh --info
 
 Script Info:  2.3.5
 
@@ -171,8 +176,8 @@ Script Variables Information:
   Token NPM   /path/to/nginx_proxy/token/token_127.0.0.1.txt
 
 ```
-Some info settings from scriptwith  `./nginx_proxy_manager_cli_.sh --info`
- 
+
+
  
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
@@ -195,10 +200,12 @@ Enable SSL for the Host:
 
     ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
+ SSl is enable successfully
+ 
  Et Voilà.
 
 
-Other Exemple:
+Other Exemple command:
 
 
 Host proxy info command `--host-show id`
