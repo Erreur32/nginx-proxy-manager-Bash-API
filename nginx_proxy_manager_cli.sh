@@ -52,9 +52,9 @@ VERSION="2.3.7"
 #
 # 📦 Backup and Restore:
 #   --backup                              Backup all configurations to a file
-#   --host-backup-id id                   Backup a single host configuration and its certificate (if exists)
+#   --backup-host id                   Backup a single host configuration and its certificate (if exists)
 #   --restore                             Restore configurations from a backup file
-#   --host-restore-id id                  Restore a single host configuration and its certificate (if exists)
+#   --restore-host (empty/name)        Restore a single host configuration and its certificate (if exists)
 #
 # 🔧 Miscellaneous:
 #   --check-token                         Check if the current token is valid
@@ -90,14 +90,12 @@ BASE_DIR="/path/nginx_proxy_script/data"
 #################################
 # Variables to Edit (optional) #
 #################################
-
-# Will create backup directory automatically
-BACKUP_DIR="./backups"
 #DATE=$(date +"%Y%m%d%H%M%S")
 
 # API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
 API_ENDPOINT="/tokens"
+# Directory will be create automatically.
 TOKEN_DIR="$BASE_DIR/token"
 BACKUP_DIR="$BASE_DIR/backups"
 EXPIRY_FILE="$TOKEN_DIR/expiry_${NGINX_IP}.txt"
@@ -169,46 +167,6 @@ check_dependencies() {
 check_dependencies
 
 
-# Generate a new API token
-generate_token() {
-  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
-    -H "Content-Type: application/json; charset=UTF-8" \
-    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
-
-  token=$(echo "$response" | jq -r '.token')
-  expires=$(echo "$response" | jq -r '.expires')
-
-  if [ "$token" != "null" ]; then
-    echo "$token" > $TOKEN_FILE
-    echo "$expires" > $EXPIRY_FILE
-    echo "Token: $token"
-    echo "Expiry: $expires"
-  else
-    echo -e "${COLOR_RED}Error generating token.${COLOR_RESET}"
-    echo -e "Check your [user] and [pass] and [IP]"
-    exit 1
-  fi
-}
-
-# Validate the existing token
-validate_token() {
-  if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
-    return 1
-  fi
-
-  token=$(cat $TOKEN_FILE)
-  expires=$(cat $EXPIRY_FILE)
-  current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-  if [[ "$current_time" < "$expires" ]]; then
-    echo -e " ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
-    return 0
-  else
-    echo -e " ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
-    return 1
-  fi
-}
-
 # Check if the Nginx Proxy Manager API is accessible
 check_nginx_access() {
   if ping -c 2 -W 2 $NGINX_IP &> /dev/null; then
@@ -225,17 +183,68 @@ check_nginx_access() {
 }
 
 
+# !!! ne filtrer que les dossiers !
+# Function to list available backups
+list_backups() {
+  echo "Available backups:"
+  for domain in $(ls -td "$BACKUP_DIR"/*/); do
+    domain_name=$(basename "$domain")
+    echo "  - ${domain_name//_/.}"
+  done
+}
+
 
 # Display help
 usage() {
-  echo -e "\n${COLOR_YELLOW}Usage: ./nginx_proxy_manager_cli.sh -d domain -i ip -p port [-f forward_scheme] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-a advanced_config] [-t token_expiry] [--create-user username password email] [--delete-user username] [--host-delete id] [--host-list] [--host-list-full] [--host-list-ssl-certificates] [--host-list-users] [--host-search hostname] [--host-enable id] [--host-disable id] [--check-token] [--backup] [--host-backup-id id] [--restore] [--host-restore-id id] [--generate-cert domain email [--custom]] [--host-ssl-enable id] [--host-ssl-disable id] [--host-show id] [--show-default] [--help]${COLOR_RESET}"
+  echo -e "Options:"
+  echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}                       Domain name (${COLOR_RED}required${COLOR_RESET})"
+  echo -e "  -i ${COLOR_ORANGE}FORWARD_HOST${COLOR_RESET}                       IP address or domain name of the target server (${COLOR_RED}required${COLOR_RESET})"
+  echo -e "  -p ${COLOR_ORANGE}FORWARD_PORT${COLOR_RESET}                       Port of the target server (${COLOR_RED}required${COLOR_RESET})"
+  echo -e "\n  (Check default settings, no need if already set!)"
+  echo -e "  -f FORWARD_SCHEME                       Scheme for forwarding (http/https, default: $(colorize_booleanh $FORWARD_SCHEME))"
+  echo -e "  -c CACHING_ENABLED                      Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
+  echo -e "  -b BLOCK_EXPLOITS                       Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
+  echo -e "  -w ALLOW_WEBSOCKET_UPGRADE              Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
+  echo -e "  -l CUSTOM_LOCATIONS                     Custom locations (${COLOR_YELLOW}JSON array${COLOR_RESET} of location objects)"
+  echo -e "  -a ADVANCED_CONFIG                      Advanced configuration (${COLOR_YELLOW}string${COLOR_RESET})"
+  echo ""
+  echo -e "  --info                                 ℹ️  ${COLOR_YELLOW}Display${COLOR_RESET} Script Variables Information"
+  echo -e "  --show-default                         🔍 ${COLOR_YELLOW}Show${COLOR_RESET}    Default settings for creating hosts"
+  echo -e "  --backup                               📦 ${COLOR_GREEN}Backup${COLOR_RESET}  All configurations to a different files in \$BACKUP_DIR"
+  echo -e "  --backup-host id                    📦 ${COLOR_GREEN}Backup${COLOR_RESET}  Single host configuration and its certificate (if exists)"
+  echo -e "  --restore                              📦 ${COLOR_GREEN}Restore${COLOR_RESET} All configurations from a backup file"
+  echo -e "  --restore-host id                   📦 ${COLOR_GREEN}Restore${COLOR_RESET} Restore single host with list with empty arguments or a Domain name"
+  echo -e "  --check-token                          🔧 ${COLOR_YELLOW}Check${COLOR_RESET}   If the current token is valid"
+  echo -e "  --create-user user pass email          👤 ${COLOR_GREEN}Create${COLOR_RESET}  User with a ${COLOR_YELLOW}username, ${COLOR_YELLOW}password${COLOR_RESET} and ${COLOR_YELLOW}email${COLOR_RESET}"
+  echo -e "  --delete-user username                 💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  User by ${COLOR_YELLOW}username${COLOR_RESET}"
+  echo -e "  --host-delete id                       💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --host-search hostname                 🔍 ${COLOR_GREEN}Search${COLOR_RESET}  Proxy host by domain name"
+  echo -e "  --host-show id                         🔍 ${COLOR_YELLOW}Show${COLOR_RESET}    Full details for a specific host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --host-list                            📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Proxy hosts (simple)"
+  echo -e "  --host-list-full                       📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Proxy hosts full details (JSON)"
+  echo -e "  --host-list-ssl-certificates           📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates"
+  echo -e "  --host-list-users                      📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Users"
+  echo -e "  --host-enable id                       ✅ ${COLOR_GREEN}Enable${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --host-disable id                      ❌ ${COLOR_ORANGE}Disable${COLOR_RESET} Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Will generate Certificat auto if needed)"
+  echo -e "  --host-ssl-disable id                  🔓 ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
+  echo -e "  --generate-cert domain email [--custom]🛡️  ${COLOR_GREEN}Generate${COLOR_RESET} Custom certificate for the given domain and email (Only for Custom certificat)"
+  echo -e "  --examples                             🔖  Examples commands, more explicits"
+  echo -e "  --help"    
+  echo ""
+  exit 0
+}
+
+# Examples CLI Commands
+examples_cli() {
+  echo -e "\n${COLOR_YELLOW}Usage: ./nginx_proxy_manager_cli.sh -d domain -i ip -p port [-f forward_scheme] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-a advanced_config] [-t token_expiry] [--create-user username password email] [--delete-user username] [--host-delete id] [--host-list] [--host-list-full] [--host-list-ssl-certificates] [--host-list-users] [--host-search hostname] [--host-enable id] [--host-disable id] [--check-token] [--backup] [--backup-host id] [--restore] [--restore-host id] [--generate-cert domain email [--custom]] [--host-ssl-enable id] [--host-ssl-disable id] [--host-show id] [--show-default] [--help]${COLOR_RESET}"
   echo -e ""
   echo -e "Examples:"
   echo -e "\n 📦 Backup First before doing anything!${COLOR_GREY}"
   echo -e "  ./nginx_proxy_manager_cli.sh --backup"
-  echo -e "  ./nginx_proxy_manager_cli.sh --host-backup-id 10"
+  echo -e "  ./nginx_proxy_manager_cli.sh --backup-host 1"
   echo -e "  ./nginx_proxy_manager_cli.sh --restore"
-  echo -e "  ./nginx_proxy_manager_cli.sh --host-restore-id 10"
+  echo -e "  ./nginx_proxy_manager_cli.sh --restore-host 1"
   echo -e "\n ${COLOR_RESET}🌐 Host Creation${COLOR_GREY}"
   echo -e "  ./nginx_proxy_manager_cli.sh --show-default"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080"
@@ -253,39 +262,6 @@ usage() {
   echo -e "\n ${COLOR_RESET}🔖 Full option:${COLOR_GREY}"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP \$remote_addr;' -l '[{\"path\":\"/api\",\"forward_host\":\"192.168.1.11\",\"forward_port\":8081}]'"
   echo -e "${COLOR_RESET}"
-  echo -e "Options:"
-  echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}                       Domain name (${COLOR_RED}required${COLOR_RESET})"
-  echo -e "  -i ${COLOR_ORANGE}FORWARD_HOST${COLOR_RESET}                       IP address or domain name of the target server (${COLOR_RED}required${COLOR_RESET})"
-  echo -e "  -p ${COLOR_ORANGE}FORWARD_PORT${COLOR_RESET}                       Port of the target server (${COLOR_RED}required${COLOR_RESET})"
-  echo -e "  -f FORWARD_SCHEME                       Scheme for forwarding (http/https, default: $(colorize_booleanh $FORWARD_SCHEME))"
-  echo -e "  -c CACHING_ENABLED                      Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
-  echo -e "  -b BLOCK_EXPLOITS                       Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
-  echo -e "  -w ALLOW_WEBSOCKET_UPGRADE              Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
-  echo -e "  -l CUSTOM_LOCATIONS                     Custom locations (${COLOR_YELLOW}JSON array${COLOR_RESET} of location objects)"
-  echo -e "  -a ADVANCED_CONFIG                      Advanced configuration (${COLOR_YELLOW}string${COLOR_RESET})"
-  echo ""
-  echo -e "  --info                                 ℹ️  ${COLOR_YELLOW}Display${COLOR_RESET} Script Variables Information"
-  echo -e "  --show-default                         🔍 ${COLOR_YELLOW}Show${COLOR_RESET}    Default settings for creating hosts"
-  echo -e "  --backup                               📦 ${COLOR_GREEN}Backup${COLOR_RESET}  All configurations to a different files in \$BACKUP_DIR"
-  echo -e "  --host-backup-id id                    📦 ${COLOR_GREEN}Backup${COLOR_RESET}  Single host configuration and its certificate (if exists)"
-  echo -e "  --restore                              📦 ${COLOR_GREEN}Restore${COLOR_RESET} All configurations from a backup file"
-  echo -e "  --host-restore-id id                   📦 ${COLOR_GREEN}Restore${COLOR_RESET} Single host configuration and its certificate (if exists)"
-  echo -e "  --check-token                          🔧 ${COLOR_YELLOW}Check${COLOR_RESET}   If the current token is valid"
-  echo -e "  --create-user user pass email          👤 ${COLOR_GREEN}Create${COLOR_RESET}  User with a ${COLOR_YELLOW}username, ${COLOR_YELLOW}password${COLOR_RESET} and ${COLOR_YELLOW}email${COLOR_RESET}"
-  echo -e "  --delete-user username                 💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  User by ${COLOR_YELLOW}username${COLOR_RESET}"
-  echo -e "  --host-delete id                       💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
-  echo -e "  --host-search hostname                 🔍 ${COLOR_GREEN}Search${COLOR_RESET}  Proxy host by domain name"
-  echo -e "  --host-show id                         🔍 ${COLOR_YELLOW}Show${COLOR_RESET}    Full details for a specific host by ${COLOR_YELLOW}ID${COLOR_RESET}"
-  echo -e "  --host-list                            📋 ${COLOR_YELLOW}List${COLOR_RESET}    Names of all proxy hosts"
-  echo -e "  --host-list-full                       📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Proxy hosts with full details"
-  echo -e "  --host-list-ssl-certificates           📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates"
-  echo -e "  --host-list-users                      📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Users"
-  echo -e "  --host-enable id                       ✅ ${COLOR_GREEN}Enable${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
-  echo -e "  --host-disable id                      ❌ ${COLOR_ORANGE}Disable${COLOR_RESET} Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
-  echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Will generate Certificat auto if needed)"
-  echo -e "  --host-ssl-disable id                  🔓 ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
-  echo -e "  --generate-cert domain email [--custom]🛡️  ${COLOR_GREEN}Generate${COLOR_RESET} Custom certificate for the given domain and email (Only for Custom certificat)"
-  echo -e "  --help"    
   echo ""
   exit 0
 }
@@ -312,12 +288,13 @@ display_info() {
   if [ -f "$TOKEN_FILE" ]; then
     echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW}  $TOKEN_FILE ${COLOR_RESET}"
   else
-    echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET} \n   Check ./nginx_proxy_manager_cli.sh --check-token  "
+    echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET} \n  🔖  Check ./nginx_proxy_manager_cli.sh --check-token  "
      echo -e "  Generating new token..."
      generate_token
 
   fi
   echo ""
+
 }
 
 # Vérification et création des dossiers si nécessaires
@@ -375,7 +352,48 @@ colorize_booleanh() {
   fi
 }
 
+################################
+# Generate a new API token
+generate_token() {
+  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
 
+  token=$(echo "$response" | jq -r '.token')
+  expires=$(echo "$response" | jq -r '.expires')
+
+  if [ "$token" != "null" ]; then
+    echo "$token" > $TOKEN_FILE
+    echo "$expires" > $EXPIRY_FILE
+    echo "Token: $token"
+    echo "Expiry: $expires"
+  else
+    echo -e "${COLOR_RED}Error generating token.${COLOR_RESET}"
+    echo -e "Check your [user] and [pass] and [IP]"
+    exit 1
+  fi
+}
+
+# Validate the existing token
+validate_token() {
+  if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
+    return 1
+  fi
+
+  token=$(cat $TOKEN_FILE)
+  expires=$(cat $EXPIRY_FILE)
+  current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  if [[ "$current_time" < "$expires" ]]; then
+    echo -e " ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
+    return 0
+  else
+    echo -e " ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+    return 1
+  fi
+}
+
+#################################
 
 
 while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
@@ -393,14 +411,20 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
       case "${OPTARG}" in
           show-default) SHOW_DEFAULT=true ;;
           backup) BACKUP=true ;;
-          host-backup-id)
+          backup-host)
               BACKUP_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
-          host-restore) RESTORE=true ;;
-          host-restore-id)
-              RESTORE_HOST=true
-              HOST_ID="${!OPTIND}"; shift
+          restore-host)
+              if [ -n "${!OPTIND}" ] && [[ "${!OPTIND}" != -* ]]; then
+                RESTORE_HOST=true
+                DOMAIN="${!OPTIND}"; shift
+              else
+                list_backups
+                echo -n "Enter domain to restore: "
+                read DOMAIN
+                RESTORE_HOST=true
+              fi
               ;;
           ssl-restore) SSL_RESTORE=true ;;
           ssl-regenerate) SSL_REGENERATE=true ;;
@@ -454,6 +478,7 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               HOST_ID="${!OPTIND}"; shift
               ;;
           force-cert-creation) FORCE_CERT_CREATION=true ;;
+          examples) examples_cli ;;
           info) display_info;echo; exit 0 ;;
       esac ;;
       *) display_info; exit 0
@@ -710,6 +735,7 @@ restore_backup() {
 }
 
 
+
 ######################################################
 ## en test
 ######################################################
@@ -770,129 +796,6 @@ delete_proxy_host() {
     return 0
   fi
 }
-
-
-## Function to restore a single host configuration
-restore_host_id() {
-  if [ -z "$HOST_ID" ]; then
-    echo -e "\n 🩹 The --host-restore-id option requires a host ID."
-    usage
-  fi
-
-  # Get the current date in a formatted string
-  DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
-
-  # Verify if host ID exists
-  HOST_ID_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-  if [ -z "$HOST_ID_RESPONSE" ] || [ "$(echo "$HOST_ID_RESPONSE" | jq -r '.id')" != "$HOST_ID" ]; then
-    echo -e "\n ⛔ ${COLOR_RED}Host ID $HOST_ID does not exist. Aborting restore.${COLOR_RESET}"
-    exit 1
-  fi
-
-  # Fetch the host name to identify the directory
-  HOST_NAME=$(echo "$HOST_ID_RESPONSE" | jq -r '.domain_names[0]')
-  if [ -z "$HOST_NAME" ]; then
-    echo -e "\n ⛔ ${COLOR_RED}Host name not found in the response. Aborting restore.${COLOR_RESET}"
-    exit 1
-  fi
-  SANITIZED_HOST_NAME=$(echo "$HOST_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
-  HOST_DIR="$BACKUP_DIR/$SANITIZED_HOST_NAME"
-
-  #echo -e " 🐛 Debug: SANITIZED_HOST_NAME = $SANITIZED_HOST_NAME"
-  #echo -e " 🐛 Debug: HOST_DIR = $HOST_DIR"
-
-  # Verify the existence of the host directory
-  if [ ! -d "$HOST_DIR" ]; then
-    echo -e "\n ⛔ ${COLOR_RED}Backup directory for host $HOST_ID not found: $HOST_DIR${COLOR_RESET}"
-    exit 1
-  fi
-
-  # Verify the existence of backup files
-  BACKUP_FILES=($(find "$HOST_DIR" -type f -name "proxy_host_${HOST_ID}_*.json"))
-
-  if [ ${#BACKUP_FILES[@]} -eq 0 ]; then
-    echo -e "\n ⛔ ${COLOR_RED}No backup file found for host ID $HOST_ID in '$HOST_DIR'. Aborting restore.${COLOR_RESET}"
-    exit 1
-  fi
-
-  # Count the number of backup files
-  BACKUP_COUNT=${#BACKUP_FILES[@]}
-
-  if [ "$BACKUP_COUNT" -gt 0 ]; then
-    echo -e "\n 🔍 Found ${COLOR_ORANGE}$BACKUP_COUNT${COLOR_RESET} backups for host ${COLOR_ORANGE}$SANITIZED_HOST_NAME${COLOR_RESET} ID $HOST_ID."
-    PROXY_HOST_FILE=$(ls -t "${BACKUP_FILES[@]}" | head -n 1)
-    echo -e " 🩹 Latest Backup File found: $PROXY_HOST_FILE \n"
-    read -p " 👉 Do you want to (1) restore the latest backup, (2) list backups and choose one, or (3) abandon? (1/2/3): " -r choice
-    case $choice in
-      1)
-        echo -e "\n 🩹 Proxy Host backup file : $PROXY_HOST_FILE"
-        ;;
-      2)
-        BACKUP_LIST=($(ls -t "${BACKUP_FILES[@]}"))
-        echo -e "\nAvailable backups:"
-        for i in "${!BACKUP_LIST[@]}"; do
-          echo "$i) ${BACKUP_LIST[$i]}"
-        done
-        read -p " 👉 Enter the number of the backup you want to restore: " -r backup_number
-        PROXY_HOST_FILE="${BACKUP_LIST[$backup_number]}"
-        if [ ! -f "$PROXY_HOST_FILE" ]; then
-          echo -e "\n ⛔ ${COLOR_RED}Selected backup file not found: $PROXY_HOST_FILE${COLOR_RESET}"
-          exit 1
-        fi
-        ;;
-      3)
-        echo -e "\n${COLOR_RED} Abandoned.${COLOR_RESET}\n"
-        exit 0
-        ;;
-      *)
-        echo -e "\n ${COLOR_ORANGE}Invalid choice.${COLOR_RESET}\n"
-        exit 1
-        ;;
-    esac
-  fi
-
-  # Verify if the proxy host exists
-  if [ -n "$HOST_ID_RESPONSE" ] && [ "$(echo "$HOST_ID_RESPONSE" | jq -r '.id')" = "$HOST_ID" ]; then
-    echo -e " 🔔 Proxy host for ID $HOST_ID already exists.\n ${COLOR_ORANGE}"
-    read -p " 👉 Do you want to delete the existing proxy host and restore from the backup? (y/n): " -r confirm
-    echo -e "${COLOR_RESET}" 
-    if [[ $confirm =~ ^[Yy]$ ]]; then
-      echo -e "${COLOR_RESET}" 
-      if ! delete_proxy_host; then
-        echo -e "${COLOR_RED} ⛔ Failed to delete existing proxy host. Aborting restore.${COLOR_RESET}\n"
-        exit 1
-      fi
-    else
-      echo " ⛔ Abandoned."
-      exit 0
-    fi
-  fi
-
-  if [ -f "$PROXY_HOST_FILE" ]; then
-    RESPONSE=$(jq 'del(.id, .created_on, .modified_on, .owner_user_id)' "$PROXY_HOST_FILE")
-    HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/proxy-hosts" \
-      -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
-      -H "Content-Type: application/json; charset=UTF-8" \
-      --data-raw "$RESPONSE")
-
-    HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\\:.*//g')
-    HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\\n' | sed -e 's/.*HTTPSTATUS://')
-
-    if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
-      echo -e " ✅ ${COLOR_GREEN}Proxy host restored 🆗 from file: $PROXY_HOST_FILE${COLOR_RESET}\n"
-    else
-      echo -e " ⛔ ${COLOR_RED}Failed to restore proxy host. Error: $HTTP_BODY${COLOR_RESET}\n"
-      exit 1
-    fi
-  else
-    echo -e "\n ⛔ ${COLOR_RED}Proxy host backup file not found: $PROXY_HOST_FILE${COLOR_RESET}\n"
-    exit 1
-  fi
-}
-
-
-
-
 
 
 ################################
@@ -1026,7 +929,8 @@ create_new_proxy_host() {
 # Create or update a proxy host based on the existence of the domain
 create_or_update_proxy_host() {
   if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
-    echo -e "\n 🌍 The -d, -i, and -p options are required to create or update a proxy host.\n"
+    echo -e "\n 🌍 The -d, -i, and -p options are required to create or update a proxy host."
+    echo -e " 🔖  Check some examples commands with --examples \n"
     usage
   fi
 
@@ -1355,6 +1259,7 @@ enable_ssl() {
   fi
 }
 
+# disable_ssl
 # Function to disable SSL for a proxy host
 disable_ssl() {
   if [ -z "$HOST_ID" ]; then
@@ -1396,7 +1301,7 @@ disable_ssl() {
   fi
 }
 
-
+# host_show
 # Function to show full details for a specific host by ID
 host_show() {
   if [ -z "$HOST_ID" ]; then
@@ -1411,6 +1316,7 @@ host_show() {
   echo ""
 }
 
+# show_default
 # Display default settings for creating hosts
 show_default() {
   echo -e "\n ⭐ ${COLOR_YELLOW}Default settings Token:${COLOR_RESET}"
@@ -1428,7 +1334,8 @@ show_default() {
   exit 0
 }
 
-
+## backup
+# Function to make a full backup
 full_backup() {
   mkdir -p "$BACKUP_DIR"
 
@@ -1445,8 +1352,13 @@ full_backup() {
   # Initialize counters
   USER_COUNT=0
 
+  # Create subdirectories
+  mkdir -p "$BACKUP_DIR/.user"
+  mkdir -p "$BACKUP_DIR/.settings"
+  mkdir -p "$BACKUP_DIR/.access_lists"
+
   # Backup users
-  USERS_FILE="$BACKUP_DIR/users_${NGINX_IP//./_}$DATE.json"
+  USERS_FILE="$BACKUP_DIR/.user/users_${NGINX_IP//./_}$DATE.json"
   RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   if [ -n "$RESPONSE" ]; then
@@ -1458,7 +1370,7 @@ full_backup() {
   fi
 
   # Backup settings
-  SETTINGS_FILE="$BACKUP_DIR/settings_${NGINX_IP//./_}$DATE.json"
+  SETTINGS_FILE="$BACKUP_DIR/.settings/settings_${NGINX_IP//./_}$DATE.json"
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/settings" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   if [ -n "$RESPONSE" ]; then
@@ -1502,7 +1414,7 @@ full_backup() {
   echo -e " ✅ ${COLOR_GREEN}Proxy host backup completed   🆗${COLOR_GREY}: $BACKUP_DIR ${COLOR_RESET}"
 
   # Backup access lists
-  ACCESS_LISTS_FILE="$BACKUP_DIR/access_lists_${NGINX_IP//./_}$DATE.json"
+  ACCESS_LISTS_FILE="$BACKUP_DIR/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   if [ -n "$RESPONSE" ]; then
@@ -1527,12 +1439,11 @@ full_backup() {
 }
 
 
-####
-
+## backup-host
 # Function to backup a single host configuration and its certificate (if exists)
-backup-host-id() {
+backup-host() {
   if [ -z "$HOST_ID" ]; then
-    echo " 📦 The --host-backup-id option requires a host ID."
+    echo " 📦 The --backup-host option requires a host ID."
     usage
   fi
 
@@ -1551,8 +1462,8 @@ backup-host-id() {
     HOST_DIR="$BACKUP_DIR/$SANITIZED_HOST_NAME"
     mkdir -p "$HOST_DIR"
 
-    echo "$RESPONSE" | jq '.' > "$HOST_DIR/proxy_host_${HOST_ID}_${NGINX_IP//./_}_$DATE.json"
-    echo -e "\n ✅ ${COLOR_GREEN}Proxy host backup completed      🆗${COLOR_GREY}: ${HOST_DIR}/proxy_host_${HOST_ID}_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
+    echo "$RESPONSE" | jq '.' > "$HOST_DIR/proxy_host_${NGINX_IP//./_}_$DATE.json"
+    echo -e "\n ✅ ${COLOR_GREEN}Proxy host backup completed      🆗${COLOR_GREY}: ${HOST_DIR}/proxy_host_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
 
     # Fetch SSL certificate if it exists
     CERTIFICATE_ID=$(echo "$RESPONSE" | jq -r '.certificate_id')
@@ -1560,8 +1471,8 @@ backup-host-id() {
       CERT_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
       -H "Authorization: Bearer $(cat $TOKEN_FILE)")
       if [ -n "$CERT_RESPONSE" ]; then
-        echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certif_${CERTIFICATE_ID}_${NGINX_IP//./_}_$DATE.json"
-        echo -e " ✅ ${COLOR_GREEN}SSL certificate backup completed 🆗${COLOR_GREY}: ${HOST_DIR}/ssl_certif_${CERTIFICATE_ID}_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
+        echo "$CERT_RESPONSE" | jq '.' > "$HOST_DIR/ssl_certif_${NGINX_IP//./_}_$DATE.json"
+        echo -e " ✅ ${COLOR_GREEN}SSL certificate backup completed 🆗${COLOR_GREY}: ${HOST_DIR}/ssl_certif_${NGINX_IP//./_}_$DATE.json${COLOR_RESET}"
       else
         echo -e " ⛔ ${COLOR_RED}Failed to backup SSL certificate for certificate ID $CERTIFICATE_ID.${COLOR_RESET}"
       fi
@@ -1573,10 +1484,17 @@ backup-host-id() {
   fi
   echo ""
 }
+##############
+## restore-host
+# Function to restore a single host configuration and its certificate (if exists)
+restore-host() {
+echo "A finir "
+}
 
-
-
+ 
+#################################
 # Main logic
+
 if [ "$CREATE_USER" = true ]; then
   create_user
 elif [ "$DELETE_USER" = true ]; then
@@ -1604,11 +1522,11 @@ elif [ "$CHECK_TOKEN" = true ]; then
 elif [ "$BACKUP" = true ]; then
   full_backup
 elif [ "$BACKUP_HOST" = true ]; then
-  backup-host-id
+  backup-host
 elif [ "$RESTORE" = true ]; then
   restore_backup
 elif [ "$RESTORE_HOST" = true ]; then
-  restore_host_id
+   restore-host
 elif [ "$GENERATE_CERT" = true ]; then
   generate_certificate
 elif [ "$ENABLE_SSL" = true ]; then
