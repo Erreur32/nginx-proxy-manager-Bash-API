@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="2.3.7"
+VERSION="2.4.0"
 # Nginx Proxy Manager CLI Script
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
