@@ -159,9 +159,10 @@ BASE_DIR="/path/nginx_proxy_script/data"
 
 ######  Info
 
-Some info settings in the script
+Some info of settings in the script with `./nginx_proxy_manager_cli_.sh --info`
 
-```
+
+```bash
 ./nginx_proxy_manager_cli_.sh --info
 
 Script Info:  2.3.5
@@ -178,7 +179,8 @@ Script Variables Information:
 ```
 
 
- 
+**How to activate SSL ?** 
+
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
 ##### List
@@ -188,7 +190,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
     
       👉 List of proxy hosts (simple)
       ID     Domain                               Status    SSL
-      1      toto.fun                              disable  ✘
+      1      toto.fun                              enabled  ✘
       2      titi.fun                              disable  ✅
       3      tutu.fun                              enabled  ✅
 
@@ -196,23 +198,32 @@ By following these steps, you can enable SSL for your proxy host for the first t
 ##### SSL
 Enable SSL for the Host:
 
-  Assuming the host ID is *10*, you would enable SSL for the host as follows:
+  Assuming the host ID is *1*, you would enable SSL for the host as follows:
 
-    ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
+    ./nginx_proxy_manager_cli.sh --host-ssl-enable 1
 
- SSl is enable successfully
+ SSl is enable successfully, check again with --host-list
+
+     ./nginx_proxy_manager_cli.sh --host-list
+    
+      👉 List of proxy hosts (simple)
+      ID     Domain                               Status    SSL
+      1      toto.fun                              enabled  ✅
+      2      titi.fun                              disable  ✅
+      3      tutu.fun                              enabled  ✅
+
  
  Et Voilà.
 
 
-Other Exemple command:
+**Other Exemple command:**
 
 
 Host proxy info command `--host-show id`
 
 
 ```
- ./nginx_proxy_manager_cli_.sh --host-show 10
+ ./nginx_proxy_manager_cli_.sh --host-show 1
 
  ✅ Nginx url: http://127.0.0.1:81/api
  ✅ The token is valid. Expiry: 2025-07-12T08:14:58.521Z
