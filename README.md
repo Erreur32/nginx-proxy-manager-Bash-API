@@ -19,9 +19,7 @@
 > [!WARNING]
 > The  --restore command may not work correctly (a fix is in progress).
 > 
-> instead try:
-> 
-> ./nginx_proxy_manager_cli.sh --restore-id id  (necessary to add hosts one by one and regen certificates).
+
 
 ## Description
 
@@ -99,10 +97,10 @@ BASE_DIR="/path/nginx_proxy_script/data"
    -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
 
 📦 Backup and Restore:
-   --backup                         Backup all configurations to a file
-   --backup-id id                   Backup a single host configuration and its certificate (if exists)
-   --restore                        Restore configurations from a backup file
-   --restore-id id                  Restore a single host configuration and its certificate (if exists)
+   --backup                             Backup all configurations to a file
+   --backup-host id                     Backup a single host configuration and its certificate (if exists)
+   --restore                            Restore configurations from a backup file
+   --restore-host id                    Restore a single host configuration and its certificate (if exists)
 
  🔧 Miscellaneous:
    --info                                Script and configuration information
