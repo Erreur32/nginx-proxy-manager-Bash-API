@@ -1,9 +1,11 @@
 #!/bin/bash
 
-VERSION="2.4.0"
 # Nginx Proxy Manager CLI Script
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
+
+VERSION="2.4.0"
+
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
 # functionalities such as creating proxy hosts, managing users, listing hosts,
@@ -12,7 +14,6 @@ VERSION="2.4.0"
 # Usage:
 #   ./nginx_proxy_manager_cli.sh [OPTIONS]
 #
-
 # Examples:
 #
 # 📦 Backup First!
@@ -21,22 +22,22 @@ VERSION="2.4.0"
 # 🌐 Host Creation:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
 #   ./nginx_proxy_manager_cli.sh --show-default
-#   ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
-#   ./nginx_proxy_manager_cli.sh --delete-user 'username'
 #   ./nginx_proxy_manager_cli.sh --host-list
 #   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
+
+# 👤 User Creation: 
+#   ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
+#   ./nginx_proxy_manager_cli.sh --delete-user 'username'
 #
 # 🔧 Advanced Example:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 #
-#   Custom Certificate:
+# 🔒 Custom Certificate:
 #   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom
 #
-#   Custom locations:
+# 📂 Custom locations:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 #
-#
-
 # Options:
 #
 # 🌐 Host proxy creation:
@@ -74,7 +75,6 @@ VERSION="2.4.0"
 #   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
 #   --generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email
 #   --help                                Display this help
-
 
 ################################
 # Variables to Edit (required) #
