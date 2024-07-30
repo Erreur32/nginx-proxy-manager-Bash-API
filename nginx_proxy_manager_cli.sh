@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
 
-VERSION="2.4.0"
+VERSION="2.4.2"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -24,7 +24,7 @@ VERSION="2.4.0"
 #   ./nginx_proxy_manager_cli.sh --show-default
 #   ./nginx_proxy_manager_cli.sh --host-list
 #   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
-
+#
 # 👤 User Creation: 
 #   ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
 #   ./nginx_proxy_manager_cli.sh --delete-user 'username'
@@ -90,7 +90,6 @@ BASE_DIR="/path/nginx_proxy_script/data"
 #################################
 # Variables to Edit (optional) #
 #################################
-#DATE=$(date +"%Y%m%d%H%M%S")
 
 # API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
@@ -153,6 +152,7 @@ COLOR_GREY="\e[90m"
 WHITE_ON_GREEN="\033[30;48;5;83m"
 
 
+###############################################
 # Check if necessary dependencies are installed
 check_dependencies() {
   local dependencies=("curl" "jq")
