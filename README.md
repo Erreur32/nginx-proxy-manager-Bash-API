@@ -17,7 +17,7 @@
 13. [TODO](#todo)
 
 > [!WARNING]
-> The  --restore command may not work correctly (a fix is in progress).
+> The  --restore command is disabled  (a fix is in progress).
 > 
 
 
