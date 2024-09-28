@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
 
-VERSION="2.5.1"
+VERSION="2.5.4"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -14,8 +14,14 @@ VERSION="2.5.1"
 # Usage:
 #   ./nginx_proxy_manager_cli.sh [OPTIONS]
 #
-# Examples:
+# TIPS: Create manually a Config file for persistent variables 'nginx_proxy_manager_cli.conf' :
+#       With these variables:
+#          NGINX_IP="127.0.0.1"
+#          API_USER="user@nginx"
+#          API_PASS="pass nginx"
+#          BASE_DIR="/path/nginx_proxy_script/data" 
 #
+# Examples:
 # 📦 Backup First!
 #   ./nginx_proxy_manager_cli.sh --backup
 #
@@ -80,18 +86,42 @@ VERSION="2.5.1"
 
 ################################
 # Variables to Edit (required) #
+#   or create a config file    #
 ################################
 
 NGINX_IP="127.0.0.1"
-# Existing nginx user
 API_USER="user@nginx"
 API_PASS="pass nginx"
-# Path to store .txt files and Backups
 BASE_DIR="/path/nginx_proxy_script/data"
 
-#################################
-# Variables to Edit (optional) #
-#################################
+# Check if config file nginx_proxy_manager_cli.conf exist
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG_FILE="$SCRIPT_DIR/nginx_proxy_manager_cli.conf" 
+
+################################
+# PERSISTENT Config
+# Create config file  $SCRIPT_DIR/nginx_proxy_manager_cli.conf and Variables to Edit (required) 
+# NGINX_IP="127.0.0.1"
+# API_USER="user@nginx"
+# API_PASS="pass nginx"
+# BASE_DIR="/path/nginx_proxy_script/dir"
+################################
+
+if [ -f "$CONFIG_FILE" ]; then
+  echo -e "  ✅ Loading variables from file $PWD/nginx_proxy_manager_cli.conf..."
+  # configuration file loading
+  source "$CONFIG_FILE"
+else
+  echo -e "  ⚠️ Configuration file $PWD/nginx_proxy_manager_cli.conf don't exists. Used Default Variables... "
+fi
+
+################################
+# Varibles(optionnel debug)    #
+################################
+#echo "NGINX_IP: $NGINX_IP"
+#echo "API_USER: $API_USER"
+#echo "API_PASS: $API_PASS"
+#echo "BASE_DIR: $BASE_DIR"
 
 # API Endpoints
 BASE_URL="http://$NGINX_IP:81/api"
@@ -228,7 +258,7 @@ usage() {
   echo -e "  --host-disable id                      ❌ ${COLOR_ORANGE}Disable${COLOR_RESET} Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
   echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${COLOR_RESET} to creating one)"
   echo -e "  --host-ssl-disable id                  🔓 ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
-  echo -e "  --list-ssl-certificates                📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates availables (JSON)"  
+  echo -e "  --list-ssl-certificates [domain]       📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates availables or filtered by [domain name]  (JSON)"  
   echo -e "  --generate-cert domain email           🌀 ${COLOR_GREEN}Generate${COLOR_RESET} Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' and '${COLOR_YELLOW}email${COLOR_RESET}'"
   echo -e "  --delete-cert domain                   💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' "
 
@@ -254,6 +284,7 @@ examples_cli() {
   echo -e "  ./nginx_proxy_manager_cli.sh --host-ssl-enable 10"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-show 10"
   echo -e "  ./nginx_proxy_manager_cli.sh --host-list"
+  echo -e "\n  ./nginx_proxy_manager_cli.sh --list-ssl-certificates domain.com"
   echo -e "\n ${COLOR_RESET}👤 User Management${COLOR_GREY}"
   echo -e "  ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com"
   echo -e "  ./nginx_proxy_manager_cli.sh --delete-user 'username'"
@@ -273,12 +304,15 @@ examples_cli() {
 
 # Display script variables info
 display_info() {
+
   echo -e "\n${COLOR_YELLOW}Script Info:  ${COLOR_GREEN}${VERSION}${COLOR_RESET}"
+
   echo -e "\n${COLOR_YELLOW}Script Variables Information:${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}BASE_DIR${COLOR_RESET}    ${BASE_DIR}"
+  echo -e "  ${COLOR_YELLOW}Config${COLOR_RESET}      ${BASE_DIR}/nginx_proxy_manager_cli.conf"
   echo -e "  ${COLOR_GREEN}BASE_URL${COLOR_RESET}    ${BASE_URL}"
   echo -e "  ${COLOR_GREEN}NGINX_IP${COLOR_RESET}    ${NGINX_IP}"
   echo -e "  ${COLOR_GREEN}API_USER${COLOR_RESET}    ${API_USER}"
-  echo -e "  ${COLOR_GREEN}BASE_DIR${COLOR_RESET}    ${BASE_DIR}"
   echo -e "  ${COLOR_GREEN}BACKUP_DIR${COLOR_RESET}  ${BACKUP_DIR}"
 
   if [ -d "$BACKUP_DIR" ]; then
@@ -302,7 +336,7 @@ display_info() {
 
 # Vérification et création des dossiers si nécessaires
 if [ ! -d "$BASE_DIR" ]; then
-  echo -e "${COLOR_RED}Error : BASE_DIR  $BASE_DIR  Don't exist. Check config.${COLOR_RESET}"
+  echo -e "\n  ${COLOR_RED}Error : BASE_DIR  $BASE_DIR  Don't exist. Check config.${COLOR_RESET} \n  check config variables !"
   exit 1
 fi
 
@@ -310,7 +344,7 @@ if [ ! -d "$TOKEN_DIR" ]; then
   #echo -e "${COLOR_YELLOW}Info : Le dossier de tokens $TOKEN_DIR n'existe pas. Création en cours...${COLOR_RESET}"
   mkdir -p "$TOKEN_DIR"
   if [ $? -ne 0 ]; then
-    echo -e "${COLOR_RED}Error: Failed to create token directory $TOKEN_DIR.${COLOR_RESET}"
+    echo -e "\n  ${COLOR_RED}Error: Failed to create token directory $TOKEN_DIR.${COLOR_RESET} \n  check config variables !"
     exit 1
   fi
 fi
@@ -319,7 +353,7 @@ if [ ! -d "$BACKUP_DIR" ]; then
   #echo -e "${COLOR_YELLOW}Info : Le dossier de backups $BACKUP_DIR n'existe pas. Création en cours...${COLOR_RESET}"
   mkdir -p "$BACKUP_DIR"
   if [ $? -ne 0 ]; then
-      echo -e "${COLOR_RED}Dependency $dep is not installed. Please install it before running this script.${COLOR_RESET}"
+      echo -e "\n  ${COLOR_RED}Dependency $dep is not installed. Please install it before running this script.${COLOR_RESET}"
     exit 1
   fi
 fi
@@ -489,7 +523,11 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               HOST_ID="${!OPTIND}"; shift
               ;;
           force-cert-creation) FORCE_CERT_CREATION=true ;;
-          list-ssl-certificates) LIST_SSL_CERTIFICATES=true ;;
+          list-ssl-certificates)
+              LIST_SSL_CERTIFICATES=true
+              DOMAIN="$2"            
+              #DOMAIN="${!OPTIND}"; shift
+              ;;          
           examples) examples_cli ;;
           info) display_info;echo; exit 0 ;;
       esac ;;
@@ -860,7 +898,7 @@ update_proxy_host() {
     "block_exploits": %s,
     "advanced_config": "%s",
     "meta": {
-      "dns_challenge": %s
+      "dns_challenge": "%s"
     },
     "allow_websocket_upgrade": %s,
     "http2_support": %s,
@@ -912,15 +950,15 @@ create_new_proxy_host() {
     "block_exploits": %s,
     "advanced_config": "%s",
     "meta": {
-      "dns_challenge": %s
+      "dns_challenge": null
     },
     "allow_websocket_upgrade": %s,
     "http2_support": %s,
     "forward_scheme": "%s",
     "enabled": true,
     "locations": %s
-  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG" "$DNS_CHALLENGE" "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
-
+  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG"  "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
+# add dns_challenge 
   echo -e "\n Request Data: $DATA"
 
   echo "$DATA" | jq . > /dev/null 2>&1
@@ -1053,22 +1091,26 @@ list_ssl_certificates_back() {
  
 # Function to list all SSL certificates or filter by domain
 list_ssl_certificates() {
-  DOMAIN="$1"  # Capture the first argument passed to the function
+
+  # Regex to validate domain or subdomain
+  DOMAIN_REGEX="^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"
 
   if [ -n "$DOMAIN" ]; then
+    # Validate domain format
+    if [[ ! $DOMAIN =~ $DOMAIN_REGEX ]]; then
+      echo " ⛔ Invalid domain format: $DOMAIN"
+      exit 1
+    fi
+
     echo " 👉 Listing SSL certificates for domain: $DOMAIN..."
-  else
-    echo " 👉 Listing all SSL certificates..."
-  fi
 
-  # Fetch all certificates
-  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+    # Fetch all certificates
+    RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
-  if [ -n "$DOMAIN" ]; then
-    # Filter certificates by domain name
-    CERTS_FOR_DOMAIN=$(echo "$RESPONSE" | jq -r --arg domain "$DOMAIN" \
-      '.[] | select(.domain_names[] == $domain) | {id: .id, provider: .provider, domain_names: .domain_names, valid_from: .valid_from, valid_to: .valid_to}')
+    # Filter certificates by nice_name
+    CERTS_FOR_DOMAIN=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
+      '.[] | select(.nice_name == $DOMAIN) | {id: .id, provider: .provider, nice_name: .nice_name, domain_names: .domain_names, valid_from: .valid_from, valid_to: .valid_to}')
 
     if [ -z "$CERTS_FOR_DOMAIN" ]; then
       echo " ⛔ No SSL certificates found for domain: $DOMAIN"
@@ -1077,15 +1119,17 @@ list_ssl_certificates() {
       echo "$CERTS_FOR_DOMAIN" | jq  # Display the filtered certificates
     fi
   else
-    # List all certificates if no domain is specified
-    #echo "$RESPONSE" | jq -r '.[] | {id: .id, provider: .provider, domain_names: .domain_names, valid_from: .valid_from, valid_to: .valid_to}'
+    echo " 👉 Listing all SSL certificates..."
+
+    # Fetch all certificates
+    RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+    # List all certificates
     echo "$RESPONSE" | jq
-   fi
+  fi
 }
 
-
-
- 
 
 
 
@@ -1394,21 +1438,16 @@ enable_ssl_old() {
   fi
 }
 
-# enable_ssl function
 enable_ssl() {
   if [ -z "$HOST_ID" ]; then
     echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
     echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${COLOR_RESET} to create one)"
-    #usage  # Call usage function to show correct usage
     exit 1  # Exit if no HOST_ID is provided
   fi
-
 
   # Validate that HOST_ID is a number
   if ! [[ "$HOST_ID" =~ ^[0-9]+$ ]]; then
     echo -e " ⛔ ${COLOR_RED}Invalid host ID: $HOST_ID. It must be a numeric value.${COLOR_RESET}\n"
-    echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
-    list_proxy_hosts
     exit 1
   fi
 
@@ -1418,26 +1457,48 @@ enable_ssl() {
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
+  CERTIFICATE_ID=$(echo "$CHECK_RESPONSE" | jq -r '.certificate_id')
   DOMAIN_NAMES=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[]')
 
   # Fetch all certificates (custom and Let's Encrypt)
   CERTIFICATES=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
-  # Find all certificates for the given domain
+  # Find all certificates for the given domain based on either domain_names or nice_name
   DOMAIN_CERTS=$(echo "$CERTIFICATES" | jq -c --arg domain "$DOMAIN_NAMES" \
-    '.[] | select(.domain_names[] == $domain) | {id: .id, provider: .provider, valid_from: .valid_from, valid_to: .valid_to}')
+    '[.[] | select((.domain_names[] == $domain) or (.nice_name == $domain))]')
 
   # Count the number of certificates found
-  CERT_COUNT=$(echo "$DOMAIN_CERTS" | jq -s 'length')
+  CERT_COUNT=$(echo "$DOMAIN_CERTS" | jq 'length')
 
   # Ensure CERT_COUNT is treated as an integer
   CERT_COUNT=${CERT_COUNT:-0}
 
   if [ "$CERT_COUNT" -eq 0 ]; then
     echo -e " ⛔ No certificate associated with this host.\n"
-    exit 1  # Exit if no certificate found
 
+    # Ask user if they want to generate a new certificate
+    echo -e "\n 👀 Checking if Let's Encrypt certificate for domain: $DOMAIN_NAMES exists..."
+    EXISTING_CERT=$(echo "$CERTIFICATES" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
+
+    if [ -n "$EXISTING_CERT" ]; then
+      EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
+      echo -e " 🔔 Certificate for $DOMAIN_NAMES already exists and is valid until $EXPIRES_ON.\n"
+    else
+      read -p "⚠️ No certificate found for $DOMAIN_NAMES. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM_CREATE
+      if [[ "$CONFIRM_CREATE" == "y" ]]; then
+        # Prompt for email if not set
+        read -p "Please enter your email for Let's Encrypt: " EMAIL
+
+        # Call the function to generate the certificate
+        DOMAIN="$DOMAIN_NAMES"
+        generate_certificate
+        return  # Exit after generating the certificate
+      else
+        echo -e " ❌ Certificate creation aborted. Exiting."
+        exit 1
+      fi
+    fi
   elif [ "$CERT_COUNT" -gt 1 ]; then
     echo " ⚠️ Multiple certificates found for domain $DOMAIN_NAMES. Please select one:"
 
@@ -1446,12 +1507,14 @@ enable_ssl() {
 
     # Ask the user to choose the certificate
     read -p "Enter the number of the certificate you want to use: " CERT_INDEX
-    CERT_INDEX=$((CERT_INDEX - 1))  # Adjust for 0-index
 
+    # Ensure proper handling of the selected certificate
+    CERT_INDEX=$((CERT_INDEX - 1))  # Adjust for 0-index
     CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r ".[$CERT_INDEX].id")
+
   else
     # Only one certificate found, use it
-    CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r '.id')
+    CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r '.[0].id')
     echo " ✅ Using certificate ID: $CERTIFICATE_ID"
   fi
 
@@ -1487,7 +1550,6 @@ enable_ssl() {
     echo -e "\n ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
   fi
 }
-
 
 
 # list_certificates function
