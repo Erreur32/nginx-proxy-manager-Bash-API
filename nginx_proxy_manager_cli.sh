@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
 
-VERSION="2.4.2"
+VERSION="2.5.0"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -33,7 +33,7 @@ VERSION="2.4.2"
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 #
 # 🔒 Custom Certificate:
-#   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom
+#   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com 
 #
 # 📂 Custom locations:
 #   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
@@ -53,9 +53,10 @@ VERSION="2.4.2"
 #
 # 📦 Backup and Restore:
 #   --backup                              Backup all configurations to a file
-#   --backup-host id                   Backup a single host configuration and its certificate (if exists)
-#   --restore                             Restore configurations from a backup file
-#   --restore-host (empty/name)        Restore a single host configuration and its certificate (if exists)
+#   --backup-host id                      Backup a single host configuration and its certificate (if exists)
+#
+# DISABLE
+#   --restore commands  DISABLED
 #
 # 🔧 Miscellaneous:
 #   --check-token                         Check if the current token is valid
@@ -66,14 +67,15 @@ VERSION="2.4.2"
 #   --show-default                        Show default settings for creating hosts
 #   --host-list                           List the names of all proxy hosts
 #   --host-list-full                      List all proxy hosts with full details
-#   --host-list-ssl-certificates          List all SSL certificates
 #   --host-list-users                     List all users
 #   --host-search hostname                Search for a proxy host by domain name
 #   --host-enable id                      Enable a proxy host by ID
 #   --host-disable id                     Disable a proxy host by ID
 #   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
 #   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-#   --generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email
+#   --list-ssl-certificates               List All SSL certificates availables (JSON)
+#   --generate-cert domain email          Generate certificate for the given domain and email
+#   --delete-cert domain                  Delete   certificate for the given domain
 #   --help                                Display this help
 
 ################################
@@ -86,6 +88,7 @@ API_USER="user@nginx"
 API_PASS="pass nginx"
 # Path to store .txt files and Backups
 BASE_DIR="/path/nginx_proxy_script/data"
+
 
 #################################
 # Variables to Edit (optional) #
@@ -140,7 +143,6 @@ ENABLE_SSL=false
 DISABLE_SSL=false
 HOST_SHOW=false
 SHOW_DEFAULT=false
-CUSTOM_CERT=false
 
 # Colors Custom
 COLOR_GREEN="\033[32m"
@@ -200,7 +202,7 @@ usage() {
   echo -e "  -d ${COLOR_ORANGE}DOMAIN_NAMES${COLOR_RESET}                       Domain name (${COLOR_RED}required${COLOR_RESET})"
   echo -e "  -i ${COLOR_ORANGE}FORWARD_HOST${COLOR_RESET}                       IP address or domain name of the target server (${COLOR_RED}required${COLOR_RESET})"
   echo -e "  -p ${COLOR_ORANGE}FORWARD_PORT${COLOR_RESET}                       Port of the target server (${COLOR_RED}required${COLOR_RESET})"
-  echo -e "\n  (Check default settings, no need if already set!)"
+  echo -e "\n  (Check default settings,no argument needed if already set!)"
   echo -e "  -f FORWARD_SCHEME                       Scheme for forwarding (http/https, default: $(colorize_booleanh $FORWARD_SCHEME))"
   echo -e "  -c CACHING_ENABLED                      Enable caching (true/false, default: $(colorize_boolean $CACHING_ENABLED))"
   echo -e "  -b BLOCK_EXPLOITS                       Block exploits (true/false, default: $(colorize_boolean $BLOCK_EXPLOITS))"
@@ -211,24 +213,26 @@ usage() {
   echo -e "  --info                                 ℹ️  ${COLOR_YELLOW}Display${COLOR_RESET} Script Variables Information"
   echo -e "  --show-default                         🔍 ${COLOR_YELLOW}Show${COLOR_RESET}    Default settings for creating hosts"
   echo -e "  --backup                               📦 ${COLOR_GREEN}Backup${COLOR_RESET}  All configurations to a different files in \$BACKUP_DIR"
-  echo -e "  --backup-host id                    📦 ${COLOR_GREEN}Backup${COLOR_RESET}  Single host configuration and its certificate (if exists)"
-  echo -e "  --restore                              📦 ${COLOR_GREEN}Restore${COLOR_RESET} All configurations from a backup file"
-  echo -e "  --restore-host id                   📦 ${COLOR_GREEN}Restore${COLOR_RESET} Restore single host with list with empty arguments or a Domain name"
+  echo -e "  --backup-host id                       📦 ${COLOR_GREEN}Backup${COLOR_RESET}  Single host configuration and its certificate (if exists)"
+  #echo -e "  --restore                              📦 ${COLOR_GREEN}Restore${COLOR_RESET} All configurations from a backup file"
+  #echo -e "  --restore-host id                      📦 ${COLOR_GREEN}Restore${COLOR_RESET} Restore single host with list with empty arguments or a Domain name"
   echo -e "  --check-token                          🔧 ${COLOR_YELLOW}Check${COLOR_RESET}   If the current token is valid"
   echo -e "  --create-user user pass email          👤 ${COLOR_GREEN}Create${COLOR_RESET}  User with a ${COLOR_YELLOW}username, ${COLOR_YELLOW}password${COLOR_RESET} and ${COLOR_YELLOW}email${COLOR_RESET}"
   echo -e "  --delete-user username                 💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  User by ${COLOR_YELLOW}username${COLOR_RESET}"
   echo -e "  --host-delete id                       💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
   echo -e "  --host-search hostname                 🔍 ${COLOR_GREEN}Search${COLOR_RESET}  Proxy host by domain name"
   echo -e "  --host-show id                         🔍 ${COLOR_YELLOW}Show${COLOR_RESET}    Full details for a specific host by ${COLOR_YELLOW}ID${COLOR_RESET}"
-  echo -e "  --host-list                            📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Proxy hosts (simple)"
+  echo -e "  --host-list                            📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Proxy hosts (table form)"
   echo -e "  --host-list-full                       📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Proxy hosts full details (JSON)"
-  echo -e "  --host-list-ssl-certificates           📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates"
   echo -e "  --host-list-users                      📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Users"
   echo -e "  --host-enable id                       ✅ ${COLOR_GREEN}Enable${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
   echo -e "  --host-disable id                      ❌ ${COLOR_ORANGE}Disable${COLOR_RESET} Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
-  echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Will generate Certificat auto if needed)"
+  echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${COLOR_RESET} to creating one)"
   echo -e "  --host-ssl-disable id                  🔓 ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
-  echo -e "  --generate-cert domain email [--custom]🛡️  ${COLOR_GREEN}Generate${COLOR_RESET} Custom certificate for the given domain and email (Only for Custom certificat)"
+  echo -e "  --list-ssl-certificates                📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates availables (JSON)"  
+  echo -e "  --generate-cert domain email           🌀 ${COLOR_GREEN}Generate${COLOR_RESET} Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' and '${COLOR_YELLOW}email${COLOR_RESET}'"
+  echo -e "  --delete-cert domain                   💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' "
+
   echo -e "  --examples                             🔖  Examples commands, more explicits"
   echo -e "  --help"    
   echo ""
@@ -237,14 +241,14 @@ usage() {
 
 # Examples CLI Commands
 examples_cli() {
-  echo -e "\n${COLOR_YELLOW}Usage: ./nginx_proxy_manager_cli.sh -d domain -i ip -p port [-f forward_scheme] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-a advanced_config] [-t token_expiry] [--create-user username password email] [--delete-user username] [--host-delete id] [--host-list] [--host-list-full] [--host-list-ssl-certificates] [--host-list-users] [--host-search hostname] [--host-enable id] [--host-disable id] [--check-token] [--backup] [--backup-host id] [--restore] [--restore-host id] [--generate-cert domain email [--custom]] [--host-ssl-enable id] [--host-ssl-disable id] [--host-show id] [--show-default] [--help]${COLOR_RESET}"
+  echo -e "\n${COLOR_YELLOW}Usage: ./nginx_proxy_manager_cli.sh -d domain -i ip -p port [-f forward_scheme] [-c caching_enabled] [-b block_exploits] [-w allow_websocket_upgrade] [-a advanced_config] [-t token_expiry] [--create-user username password email] [--delete-user username] [--host-delete id] [--host-list] [--host-list-full] [--host-list-certificates] [--host-list-users] [--host-search hostname] [--host-enable id] [--host-disable id] [--check-token] [--backup] [--backup-host id] [--restore] [--restore-host id] [--generate-cert domain email [--custom]] [--host-ssl-enable id] [--host-ssl-disable id] [--host-show id] [--show-default] [--help]${COLOR_RESET}"
   echo -e ""
   echo -e "Examples:"
   echo -e "\n 📦 Backup First before doing anything!${COLOR_GREY}"
   echo -e "  ./nginx_proxy_manager_cli.sh --backup"
   echo -e "  ./nginx_proxy_manager_cli.sh --backup-host 1"
-  echo -e "  ./nginx_proxy_manager_cli.sh --restore"
-  echo -e "  ./nginx_proxy_manager_cli.sh --restore-host 1"
+ # echo -e "  ./nginx_proxy_manager_cli.sh --restore"
+ # echo -e "  ./nginx_proxy_manager_cli.sh --restore-host 1"
   echo -e "\n ${COLOR_RESET}🌐 Host Creation${COLOR_GREY}"
   echo -e "  ./nginx_proxy_manager_cli.sh --show-default"
   echo -e "  ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080"
@@ -293,7 +297,7 @@ display_info() {
      generate_token
 
   fi
-  echo ""
+  echo -e "\n --help (Show all commands)"
 
 }
 
@@ -448,7 +452,6 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               ;;              
           host-list) LIST_HOSTS=true ;;
           host-list-full) LIST_HOSTS_FULL=true ;;
-          host-list-ssl-certificates) LIST_SSL_CERTIFICATES=true ;;
           host-list-users) LIST_USERS=true ;;
           host-search)
               SEARCH_HOST=true
@@ -468,16 +471,20 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               DOMAIN="${!OPTIND}"; shift
               EMAIL="${!OPTIND}"; shift
               ;;
-          custom) CUSTOM_CERT=true ;;
+          delete-cert)
+              DELETE_CERT=true
+              DOMAIN="${!OPTIND}"; shift
+              ;;
           host-ssl-enable)
               ENABLE_SSL=true
               HOST_ID="${!OPTIND}"; shift
-              ;;
+              ;;           
           host-ssl-disable)
               DISABLE_SSL=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           force-cert-creation) FORCE_CERT_CREATION=true ;;
+          list-ssl-certificates) LIST_SSL_CERTIFICATES=true ;;
           examples) examples_cli ;;
           info) display_info;echo; exit 0 ;;
       esac ;;
@@ -500,6 +507,7 @@ fi
 # Function to check if the host ID exists
 host-check-id() {
   local host_id=$1
+  # shellcheck disable=SC2155
   local host_list=$(./nginx_proxy_manager_cli.sh --host-list)
 
   if echo "$host_list" | grep -q ""id": $host_id"; then
@@ -540,8 +548,10 @@ list_ssl_backup_files() {
 regenerate_all_ssl_certificates() {
   echo -e "\n🔄 Regenerating SSL certificates for all hosts..."
 
+  # shellcheck disable=SC2155
   local hosts=$(curl -s -X GET -H "Authorization: Bearer $TOKEN" "$NGINX_API_URL/nginx/proxy-hosts")
   
+  # shellcheck disable=SC2207
   local host_ids=($(echo "$hosts" | jq -r '.[] | select(.ssl.enabled == true) | .id'))
   if [ ${#host_ids[@]} -eq 0 ]; then
     echo " ⛔ No hosts with SSL certificates found."
@@ -560,7 +570,7 @@ regenerate_all_ssl_certificates() {
   done
 }
 
-# Function to restore SSL certificates from a backup file
+# Function to restore SSL certificates from a backup file (not used)
 restore_ssl_certificates() {
   echo -e "\n🩹 Restoring SSL certificates from backup..."
 
@@ -950,10 +960,10 @@ pad() {
   echo "$str$padding"
 }
 
-# List all proxy hosts with basic details
+# List all proxy hosts with basic details, including SSL certificate status and associated domain
 list_proxy_hosts() {
   echo -e "\n${COLOR_ORANGE} 👉 List of proxy hosts (simple)${COLOR_RESET}"
-  printf "  %-6s %-36s %-9s %-4s\n" "ID" "Domain" "Status" "SSL"
+  printf "  %-6s %-36s %-9s %-4s %-36s\n" "ID" "Domain" "Status" "SSL" "Certificate Domain"
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
@@ -961,25 +971,40 @@ list_proxy_hosts() {
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
-  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.ssl_forced)"' | while read -r id domain enabled ssl_forced; do
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
     if [ "$enabled" -eq 1 ]; then
       status="$(echo -e "${WHITE_ON_GREEN} enabled ${COLOR_RESET}")"
     else
       status="$(echo -e "${COLOR_RED} disable ${COLOR_RESET}")"
     fi
 
-    if [ "$ssl_forced" -eq 1 ]; then
-      ssl_status="✅"
-    else
-      ssl_status="✘"
+    # Default SSL status
+    ssl_status="✘"
+    cert_domain=""
+
+    # Check if a valid certificate ID is present and not null
+    if [ "$certificate_id" != "null" ] && [ -n "$certificate_id" ]; then
+      # Fetch the certificate details using the certificate_id
+      CERT_DETAILS=$(curl -s -X GET "$BASE_URL/nginx/certificates/$certificate_id" \
+      -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+      # Check if the certificate details are valid and domain_names is not null
+      if [ "$(echo "$CERT_DETAILS" | jq -r '.domain_names')" != "null" ]; then
+        cert_domain=$(echo "$CERT_DETAILS" | jq -r '.domain_names | join(", ")')
+        ssl_status="✅"
+      else
+        ssl_status="✘"  # If no valid certificate domain is found
+        cert_domain=""
+      fi
     fi
 
-    # Print the row with colors
-    printf "  ${COLOR_YELLOW}%6s${COLOR_RESET} ${COLOR_GREEN}%-36s${COLOR_RESET} %-8s %-4s\n" \
-      "$(pad "$id" 6)" "$(pad "$domain" 36)" "$status" "$ssl_status"
+    # Print the row with colors and certificate domain (if available)
+    printf "  ${COLOR_YELLOW}%6s${COLOR_RESET} ${COLOR_GREEN}%-36s${COLOR_RESET} %-8s %-4s %-36s\n" \
+      "$(pad "$id" 6)" "$(pad "$domain" 36)" "$status" "$ssl_status" "$cert_domain"
   done
   echo ""
 }
+
 
 # List all proxy hosts with full details
 list_proxy_hosts_full() {
@@ -1013,12 +1038,51 @@ search_proxy_host() {
 }
 
 # List all SSL certificates
-list_ssl_certificates() {
+list_ssl_certificates_back() {
   echo " 👉 List of SSL certificates..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
   echo "$RESPONSE" | jq
 }
+
+ 
+# Function to list all SSL certificates or filter by domain
+list_ssl_certificates() {
+  DOMAIN="$1"  # Capture the first argument passed to the function
+
+  if [ -n "$DOMAIN" ]; then
+    echo " 👉 Listing SSL certificates for domain: $DOMAIN..."
+  else
+    echo " 👉 Listing all SSL certificates..."
+  fi
+
+  # Fetch all certificates
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  if [ -n "$DOMAIN" ]; then
+    # Filter certificates by domain name
+    CERTS_FOR_DOMAIN=$(echo "$RESPONSE" | jq -r --arg domain "$DOMAIN" \
+      '.[] | select(.domain_names[] == $domain) | {id: .id, provider: .provider, domain_names: .domain_names, valid_from: .valid_from, valid_to: .valid_to}')
+
+    if [ -z "$CERTS_FOR_DOMAIN" ]; then
+      echo " ⛔ No SSL certificates found for domain: $DOMAIN"
+    else
+      echo " ✅ SSL certificates found for domain: $DOMAIN"
+      echo "$CERTS_FOR_DOMAIN" | jq  # Display the filtered certificates
+    fi
+  else
+    # List all certificates if no domain is specified
+    #echo "$RESPONSE" | jq -r '.[] | {id: .id, provider: .provider, domain_names: .domain_names, valid_from: .valid_from, valid_to: .valid_to}'
+    echo "$RESPONSE" | jq
+   fi
+}
+
+
+
+ 
+
+
 
 # List all users
 list_users() {
@@ -1101,6 +1165,13 @@ enable_proxy_host() {
     echo -e "\n 💣 The --host-enable option requires a host ID."
     usage
   fi
+
+  # Validate that HOST_ID is a number
+  if ! [[ "$HOST_ID" =~ ^[0-9]+$ ]]; then
+    echo -e " ⛔ ${COLOR_RED}Invalid host ID: $HOST_ID. It must be a numeric value.${COLOR_RESET}\n"
+    exit 1
+  fi
+
   echo -e "\n ✅ Enabling 🌐 proxy host ID: $HOST_ID..."
 
   # Check if the proxy host exists before enabling
@@ -1130,6 +1201,7 @@ enable_proxy_host() {
   fi
 }
 
+
 # Disable a proxy host by ID
 disable_proxy_host() {
   if [ -z "$HOST_ID" ]; then
@@ -1153,6 +1225,56 @@ disable_proxy_host() {
   fi
 }
 
+# Delete a certificate in NPM
+delete_certificate() {
+  if [ -z "$DOMAIN" ]; then
+    echo -e "\n 🛡️ The --delete-cert option requires a domain."
+    usage
+  fi
+  echo -e "\n 👀 Checking if certificate for domain: $DOMAIN exists..."
+
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  # Search for the certificate for the specified domain
+  EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" '.[] | select(.domain_names[] == $DOMAIN)')
+
+  if [ -z "$EXISTING_CERT" ]; then
+    echo -e " ⛔ No certificate found for domain: $DOMAIN. \n"
+    exit 0
+  fi
+
+  CERTIFICATE_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
+  EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
+  PROVIDER=$(echo "$EXISTING_CERT" | jq -r '.provider')
+
+  echo -e " ✅ Certificate found for $DOMAIN (Provider: $PROVIDER, Expires on: $EXPIRES_ON)."
+
+  # Ask for confirmation before deleting the certificate
+  read -p "⚠️ Are you sure you want to delete the certificate for $DOMAIN? (y/n): " CONFIRM
+  if [[ "$CONFIRM" != "y" ]]; then
+    echo -e " ❌ Certificate deletion aborted."
+    exit 0
+  fi
+
+  echo -e " 🗑️ Deleting certificate for domain: $DOMAIN..."
+
+  # Send DELETE request to remove the certificate
+  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+  HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+  if [ "$HTTP_STATUS" -eq 204 ] || ([ "$HTTP_STATUS" -eq 200 ] && [ "$HTTP_BODY" == "true" ]); then
+    echo -e " ✅ ${COLOR_GREEN}Certificate deleted successfully!${COLOR_RESET}\n"
+  else
+    echo " Data sent: Certificate ID = $CERTIFICATE_ID"  # Log the certificate ID being deleted
+    echo -e " ⛔ ${COLOR_RED}Failed to delete certificate. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
+  fi
+}
+
+
 
 # Generate Let's Encrypt certificate if not exists
 generate_certificate() {
@@ -1169,7 +1291,14 @@ generate_certificate() {
 
   if [ -n "$EXISTING_CERT" ] && ! $FORCE_CERT_CREATION; then
     EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
-    echo -e " 🔔 Certificate for $DOMAIN already exists and is valid until $EXPIRES_ON."
+    echo -e " 🔔 Certificate for $DOMAIN already exists and is valid until $EXPIRES_ON.\n"
+    exit 0
+  fi
+
+  # Ask for confirmation before creating a new certificate
+  read -p "⚠️ No existing certificate found for $DOMAIN. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM
+  if [[ "$CONFIRM" != "y" ]]; then
+    echo -e " ❌ Certificate creation aborted."
     exit 0
   fi
 
@@ -1202,8 +1331,9 @@ generate_certificate() {
   fi
 }
 
-# enable_ssl function
-enable_ssl() {
+
+# enable_ssl function adel
+enable_ssl_old() {
   if [ -z "$HOST_ID" ]; then
     echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
     usage
@@ -1258,6 +1388,128 @@ enable_ssl() {
     echo -e "\n ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
   fi
 }
+
+# enable_ssl function
+enable_ssl() {
+  if [ -z "$HOST_ID" ]; then
+    echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
+    usage
+  fi
+
+  # Validate that HOST_ID is a number
+  if ! [[ "$HOST_ID" =~ ^[0-9]+$ ]]; then
+    echo -e " ⛔ ${COLOR_RED}Invalid host ID: $HOST_ID. It must be a numeric value.${COLOR_RESET}\n"
+    echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
+    list_proxy_hosts
+    exit 1
+  fi
+
+  echo -e "\n ✅ Enabling 🔒 SSL, HTTP/2, and HSTS for proxy host ID: $HOST_ID..."
+
+  # Check host details
+  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  DOMAIN_NAMES=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[]')
+
+  # Fetch all certificates (custom and Let's Encrypt)
+  CERTIFICATES=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  # Find all certificates for the given domain
+  DOMAIN_CERTS=$(echo "$CERTIFICATES" | jq -c --arg domain "$DOMAIN_NAMES" \
+    '.[] | select(.domain_names[] == $domain) | {id: .id, provider: .provider, valid_from: .valid_from, valid_to: .valid_to}')
+
+  # Count the number of certificates found
+  CERT_COUNT=$(echo "$DOMAIN_CERTS" | jq -s 'length')
+
+  # Ensure CERT_COUNT is treated as an integer
+  CERT_COUNT=${CERT_COUNT:-0}
+
+  if [ "$CERT_COUNT" -eq 0 ]; then
+    echo -e " ⛔ No certificate associated with this host.\n"
+    exit 1  # Exit if no certificate found
+
+  elif [ "$CERT_COUNT" -gt 1 ]; then
+    echo " ⚠️ Multiple certificates found for domain $DOMAIN_NAMES. Please select one:"
+
+    # Display the certificates with provider and validity dates
+    echo "$DOMAIN_CERTS" | jq -r 'to_entries[] | "\(.key + 1)) Provider: \(.value.provider), Valid From: \(.value.valid_from), Valid To: \(.value.valid_to)"'
+
+    # Ask the user to choose the certificate
+    read -p "Enter the number of the certificate you want to use: " CERT_INDEX
+    CERT_INDEX=$((CERT_INDEX - 1))  # Adjust for 0-index
+
+    CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r ".[$CERT_INDEX].id")
+  else
+    # Only one certificate found, use it
+    CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r '.id')
+    echo " ✅ Using certificate ID: $CERTIFICATE_ID"
+  fi
+
+  # Verify if CERTIFICATE_ID is empty
+  if [ -z "$CERTIFICATE_ID" ]; then
+    echo " ⛔ No valid certificate ID found. Aborting."
+    exit 1
+  fi
+
+  # Update the host with SSL enabled
+  DATA=$(jq -n --arg cert_id "$CERTIFICATE_ID" '{
+    certificate_id: $cert_id,
+    ssl_forced: true,
+    http2_support: true,
+    hsts_enabled: true,
+    hsts_subdomains: false
+  }')
+
+  echo -e "\n Data being sent for SSL enablement: $DATA"  # Log the data being sent
+
+  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+  -H "Content-Type: application/json; charset=UTF-8" \
+  --data-raw "$DATA")
+
+  HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+  HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+  if [ "$HTTP_STATUS" -eq 200 ]; then
+    echo -e "\n ✅ ${COLOR_GREEN}SSL, HTTP/2, and HSTS enabled successfully!${COLOR_RESET}\n"
+  else
+    echo -e "\n 👉Data sent: $DATA"  # Log the data sent
+    echo -e "\n ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
+  fi
+}
+
+
+
+# list_certificates function
+list_certificates() {
+  if [ -z "$DOMAIN" ]; then
+    echo -e "\n 🌐 The --list-certificates option requires a domain name."
+    usage
+  fi
+  echo -e "\n 📜 Listing all certificates for domain: $DOMAIN..."
+
+  # Fetch all certificates (custom and Let's Encrypt)
+  CERTIFICATES=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  # Find all certificates for the given domain
+  DOMAIN_CERTS=$(echo "$CERTIFICATES" | jq -r --arg domain "$DOMAIN" \
+    '.[] | select(.domain_names[] == $domain) | {id: .id, provider: .provider, valid_from: .valid_from, valid_to: .valid_to}')
+
+  CERT_COUNT=$(echo "$DOMAIN_CERTS" | jq length)
+
+  if [ "$CERT_COUNT" -eq 0 ]; then
+    echo " ⛔ No certificates found for domain: $DOMAIN."
+  else
+    echo " ✅ Certificates found for domain $DOMAIN:"
+
+    # Display the certificates with provider and validity dates
+    echo "$DOMAIN_CERTS" | jq -r '. | "ID: \(.id), Provider: \(.provider), Valid From: \(.valid_from), Valid To: \(.valid_to)"'
+  fi
+}
+
 
 # disable_ssl
 # Function to disable SSL for a proxy host
@@ -1508,7 +1760,13 @@ elif [ "$LIST_HOSTS_FULL" = true ]; then
 elif [ "$HOST_SHOW" = true ]; then
    host_show
 elif [ "$LIST_SSL_CERTIFICATES" = true ]; then
-  list_ssl_certificates
+  if [ -n "$DOMAIN_ARG" ]; then
+    list_ssl_certificates "$DOMAIN_ARG"  
+  else
+    list_ssl_certificates   
+  fi   
+# elif [ "$LIST_SSL_CERTIFICATES" = true ]; then
+#   list_ssl_certificates
 elif [ "$LIST_USERS" = true ]; then
   list_users
 elif [ "$SEARCH_HOST" = true ]; then
@@ -1529,6 +1787,8 @@ elif [ "$RESTORE_HOST" = true ]; then
    restore-host
 elif [ "$GENERATE_CERT" = true ]; then
   generate_certificate
+elif [ "$DELETE_CERT" = true ]; then
+  delete_certificate
 elif [ "$ENABLE_SSL" = true ]; then
   enable_ssl
 elif [ "$DISABLE_SSL" = true ]; then
