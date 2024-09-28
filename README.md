@@ -62,6 +62,8 @@ chmod +x nginx_proxy_manager_cli.sh
 > With the new `V2.0.0`, some command arguments have been changed to be simpler, and need to set `BASE_DIR` variable to store `Tokens` and `Backups`.
 
 ## Settings
+Optionnal but recommanded, Create config file in the root directory
+
 Required to edit these 4 variables:
 
 ```bash
@@ -99,27 +101,26 @@ BASE_DIR="/path/nginx_proxy_script/data"
 📦 Backup and Restore:
    --backup                             Backup all configurations to a file
    --backup-host id                     Backup a single host configuration and its certificate (if exists)
-   --restore                            Restore configurations from a backup file
-   --restore-host id                    Restore a single host configuration and its certificate (if exists)
 
  🔧 Miscellaneous:
-   --info                                Script and configuration information
-   --show-default                        Show default settings for creating hosts
-   --check-token                         Check if the current token is valid
-   --create-user user pass email         Create a user with a username, password and email
-   --delete-user username                Delete a user by username
-   --host-delete id                      Delete a proxy host by ID
-   --host-show id                        Show full details for a specific host by ID
-   --host-list                           List the names of all proxy hosts
-   --host-list-full                      List all proxy hosts with full details
-   --host-list-ssl-certificates          List all SSL certificates
-   --host-list-users                     List all users
-   --host-search hostname                Search for a proxy host by domain name
-   --host-enable id                      Enable a proxy host by ID
-   --host-disable id                     Disable a proxy host by ID
-   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
-   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-   --generate-cert domain email [--custom] Generate a Let's Encrypt or Custom certificate for the given domain and email
+#   --check-token                         Check if the current token is valid
+#   --create-user user pass email         Create a user with a username, password and email
+#   --delete-user username                Delete a user by username
+#   --host-delete id                      Delete a proxy host by ID
+#   --host-show id                        Show full details for a specific host by ID
+#   --show-default                        Show default settings for creating hosts
+#   --host-list                           List the names of all proxy hosts
+#   --host-list-full                      List all proxy hosts with full details
+#   --host-list-users                     List all users
+#   --host-search hostname                Search for a proxy host by domain name
+#   --host-enable id                      Enable a proxy host by ID
+#   --host-disable id                     Disable a proxy host by ID
+#   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
+#   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
+#   --list-ssl-certificates               List All SSL certificates availables (JSON)
+#   --generate-cert domain email          Generate certificate for the given domain and email
+#   --delete-cert domain                  Delete   certificate for the given domain
+#   --help                                Display this help
 
 ```
 
@@ -142,7 +143,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 
  🛡️ Custom Certificate:
-   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com --custom
+   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com 
 
  🛡️  Custom locations:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
