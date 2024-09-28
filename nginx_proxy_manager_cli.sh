@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
 
-VERSION="2.5.0"
+VERSION="2.5.1"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -88,7 +88,6 @@ API_USER="user@nginx"
 API_PASS="pass nginx"
 # Path to store .txt files and Backups
 BASE_DIR="/path/nginx_proxy_script/data"
-
 
 #################################
 # Variables to Edit (optional) #
@@ -233,7 +232,7 @@ usage() {
   echo -e "  --generate-cert domain email           🌀 ${COLOR_GREEN}Generate${COLOR_RESET} Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' and '${COLOR_YELLOW}email${COLOR_RESET}'"
   echo -e "  --delete-cert domain                   💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' "
 
-  echo -e "  --examples                             🔖  Examples commands, more explicits"
+  echo -e "  --examples                             🔖 Examples commands, more explicits"
   echo -e "  --help"    
   echo ""
   exit 0
@@ -478,6 +477,12 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
           host-ssl-enable)
               ENABLE_SSL=true
               HOST_ID="${!OPTIND}"; shift
+              # Check if HOST_ID is provided
+              if [ -z "$HOST_ID" ]; then
+                echo -e " \n⛔ ${COLOR_RED}Error: Missing host ID for --host-ssl-enable.${COLOR_RESET}"
+                echo -e " To find ID Check with ${COLOR_ORANGE}$0 --host-list${COLOR_RESET}\n"
+                exit 1
+              fi              
               ;;           
           host-ssl-disable)
               DISABLE_SSL=true
@@ -1393,8 +1398,11 @@ enable_ssl_old() {
 enable_ssl() {
   if [ -z "$HOST_ID" ]; then
     echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
-    usage
+    echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${COLOR_RESET} to create one)"
+    #usage  # Call usage function to show correct usage
+    exit 1  # Exit if no HOST_ID is provided
   fi
+
 
   # Validate that HOST_ID is a number
   if ! [[ "$HOST_ID" =~ ^[0-9]+$ ]]; then
