@@ -61,10 +61,12 @@ chmod +x nginx_proxy_manager_cli.sh
 > [!NOTE]
 > With the new `V2.0.0`, some command arguments have been changed to be simpler, and need to set `BASE_DIR` variable to store `Tokens` and `Backups`.
 
-## Settings
-Optionnal but recommanded, Create config file in the root directory
 
-Required to edit these 4 variables:
+## Settings
+> [!IMPORTANT]
+> (Optional) You can create a configuration file named `nginx_proxy_manager_cli.conf` with these 4 required variables.
+
+To ensure the script is functional, edit these 4 variables (mandatory).
 
 ```bash
 ## Nginx proxy IP address (your Nginx IP)
