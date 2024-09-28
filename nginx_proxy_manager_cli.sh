@@ -1657,27 +1657,25 @@ show_default() {
 }
 
 ## backup
+## backup
 # Function to make a full backup
 full_backup() {
   mkdir -p "$BACKUP_DIR"
 
   # Get the current date in a formatted string
   DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
-
   echo ""
-
   # Function to sanitize names for directory
   sanitize_name() {
     echo "$1" | sed 's/[^a-zA-Z0-9]/_/g'
   }
-
   # Initialize counters
   USER_COUNT=0
-
   # Create subdirectories
   mkdir -p "$BACKUP_DIR/.user"
   mkdir -p "$BACKUP_DIR/.settings"
   mkdir -p "$BACKUP_DIR/.access_lists"
+  mkdir -p "$BACKUP_DIR/.ssl"
 
   # Backup users
   USERS_FILE="$BACKUP_DIR/.user/users_${NGINX_IP//./_}$DATE.json"
@@ -1700,6 +1698,23 @@ full_backup() {
     echo -e " ✅ ${COLOR_GREEN}Settings backup completed     🆗${COLOR_GREY}: $SETTINGS_FILE${COLOR_RESET}"
   else
     echo -e " ⛔ ${COLOR_RED}Failed to backup settings.${COLOR_RESET}"
+  fi
+
+  # Backup SSL certificates
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  if [ -n "$RESPONSE" ]; then
+    echo "$RESPONSE" | jq -c '.[]' | while read -r cert; do
+      CERT_ID=$(echo "$cert" | jq -r '.id')
+      CERT_NICE_NAME=$(echo "$cert" | jq -r '.nice_name')
+      SANITIZED_CERT_NAME=$(sanitize_name "$CERT_NICE_NAME")
+      CERT_FILE="$BACKUP_DIR/.ssl/ssl_cert_${SANITIZED_CERT_NAME}_${CERT_ID}_${NGINX_IP//./_}$DATE.json"
+      echo "$cert" | jq '.' > "$CERT_FILE"
+    done
+    CERT_COUNT=$(echo "$RESPONSE" | jq '. | length')
+    echo -e " ✅ ${COLOR_GREEN}SSL certif backup completed   🆗${COLOR_GREY}: $CERT_COUNT certificates saved.${COLOR_RESET}"
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to backup SSL certificates.${COLOR_RESET}"
   fi
 
   # Backup proxy hosts
