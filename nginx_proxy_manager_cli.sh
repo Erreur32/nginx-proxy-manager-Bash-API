@@ -1015,11 +1015,17 @@ list_proxy_hosts() {
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
   echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
-    if [ "$enabled" -eq 1 ]; then
-      status="$(echo -e "${WHITE_ON_GREEN} enabled ${COLOR_RESET}")"
-    else
-      status="$(echo -e "${COLOR_RED} disable ${COLOR_RESET}")"
-    fi
+		if [ "$enabled" = "true" ]; then
+  		status="$(echo -e "${WHITE_ON_GREEN} enabled ${COLOR_RESET}")"
+		else
+  		status="$(echo -e "${COLOR_RED} disable ${COLOR_RESET}")"
+		fi
+
+#    if [ "$enabled" -eq 1 ]; then
+#      status="$(echo -e "${WHITE_ON_GREEN} enabled ${COLOR_RESET}")"
+#    else
+#      status="$(echo -e "${COLOR_RED} disable ${COLOR_RESET}")"
+#    fi
 
     # Default SSL status
     ssl_status="✘"
