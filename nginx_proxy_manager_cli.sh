@@ -325,8 +325,8 @@ display_info() {
   if [ -f "$TOKEN_FILE" ]; then
     echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW}  $TOKEN_FILE ${COLOR_RESET}"
   else
-    echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET} \n  🔖  Check ./nginx_proxy_manager_cli.sh --check-token  "
-     echo -e "  Generating new token..."
+     #echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET}"
+     echo -e " ${COLOR_GREEN} Generating new token... ${COLOR_RESET} \n  🔖  Check ./nginx_proxy_manager_cli.sh --check-token  "
      generate_token
 
   fi
@@ -394,7 +394,8 @@ colorize_booleanh() {
 generate_token() {
   response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
     -H "Content-Type: application/json; charset=UTF-8" \
-    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
+    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
+    #--data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
 
   token=$(echo "$response" | jq -r '.token')
   expires=$(echo "$response" | jq -r '.expires')
