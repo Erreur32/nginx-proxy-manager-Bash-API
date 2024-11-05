@@ -51,7 +51,7 @@ Required basic dependencies.
 
 ## Installation 
 ```
-wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-API/main/nginx_proxy_manager_cli.sh
+wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/nginx_proxy_manager_cli.sh
 chmod +x nginx_proxy_manager_cli.sh
 # Check script
 ./nginx_proxy_manager_cli.sh --info
