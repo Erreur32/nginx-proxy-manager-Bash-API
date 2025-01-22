@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
 
-VERSION="2.5.4"
+VERSION="2.5.5"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -392,9 +392,13 @@ colorize_booleanh() {
 ################################
 # Generate a new API token
 generate_token() {
-  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
+  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
+
+#  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
+#    -H "Content-Type: application/json; charset=UTF-8" \
+#    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
     #--data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
 
   token=$(echo "$response" | jq -r '.token')
