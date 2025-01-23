@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   Erreur32 July 2024
 
-VERSION="2.5.5"
+VERSION="2.5.6"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -82,6 +82,9 @@ VERSION="2.5.5"
 #   --list-ssl-certificates               List All SSL certificates availables (JSON)
 #   --generate-cert domain email          Generate certificate for the given domain and email
 #   --delete-cert domain                  Delete   certificate for the given domain
+#   --list-access                         List all available access lists (ID and name)
+#   --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
+#   --host-acl-disable id                 Disable ACL for a proxy host by ID            
 #   --help                                Display this help
 
 ################################
@@ -108,11 +111,11 @@ CONFIG_FILE="$SCRIPT_DIR/nginx_proxy_manager_cli.conf"
 ################################
 
 if [ -f "$CONFIG_FILE" ]; then
-  echo -e "  ✅ Loading variables from file $PWD/nginx_proxy_manager_cli.conf..."
+  #echo -e "\n  ✅ Loading variables from file $CONFIG_FILE"
   # configuration file loading
   source "$CONFIG_FILE"
 else
-  echo -e "  ⚠️ Configuration file $PWD/nginx_proxy_manager_cli.conf don't exists. Used Default Variables... "
+  echo -e "  ⚠️ Configuration file $CONFIG_FILE don't exists. Used Default Variables... "
 fi
 
 ################################
@@ -163,6 +166,7 @@ SEARCH_HOST=false
 ENABLE_HOST=false
 DISABLE_HOST=false
 CHECK_TOKEN=false
+BACKUP_LIST=false
 BACKUP=false
 BACKUP_HOST=false
 RESTORE=false
@@ -172,7 +176,9 @@ ENABLE_SSL=false
 DISABLE_SSL=false
 HOST_SHOW=false
 SHOW_DEFAULT=false
-
+ENABLE_ACL=false
+DISABLE_ACL=false
+ACCESS_LIST=false
 # Colors Custom
 COLOR_GREEN="\033[32m"
 COLOR_RED="\033[41;1m"
@@ -202,7 +208,7 @@ check_dependencies
 check_nginx_access() {
   if ping -c 2 -W 2 $NGINX_IP &> /dev/null; then
     if curl --output /dev/null --silent --head --fail "$BASE_URL"; then
-      echo -e "\n ✅ Nginx url: $BASE_URL"
+      echo -e "\n  ✅ Nginx url: $BASE_URL"
     else
       echo -e "\n ⛔ Nginx url ⛔ $BASE_URL is NOT accessible."
       exit 1
@@ -213,6 +219,7 @@ check_nginx_access() {
   fi
 }
 
+# check_nginx_access
 
 # !!! ne filtrer que les dossiers !
 # Function to list available backups
@@ -256,6 +263,9 @@ usage() {
   echo -e "  --host-list-users                      📋 ${COLOR_YELLOW}List${COLOR_RESET}    All Users"
   echo -e "  --host-enable id                       ✅ ${COLOR_GREEN}Enable${COLOR_RESET}  Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
   echo -e "  --host-disable id                      ❌ ${COLOR_ORANGE}Disable${COLOR_RESET} Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
+  echo -e "  --access-list                          📋 ${COLOR_YELLOW}List${COLOR_RESET}    All available Access Lists (ID and Name)"
+  echo -e "  --host-acl-enable id,access_list_id    ✅ ${COLOR_GREEN}Enable ACL${COLOR_RESET} for Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET} with Access List ID (e.g., --host-acl-enable 16,2)"
+  echo -e "  --host-acl-disable id                  ❌ ${COLOR_ORANGE}Disable ACL${COLOR_RESET} for Proxy host by ${COLOR_YELLOW}ID${COLOR_RESET}"
   echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${COLOR_RESET}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${COLOR_RESET} to creating one)"
   echo -e "  --host-ssl-disable id                  🔓 ${COLOR_ORANGE}Disable${COLOR_RESET} SSL, HTTP/2, and HSTS for a proxy host"
   echo -e "  --list-ssl-certificates [domain]       📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates availables or filtered by [domain name]  (JSON)"  
@@ -305,6 +315,8 @@ examples_cli() {
 # Display script variables info
 display_info() {
 
+  check_nginx_access
+
   echo -e "\n${COLOR_YELLOW}Script Info:  ${COLOR_GREEN}${VERSION}${COLOR_RESET}"
 
   echo -e "\n${COLOR_YELLOW}Script Variables Information:${COLOR_RESET}"
@@ -325,8 +337,8 @@ display_info() {
   if [ -f "$TOKEN_FILE" ]; then
     echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW}  $TOKEN_FILE ${COLOR_RESET}"
   else
-     #echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET}"
-     echo -e " ${COLOR_GREEN} Generating new token... ${COLOR_RESET} \n  🔖  Check ./nginx_proxy_manager_cli.sh --check-token  "
+    echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET} \n  🔖  Check ./nginx_proxy_manager_cli.sh --check-token  "
+     echo -e "  Generating new token..."
      generate_token
 
   fi
@@ -392,14 +404,15 @@ colorize_booleanh() {
 ################################
 # Generate a new API token
 generate_token() {
+ 
   response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
 
+# Old way
 #  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT" \
 #    -H "Content-Type: application/json; charset=UTF-8" \
-#    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
-    #--data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
+#    --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\",\"expiry\":\"$TOKEN_EXPIRY\"}")
 
   token=$(echo "$response" | jq -r '.token')
   expires=$(echo "$response" | jq -r '.expires')
@@ -418,6 +431,9 @@ generate_token() {
 
 # Validate the existing token
 validate_token() {
+
+  generate_token
+
   if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
     return 1
   fi
@@ -453,6 +469,7 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
       case "${OPTARG}" in
           show-default) SHOW_DEFAULT=true ;;
           backup) BACKUP=true ;;
+          backup-list)  BACKUP_LIST=true  ;;
           backup-host)
               BACKUP_HOST=true
               HOST_ID="${!OPTIND}"; shift
@@ -503,6 +520,20 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               DISABLE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
+          host-acl-enable)
+              ENABLE_ACL=true
+              # Expecting "HOST_ID,ACCESS_LIST_ID"
+              ACL_ARG="${!OPTIND}"; shift
+              IFS=',' read -r HOST_ID ACCESS_LIST_ID <<< "$ACL_ARG"
+              if [ -z "$HOST_ID" ] || [ -z "$ACCESS_LIST_ID" ]; then
+                echo -e "\n ⛔ ${COLOR_RED}Erreur : --host-acl-enable need HOST_ID et ACCESS_LIST_ID separated by a comma (e.g., --host-acl-enable 16,2).${COLOR_RESET}"
+                usage
+              fi
+              ;;
+          host-acl-disable)
+              DISABLE_ACL=true
+              HOST_ID="${!OPTIND}"; shift
+              ;;
           check-token) CHECK_TOKEN=true ;;
           generate-cert)
               GENERATE_CERT=true
@@ -521,8 +552,8 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
                 echo -e " \n⛔ ${COLOR_RED}Error: Missing host ID for --host-ssl-enable.${COLOR_RESET}"
                 echo -e " To find ID Check with ${COLOR_ORANGE}$0 --host-list${COLOR_RESET}\n"
                 exit 1
-              fi              
-              ;;           
+              fi  
+              ;;
           host-ssl-disable)
               DISABLE_SSL=true
               HOST_ID="${!OPTIND}"; shift
@@ -532,7 +563,8 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               LIST_SSL_CERTIFICATES=true
               DOMAIN="$2"            
               #DOMAIN="${!OPTIND}"; shift
-              ;;          
+              ;;    
+          access-list) ACCESS_LIST=true  ;;                    
           examples) examples_cli ;;
           info) display_info;echo; exit 0 ;;
       esac ;;
@@ -551,6 +583,83 @@ fi
 
 ######################################
 
+list_access() {
+
+  echo -e " \n Available Access Lists:"
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+  # Vérifiez si la réponse est une liste JSON valide
+  if echo "  $RESPONSE" | jq -e 'type == "array"' > /dev/null; then
+    # Parcourez et affichez les éléments de la liste
+    echo " $RESPONSE" | jq -r '.[] | "\(.id): \(.name)"'
+  else
+    # En cas d'erreur, vérifiez s'il y a un message d'erreur dans la réponse
+    if echo " $RESPONSE" | jq -e '.error // empty' > /dev/null; then
+      echo -e " ⛔ API Error: $(echo "$RESPONSE" | jq -r '.message')"
+    else
+      echo -e " ⛔ Unknown Error: $RESPONSE"
+    fi
+  fi
+}
+
+
+################################
+# ACL  proxy host 
+enable_acl() {
+  if [ -z "$HOST_ID" ] || [ -z "$ACCESS_LIST_ID" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}Erreur : HOST_ID et ACCESS_LIST_ID sont requis pour activer l'ACL.${COLOR_RESET}"
+    usage
+  fi
+  echo -e " 🔓 Activation de l'ACL pour l'hôte ID : $HOST_ID avec la liste d'accès ID : $ACCESS_LIST_ID..."
+
+  DATA=$(jq -n \
+    --argjson access_list_id "$ACCESS_LIST_ID" \
+    --argjson enabled true \
+    '{
+      access_list_id: $access_list_id,
+      enabled: $enabled
+    }')
+
+  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "$DATA")
+
+  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
+    echo -e " ✅ ${COLOR_GREEN}ACL activée avec succès pour l'hôte ID $HOST_ID!${COLOR_RESET}"
+  else
+    echo -e " ⛔ ${COLOR_RED}Échec de l'activation de l'ACL. Erreur : $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
+  fi
+}
+
+# Désactiver l'ACL pour un proxy host donné
+disable_acl() {
+  if [ -z "$HOST_ID" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}Erreur : HOST_ID est requis pour désactiver l'ACL.${COLOR_RESET}"
+    usage
+  fi
+  echo -e " 🔒 Désactivation de l'ACL pour l'hôte ID : $HOST_ID..."
+
+  DATA=$(jq -n \
+    --argjson access_list_id null \
+    --argjson enabled false \
+    '{
+      access_list_id: $access_list_id,
+      enabled: $enabled
+    }')
+
+  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "$DATA")
+
+  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
+    echo -e " ✅ ${COLOR_GREEN}ACL désactivée avec succès pour l'hôte ID $HOST_ID!${COLOR_RESET}"
+  else
+    echo -e " ⛔ ${COLOR_RED}Échec de la désactivation de l'ACL. Erreur : $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
+  fi
+}
 
 # Function to check if the host ID exists
 host-check-id() {
@@ -689,8 +798,8 @@ delete_all_proxy_hosts() {
   return 0
 }
 
-
-# Function to restore from a backup file
+#######################################################
+# Function to restore  a backup file
 restore_backup() {
   echo -e "\n 🩹 ${COLOR_ORANGE}Restoring all configurations from backup...${COLOR_RESET}"
 
@@ -795,7 +904,7 @@ restore_backup() {
 
 
 ######################################################
-## en test
+##   test  BACKUP RESTORE
 ######################################################
 # Function to list backup versions for a given host ID
 list_backup_versions_t() {
@@ -831,6 +940,7 @@ show_backup_differences() {
   diff <(echo "$CURRENT_HOST" | jq .) <(echo "$BACKUP_HOST" | jq .) | less
 }
 
+##############################################################
 
 # Delete a proxy host by ID
 delete_proxy_host() {
@@ -944,25 +1054,64 @@ create_new_proxy_host() {
     CUSTOM_LOCATIONS_ESCAPED="[]"
   fi
 
-  DATA=$(printf '{
-    "domain_names": ["%s"],
-    "forward_host": "%s",
-    "forward_port": %s,
-    "access_list_id": null,
-    "certificate_id": null,
-    "ssl_forced": false,
-    "caching_enabled": %s,
-    "block_exploits": %s,
-    "advanced_config": "%s",
-    "meta": {
-      "dns_challenge": null
-    },
-    "allow_websocket_upgrade": %s,
-    "http2_support": %s,
-    "forward_scheme": "%s",
-    "enabled": true,
-    "locations": %s
-  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG"  "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
+#  DATA=$(printf '{
+#    "domain_names": ["%s"],
+#    "forward_host": "%s",
+#    "forward_port": %s,
+#    "access_list_id": null,
+#    "certificate_id": null,
+#    "ssl_forced": false,
+#    "caching_enabled": %s,
+#    "block_exploits": %s,
+#    "advanced_config": "%s",
+#    "meta": {
+#      "dns_challenge": null
+#    },
+#    "allow_websocket_upgrade": %s,
+#    "http2_support": %s,
+#    "forward_scheme": "%s",
+#    "enabled": true,
+#    "locations": %s
+#  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG"  "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
+
+  DATA=$(jq -n \
+    --arg domain "$DOMAIN_NAMES" \
+    --arg host "$FORWARD_HOST" \
+    --argjson port "$FORWARD_PORT" \
+    --argjson caching "$CACHING_ENABLED" \
+    --argjson block_exploits "$BLOCK_EXPLOITS" \
+    --arg advanced_config "$ADVANCED_CONFIG" \
+    --argjson websocket_upgrade "$ALLOW_WEBSOCKET_UPGRADE" \
+    --argjson http2_support "$HTTP2_SUPPORT" \
+    --arg scheme "$FORWARD_SCHEME" \
+    --argjson enabled true \
+    --argjson locations "$CUSTOM_LOCATIONS_ESCAPED" \
+    '{
+      domain_names: [$domain],
+      forward_host: $host,
+      forward_port: $port,
+      access_list_id: null,
+      certificate_id: null,
+      ssl_forced: false,
+      caching_enabled: $caching,
+      block_exploits: $block_exploits,
+      advanced_config: $advanced_config,
+      meta: { dns_challenge: null },
+      allow_websocket_upgrade: $websocket_upgrade,
+      http2_support: $http2_support,
+      forward_scheme: $scheme,
+      enabled: $enabled,
+      locations: $locations
+    }'
+  )
+
+	if $HOST_ACL_ENABLE; then
+	  DATA=$(echo "$DATA" | jq --arg acl_id "$ACL_ID" '. + {access_list_id: ($acl_id | tonumber)}')
+	elif $HOST_ACL_DISABLE; then
+	  DATA=$(echo "$DATA" | jq '. + {access_list_id: null}')
+	fi
+
+
 # add dns_challenge 
   echo -e "\n Request Data: $DATA"
 
@@ -1871,8 +2020,16 @@ elif [ "$ENABLE_HOST" = true ]; then
   enable_proxy_host
 elif [ "$DISABLE_HOST" = true ]; then
   disable_proxy_host
+ elif [ "$ACCESS_LIST" = true ]; then
+  list_access
+elif [ "$ENABLE_ACL" = true ]; then
+  enable_acl
+elif [ "$DISABLE_ACL" = true ]; then
+  disable_acl
 elif [ "$CHECK_TOKEN" = true ]; then
   validate_token
+elif [ "$BACKUP_LIST" = true ]; then
+  list_backups 
 elif [ "$BACKUP" = true ]; then
   full_backup
 elif [ "$BACKUP_HOST" = true ]; then
