@@ -53,7 +53,7 @@ Required basic dependencies.
 ```
 wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/nginx_proxy_manager_cli.sh
 chmod +x nginx_proxy_manager_cli.sh
-# Edit config  inside the script,  and after check with:
+# Create a config file nginx_proxy_manager_cli.conf in same directory (to keep your config safe) check below.
 ./nginx_proxy_manager_cli.sh --info
 ```
 
@@ -82,7 +82,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ## Usage
 ```bash
 ./nginx_proxy_manager_cli.sh [OPTIONS]
-./nginx_proxy_manager_cli.sh  --info
+./nginx_proxy_manager_cli.sh  --help
 ./nginx_proxy_manager_cli.sh  --show-default 
 ```
 
