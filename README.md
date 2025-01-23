@@ -50,10 +50,11 @@ Required basic dependencies.
 
 
 ## Installation 
-```
+```bash
 wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/nginx_proxy_manager_cli.sh
 chmod +x nginx_proxy_manager_cli.sh
 # Create a config file nginx_proxy_manager_cli.conf in same directory (to keep your config safe) check below.
+echo -e "## Nginx proxy IP address (your Nginx IP)\nNGINX_IP=\"127.0.0.1\"\nAPI_USER=\"existingUser@mail.com\"\nAPI_PASS=\"password\"\nBASE_DIR=\"$(pwd)\"" > nginx_proxy_manager_cli.conf
 ./nginx_proxy_manager_cli.sh --info
 ```
 
@@ -69,6 +70,8 @@ chmod +x nginx_proxy_manager_cli.sh
 To ensure the script is functional, edit these 4 variables (mandatory).
 
 ```bash
+# nginx_proxy_manager_cli.conf
+
 ## Nginx proxy IP address (your Nginx IP)
 NGINX_IP="127.0.0.1"
 ## Existing user (user and password) on NPM
