@@ -122,6 +122,9 @@ BASE_DIR="/path/nginx_proxy_script/data"
 #   --list-ssl-certificates               List All SSL certificates availables (JSON)
 #   --generate-cert domain email          Generate certificate for the given domain and email
 #   --delete-cert domain                  Delete   certificate for the given domain
+#   --list-access                         List all available access lists (ID and name)
+#   --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
+#   --host-acl-disable id                 Disable ACL for a proxy host by ID   
 #   --help                                Display this help
 
 ```
@@ -225,9 +228,6 @@ Host proxy info command `--host-show id`
 
 ```
  ./nginx_proxy_manager_cli_.sh --host-show 1
-
- ✅ Nginx url: http://127.0.0.1:81/api
- ✅ The token is valid. Expiry: 2025-07-12T08:14:58.521Z
 
  👉 Full details for proxy host ID: 59...
 
