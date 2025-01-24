@@ -75,8 +75,8 @@ To ensure the script is functional, edit these 4 variables (mandatory).
 ## Nginx proxy IP address (your Nginx IP)
 NGINX_IP="127.0.0.1"
 ## Existing user (user and password) on NPM
-API_USER="existingUser@mail.com"
-API_PASS="password"
+API_USER="admin@example.com"
+API_PASS="changeme"
 # Path to store .txt files and Backups
 BASE_DIR="/path/nginx_proxy_script/data"
 
@@ -177,7 +177,7 @@ Script Info:  2.3.5
 Script Variables Information:
   BASE_URL    http://127.0.0.1:81/api
   NGINX_IP    127.0.0.1
-  API_USER    user@monmail.com
+  API_USER    admin@example.com
   BASE_DIR    /path/to/nginx_proxy
   BACKUP_DIR  /path/to/nginx_proxy/backups
   BACKUP HOST 40
