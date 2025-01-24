@@ -17,8 +17,8 @@ VERSION="2.5.6"
 # TIPS: Create manually a Config file for persistent variables 'nginx_proxy_manager_cli.conf' :
 #       With these variables:
 #          NGINX_IP="127.0.0.1"
-#          API_USER="user@nginx"
-#          API_PASS="pass nginx"
+#          API_USER="admin@example.com"
+#          API_PASS="changeme"
 #          BASE_DIR="/path/nginx_proxy_script/data" 
 #
 # Examples:
@@ -107,8 +107,8 @@ CONFIG_FILE="$SCRIPT_DIR/nginx_proxy_manager_cli.conf"
 # PERSISTENT Config
 # Create config file  $SCRIPT_DIR/nginx_proxy_manager_cli.conf and Variables to Edit (required) 
 # NGINX_IP="127.0.0.1"
-# API_USER="user@nginx"
-# API_PASS="pass nginx"
+# API_USER="admin@example.com"
+# API_PASS="changeme"
 # BASE_DIR="/path/nginx_proxy_script/dir"
 ################################
 
@@ -619,10 +619,10 @@ list_access() {
 # ACL  proxy host 
 enable_acl() {
   if [ -z "$HOST_ID" ] || [ -z "$ACCESS_LIST_ID" ]; then
-    echo -e "\n ⛔ ${COLOR_RED}Erreur : HOST_ID et ACCESS_LIST_ID sont requis pour activer l'ACL.${COLOR_RESET}"
+    echo -e "\n ⛔ ${COLOR_RED}Error: HOST_ID and ACCESS_LIST_ID are required to enable the ACL.${COLOR_RESET}"
     usage
   fi
-  echo -e " 🔓 Activation de l'ACL pour l'hôte ID : $HOST_ID avec la liste d'accès ID : $ACCESS_LIST_ID..."
+  echo -e " 🔓 Enabling ACL for host ID: $HOST_ID with access list ID: $ACCESS_LIST_ID..."
 
   DATA=$(jq -n \
     --argjson access_list_id "$ACCESS_LIST_ID" \
@@ -638,19 +638,19 @@ enable_acl() {
     --data-raw "$DATA")
 
   if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
-    echo -e " ✅ ${COLOR_GREEN}ACL activée avec succès pour l'hôte ID $HOST_ID!${COLOR_RESET}"
+    echo -e " ✅ ${COLOR_GREEN}ACL successfully enabled for host ID $HOST_ID!${COLOR_RESET}"
   else
-    echo -e " ⛔ ${COLOR_RED}Échec de l'activation de l'ACL. Erreur : $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
+    echo -e " ⛔ ${COLOR_RED}Failed to enable ACL. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
   fi
 }
 
-# Désactiver l'ACL pour un proxy host donné
+# Disable ACL for a given proxy host
 disable_acl() {
   if [ -z "$HOST_ID" ]; then
-    echo -e "\n ⛔ ${COLOR_RED}Erreur : HOST_ID est requis pour désactiver l'ACL.${COLOR_RESET}"
+    echo -e "\n ⛔ ${COLOR_RED}Error: HOST_ID is required to disable the ACL.${COLOR_RESET}"
     usage
   fi
-  echo -e " 🔒 Désactivation de l'ACL pour l'hôte ID : $HOST_ID..."
+  echo -e " 🔒 Disabling ACL for host ID: $HOST_ID..."
 
   DATA=$(jq -n \
     --argjson access_list_id null \
@@ -666,9 +666,9 @@ disable_acl() {
     --data-raw "$DATA")
 
   if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
-    echo -e " ✅ ${COLOR_GREEN}ACL désactivée avec succès pour l'hôte ID $HOST_ID!${COLOR_RESET}"
+    echo -e " ✅ ${COLOR_GREEN}ACL successfully disabled for host ID $HOST_ID!${COLOR_RESET}"
   else
-    echo -e " ⛔ ${COLOR_RED}Échec de la désactivation de l'ACL. Erreur : $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
+    echo -e " ⛔ ${COLOR_RED}Failed to disable ACL. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
   fi
 }
 
@@ -773,6 +773,7 @@ restore_ssl_certificates() {
 }
 
 
+##############################################################
 
 
 # Function to delete all existing proxy hosts
@@ -800,10 +801,8 @@ delete_all_proxy_hosts() {
   return 0
 }
 
-#######################################################
 
 ##############################################################
-
 
 
 # Delete a proxy host by ID
