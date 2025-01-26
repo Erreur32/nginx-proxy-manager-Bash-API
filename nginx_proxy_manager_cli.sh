@@ -600,12 +600,12 @@ list_access() {
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
     -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
-  # Vérifiez si la réponse est une liste JSON valide
-  if echo "  $RESPONSE" | jq -e 'type == "array"' > /dev/null; then
-    # Parcourez et affichez les éléments de la liste
-    echo " $RESPONSE" | jq -r '.[] | "\(.id): \(.name)"'
-  else
-    # En cas d'erreur, vérifiez s'il y a un message d'erreur dans la réponse
+	# Check if the response is a valid JSON array
+	if echo "  $RESPONSE" | jq -e 'type == "array"' > /dev/null; then
+	  # Loop through and display the elements of the list
+	  echo " $RESPONSE" | jq -r '.[] | "\(.id): \(.name)"'
+	else
+	  # In case of an error, check if there is an error message in the response
     if echo " $RESPONSE" | jq -e '.error // empty' > /dev/null; then
       echo -e " ⛔ API Error: $(echo "$RESPONSE" | jq -r '.message')"
     else
@@ -916,26 +916,6 @@ create_new_proxy_host() {
   else
     CUSTOM_LOCATIONS_ESCAPED="[]"
   fi
-
-#  DATA=$(printf '{
-#    "domain_names": ["%s"],
-#    "forward_host": "%s",
-#    "forward_port": %s,
-#    "access_list_id": null,
-#    "certificate_id": null,
-#    "ssl_forced": false,
-#    "caching_enabled": %s,
-#    "block_exploits": %s,
-#    "advanced_config": "%s",
-#    "meta": {
-#      "dns_challenge": null
-#    },
-#    "allow_websocket_upgrade": %s,
-#    "http2_support": %s,
-#    "forward_scheme": "%s",
-#    "enabled": true,
-#    "locations": %s
-#  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG"  "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
 
   DATA=$(jq -n \
     --arg domain "$DOMAIN_NAMES" \
@@ -1846,15 +1826,9 @@ backup-host() {
   fi
   echo ""
 }
-######################################################
-
-
-
 
 
 ######################################################
-##  TEST
-
 # Function to list global backup files
 list_global_backup_files() {
   ls -t "$BACKUP_DIR"/*_*.json
@@ -1866,8 +1840,8 @@ list_ssl_backup_files() {
 }
 
 
-
-### Function to restore  a backup file
+######################################################
+### Function to restore from backup file
 restore_backup() {
   echo -e "\n 🩹 ${COLOR_ORANGE}Restoring all configurations from backup...${COLOR_RESET}"
 
@@ -2009,9 +1983,127 @@ show_backup_differences() {
 
 ##### restore-host
 # Function to restore a single host configuration and its certificate (if exists)
-restore-host() {
-echo " Not finish !! "
+
+restore_host() {
+  if [ -z "$HOST_ID" ]; then
+    echo -e "\n 🩹 The --host-restore-id option requires a host ID."
+    usage
+  fi
+
+  # Get the current date in a formatted string
+  DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
+
+  # Verify if host ID exists
+  HOST_ID_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+  if [ -z "$HOST_ID_RESPONSE" ] || [ "$(echo "$HOST_ID_RESPONSE" | jq -r '.id')" != "$HOST_ID" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}Host ID $HOST_ID does not exist. Aborting restore.${COLOR_RESET}"
+    exit 1
+  fi
+
+  # Fetch the host name to identify the directory
+  HOST_NAME=$(echo "$HOST_ID_RESPONSE" | jq -r '.domain_names[0]')
+  if [ -z "$HOST_NAME" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}Host name not found in the response. Aborting restore.${COLOR_RESET}"
+    exit 1
+  fi
+  SANITIZED_HOST_NAME=$(echo "$HOST_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
+  HOST_DIR="$BACKUP_DIR/$SANITIZED_HOST_NAME"
+
+  #echo -e " 🐛 Debug: SANITIZED_HOST_NAME = $SANITIZED_HOST_NAME"
+  #echo -e " 🐛 Debug: HOST_DIR = $HOST_DIR"
+
+  # Verify the existence of the host directory
+  if [ ! -d "$HOST_DIR" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}Backup directory for host $HOST_ID not found: $HOST_DIR${COLOR_RESET}"
+    exit 1
+  fi
+
+  # Verify the existence of backup files
+  BACKUP_FILES=($(find "$HOST_DIR" -type f -name "proxy_host_${HOST_ID}_*.json"))
+
+  if [ ${#BACKUP_FILES[@]} -eq 0 ]; then
+    echo -e "\n ⛔ ${COLOR_RED}No backup file found for host ID $HOST_ID in '$HOST_DIR'. Aborting restore.${COLOR_RESET}"
+    exit 1
+  fi
+
+  # Count the number of backup files
+  BACKUP_COUNT=${#BACKUP_FILES[@]}
+
+  if [ "$BACKUP_COUNT" -gt 0 ]; then
+    echo -e "\n 🔍 Found ${COLOR_ORANGE}$BACKUP_COUNT${COLOR_RESET} backups for host ${COLOR_ORANGE}$SANITIZED_HOST_NAME${COLOR_RESET} ID $HOST_ID."
+    PROXY_HOST_FILE=$(ls -t "${BACKUP_FILES[@]}" | head -n 1)
+    echo -e " 🩹 Latest Backup File found: $PROXY_HOST_FILE \n"
+    read -p " 👉 Do you want to (1) restore the latest backup, (2) list backups and choose one, or (3) abandon? (1/2/3): " -r choice
+    case $choice in
+      1)
+        echo -e "\n 🩹 Proxy Host backup file : $PROXY_HOST_FILE"
+        ;;
+      2)
+        BACKUP_LIST=($(ls -t "${BACKUP_FILES[@]}"))
+        echo -e "\nAvailable backups:"
+        for i in "${!BACKUP_LIST[@]}"; do
+          echo "$i) ${BACKUP_LIST[$i]}"
+        done
+        read -p " 👉 Enter the number of the backup you want to restore: " -r backup_number
+        PROXY_HOST_FILE="${BACKUP_LIST[$backup_number]}"
+        if [ ! -f "$PROXY_HOST_FILE" ]; then
+          echo -e "\n ⛔ ${COLOR_RED}Selected backup file not found: $PROXY_HOST_FILE${COLOR_RESET}"
+          exit 1
+        fi
+        ;;
+      3)
+        echo -e "\n${COLOR_RED} Abandoned.${COLOR_RESET}\n"
+        exit 0
+        ;;
+      *)
+        echo -e "\n ${COLOR_ORANGE}Invalid choice.${COLOR_RESET}\n"
+        exit 1
+        ;;
+    esac
+  fi
+
+  # Verify if the proxy host exists
+  if [ -n "$HOST_ID_RESPONSE" ] && [ "$(echo "$HOST_ID_RESPONSE" | jq -r '.id')" = "$HOST_ID" ]; then
+    echo -e " 🔔 Proxy host for ID $HOST_ID already exists.\n ${COLOR_ORANGE}"
+    read -p " 👉 Do you want to delete the existing proxy host and restore from the backup? (y/n): " -r confirm
+    echo -e "${COLOR_RESET}" 
+    if [[ $confirm =~ ^[Yy]$ ]]; then
+      echo -e "${COLOR_RESET}" 
+      if ! delete_proxy_host; then
+        echo -e "${COLOR_RED} ⛔ Failed to delete existing proxy host. Aborting restore.${COLOR_RESET}\n"
+        exit 1
+      fi
+    else
+      echo " ⛔ Abandoned."
+      exit 0
+    fi
+  fi
+
+  if [ -f "$PROXY_HOST_FILE" ]; then
+    RESPONSE=$(jq 'del(.id, .created_on, .modified_on, .owner_user_id)' "$PROXY_HOST_FILE")
+    HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/proxy-hosts" \
+      -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+      -H "Content-Type: application/json; charset=UTF-8" \
+      --data-raw "$RESPONSE")
+
+    HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\\:.*//g')
+    HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\\n' | sed -e 's/.*HTTPSTATUS://')
+
+    if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
+      echo -e " ✅ ${COLOR_GREEN}Proxy host restored 🆗 from file: $PROXY_HOST_FILE${COLOR_RESET}\n"
+    else
+      echo -e " ⛔ ${COLOR_RED}Failed to restore proxy host. Error: $HTTP_BODY${COLOR_RESET}\n"
+      exit 1
+    fi
+  else
+    echo -e "\n ⛔ ${COLOR_RED}Proxy host backup file not found: $PROXY_HOST_FILE${COLOR_RESET}\n"
+    exit 1
+  fi
 }
+
+
+
+
 
  
 #################################
