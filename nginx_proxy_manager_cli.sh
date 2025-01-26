@@ -439,9 +439,9 @@ generate_token() {
   expires=$(echo "$response" | jq -r '.expires')
 
 ## Debug
-	echo "Request URL: $BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY"
-  echo "Request Body: {\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}"
-  echo "Response: $response"
+#  echo "Request URL: $BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY"
+#  echo "Request Body: {\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}"
+#  echo "Response: $response"
 ##
 
   if [ "$token" != "null" ]; then
@@ -449,12 +449,17 @@ generate_token() {
     echo "$expires" > $EXPIRY_FILE
     echo "Token: $token"
     echo "Expiry: $expires"
+		echo -e "\n ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
   else
     echo -e "  ${COLOR_RED}Error generating token.${COLOR_RESET}"
-    echo -e "  Check your [user] and [pass] and [IP]"
+    echo -e "  Check your credentials."
     exit 1
   fi
 
+
+}
+
+renew_token_if_needed() {
 	#CHECK_TOKEN=true
   if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
     return 1
@@ -477,23 +482,22 @@ generate_token() {
 
 # Validate the existing token
 validate_token() {
-
   if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
     echo -e "\n ⛔ ${COLOR_RED}No valid token found. Generating a new token...${COLOR_RESET}"
     generate_token
   fi
 
-  token=$(cat $TOKEN_FILE)
   expires=$(cat $EXPIRY_FILE)
   current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   if [[ "$current_time" < "$expires" ]]; then
     echo -e " ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
-#    return 0
+		#    return 0
   else
     echo -e " ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+		echo -e " 🔄 ${COLOR_GREEN}Processing NEW Token${COLOR_RESET}\n"
 		generate_token
-#    return 1
+		#    return 1
   fi
 
 }
@@ -654,9 +658,11 @@ list_access() {
     -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
 	# Check if the response is a valid JSON array
-	if echo "  $RESPONSE" | jq -e 'type == "array"' > /dev/null; then
+	if echo " $RESPONSE" | jq -e 'type == "array"' > /dev/null; then
 	  # Loop through and display the elements of the list
-	  echo " $RESPONSE" | jq -r '.[] | "\(.id): \(.name)"'
+	echo -e "${COLOR_YELLOW}"
+	echo "   $RESPONSE" | jq -r '.[] | " \(.id): \(.name)"'
+ 	echo -e "${COLOR_RESET}"
 	else
 	  # In case of an error, check if there is an error message in the response
     if echo " $RESPONSE" | jq -e '.error // empty' > /dev/null; then
