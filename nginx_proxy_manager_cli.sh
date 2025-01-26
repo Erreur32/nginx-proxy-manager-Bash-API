@@ -138,7 +138,7 @@ EXPIRY_FILE="$TOKEN_DIR/expiry_${NGINX_IP}.txt"
 TOKEN_FILE="$TOKEN_DIR/token_${NGINX_IP}.txt"
 
 # Set Token duration validity.
-TOKEN_EXPIRY="1y"
+TOKEN_EXPIRY="365d"
 
 # Default variables (you can adapt)
 CACHING_ENABLED=false
@@ -367,17 +367,25 @@ display_info() {
   else
     echo -e "  ${COLOR_RED}Backup directory does not exist.${COLOR_RESET}"
   fi
-
   if [ -f "$TOKEN_FILE" ]; then
     echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW}  $TOKEN_FILE ${COLOR_RESET}"
   else
-    echo -e "  ${COLOR_RED}Token file does not exist! ${COLOR_RESET} \n  🔖  Check $0 --check-token  "
-     echo -e "  Generating new token..."
-     generate_token
+	 echo -e "\n   ${COLOR_RED}Generating new token... ${COLOR_RESET}"
+		# check if empty file
+		if [ ! -s "$TOKEN_FILE" ]; then
+		  	echo -e "   Create $TOKEN_DIR"
+		  	rm -rf "$TOKEN_DIR"
+				mkdir "$TOKEN_DIR"
+		else
+		  echo -e " File $TOKEN_FILE ✅"
+		fi
+    echo -e "\n  🔖 Check token\n"
+
+  generate_token
+	#validate_token
 
   fi
   echo -e "\n --help (Show all commands)"
-
 }
 
 
@@ -414,7 +422,7 @@ colorize_booleanh() {
 ################################
 # Generate a new API token
 generate_token() {
- 
+
   response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
@@ -427,20 +435,43 @@ generate_token() {
   token=$(echo "$response" | jq -r '.token')
   expires=$(echo "$response" | jq -r '.expires')
 
+# Debug
+#  echo -e "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY"
+
   if [ "$token" != "null" ]; then
     echo "$token" > $TOKEN_FILE
     echo "$expires" > $EXPIRY_FILE
     echo "Token: $token"
     echo "Expiry: $expires"
   else
-    echo -e "${COLOR_RED}Error generating token.${COLOR_RESET}"
-    echo -e "Check your [user] and [pass] and [IP]"
+    echo -e "  ${COLOR_RED}Error generating token.${COLOR_RESET}"
+    echo -e "  Check your [user] and [pass] and [IP]"
     exit 1
+  fi
+
+	#CHECK_TOKEN=true
+  if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
+    return 1
+  fi
+
+  token=$(cat $TOKEN_FILE)
+  expires=$(cat $EXPIRY_FILE)
+  current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  if [[ "$current_time" < "$expires" ]]; then
+    echo -e "\n ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
+    return 0
+  else
+    echo -e "\n ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+    generate_token
+    return 1
   fi
 }
 
+
 # Validate the existing token
 validate_token() {
+
 
   generate_token
 
@@ -453,10 +484,11 @@ validate_token() {
   current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   if [[ "$current_time" < "$expires" ]]; then
-    echo -e " ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
+    echo -e "\n ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
     return 0
   else
-    echo -e " ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+    echo -e "\n ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+		generate_token
     return 1
   fi
 }
@@ -1182,6 +1214,7 @@ create_user() {
   fi
 }
 
+###########################
 # Delete a user by username
 delete_user() {
   if [ -z "$USERNAME" ]; then
@@ -1253,7 +1286,7 @@ enable_proxy_host() {
   fi
 }
 
-
+############################
 # Disable a proxy host by ID
 disable_proxy_host() {
   if [ -z "$HOST_ID" ]; then
@@ -1277,6 +1310,7 @@ disable_proxy_host() {
   fi
 }
 
+#############################
 # Delete a certificate in NPM
 delete_certificate() {
   if [ -z "$DOMAIN" ]; then
@@ -1327,7 +1361,7 @@ delete_certificate() {
 }
 
 
-
+##################################################
 # Generate Let's Encrypt certificate if not exists
 generate_certificate() {
   if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then
@@ -1384,63 +1418,7 @@ generate_certificate() {
 }
 
 
-# enable_ssl function adel
-enable_ssl_old() {
-  if [ -z "$HOST_ID" ]; then
-    echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
-    usage
-  fi
-  echo -e "\n ✅ Enabling 🔒 SSL, HTTP/2, and HSTS for proxy host ID: $HOST_ID..."
-
-  # Check host details
-  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-
-  CERTIFICATE_ID=$(echo "$CHECK_RESPONSE" | jq -r '.certificate_id')
-  DOMAIN_NAMES=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[]')
-
-  # Check if a Let's Encrypt certificate exists
-  CERT_EXISTS=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)" | jq -r --arg domain "$DOMAIN_NAMES" '.[] | select(.provider == "letsencrypt" and .domain_names[] == $domain) | .id')
-
-  if [ -z "$CERT_EXISTS" ]; then
-    echo " ⛔ No Let's Encrypt certificate associated with this host. Generating a new certificate..."
-
-    generate_certificate
-    CERTIFICATE_ID=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat $TOKEN_FILE)" | jq -r --arg domain "$DOMAIN_NAMES" '.[] | select(.provider == "letsencrypt" and .domain_names[] == $domain) | .id')
-  else
-    echo " ✅ Existing Let's Encrypt certificate found. Using certificate ID: $CERT_EXISTS"
-    CERTIFICATE_ID="$CERT_EXISTS"
-  fi
-
-  # Update the host with SSL enabled
-  DATA=$(jq -n --arg cert_id "$CERTIFICATE_ID" '{
-    certificate_id: $cert_id,
-    ssl_forced: true,
-    http2_support: true,
-    hsts_enabled: true,
-    hsts_subdomains: false
-  }')
-
-  echo -e "\n Data being sent for SSL enablement: $DATA"  # Log the data being sent
-
-  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
-  -H "Content-Type: application/json; charset=UTF-8" \
-  --data-raw "$DATA")
-
-  HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-  HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-  if [ "$HTTP_STATUS" -eq 200 ]; then
-    echo -e "\n ✅ ${COLOR_GREEN}SSL, HTTP/2, and HSTS enabled successfully!${COLOR_RESET}\n"
-  else
-    echo -e "\n 👉Data sent: $DATA"  # Log the data sent
-    echo -e "\n ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${COLOR_RESET}\n"
-  fi
-}
-
+####################################
 enable_ssl() {
   if [ -z "$HOST_ID" ]; then
     echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
@@ -1584,6 +1562,7 @@ list_certificates() {
 }
 
 
+##########################################
 # disable_ssl
 # Function to disable SSL for a proxy host
 disable_ssl() {
@@ -1626,6 +1605,8 @@ disable_ssl() {
   fi
 }
 
+
+#########################################################
 # host_show
 # Function to show full details for a specific host by ID
 host_show() {
@@ -2146,7 +2127,7 @@ elif [ "$DISABLE_ACL" = true ]; then
 elif [ "$CHECK_TOKEN" = true ]; then
   validate_token
 elif [ "$BACKUP_LIST" = true ]; then
-  list_backups 
+  list_backups
 elif [ "$BACKUP" = true ]; then
   full_backup
 elif [ "$BACKUP_HOST" = true ]; then
