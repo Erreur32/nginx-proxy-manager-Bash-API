@@ -139,6 +139,8 @@ TOKEN_FILE="$TOKEN_DIR/token_${NGINX_IP}.txt"
 
 # Set Token duration validity.
 TOKEN_EXPIRY="365d"
+#TOKEN_EXPIRY="31536000s"
+#TOKEN_EXPIRY="1y"
 
 # Default variables (you can adapt)
 CACHING_ENABLED=false
@@ -423,9 +425,8 @@ colorize_booleanh() {
 # Generate a new API token
 generate_token() {
 
-#  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
-
- response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiresIn=$TOKEN_EXPIRY" \
+  # response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiresIn=$TOKEN_EXPIRY" \
+  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
 
@@ -437,8 +438,11 @@ generate_token() {
   token=$(echo "$response" | jq -r '.token')
   expires=$(echo "$response" | jq -r '.expires')
 
-# Debug
-#  echo -e "\n $BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY \n"
+## Debug
+	echo "Request URL: $BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY"
+  echo "Request Body: {\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}"
+  echo "Response: $response"
+##
 
   if [ "$token" != "null" ]; then
     echo "$token" > $TOKEN_FILE
