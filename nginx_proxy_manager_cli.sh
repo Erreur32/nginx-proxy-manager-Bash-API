@@ -367,10 +367,11 @@ display_info() {
   else
     echo -e "  ${COLOR_RED}Backup directory does not exist.${COLOR_RESET}"
   fi
+
   if [ -f "$TOKEN_FILE" ]; then
     echo -e "  ${COLOR_GREEN}Token NPM ${COLOR_YELLOW}  $TOKEN_FILE ${COLOR_RESET}"
   else
-	 echo -e "\n   ${COLOR_RED}Generating new token... ${COLOR_RESET}"
+    echo -e "\n   ${COLOR_RED}Generating new token... ${COLOR_RESET}"
 		# check if empty file
 		if [ ! -s "$TOKEN_FILE" ]; then
 		  	echo -e "   Create $TOKEN_DIR"
@@ -381,13 +382,13 @@ display_info() {
 		fi
     echo -e "\n  🔖 Check token\n"
 
-  generate_token
-	#validate_token
-
+   generate_token
+	 #validate_token
   fi
+
+
   echo -e "\n --help (Show all commands)"
 }
-
 
 # shellcheck disable=SC2120
 # check_no_arguments() {
@@ -398,7 +399,6 @@ display_info() {
 #     exit 1
 #   fi
 # }
-
 
 # Colorize boolean values for display
 colorize_boolean() {
@@ -423,7 +423,9 @@ colorize_booleanh() {
 # Generate a new API token
 generate_token() {
 
-  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
+#  response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY" \
+
+ response=$(curl -s -X POST "$BASE_URL$API_ENDPOINT?expiresIn=$TOKEN_EXPIRY" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "{\"identity\":\"$API_USER\",\"secret\":\"$API_PASS\"}")
 
@@ -436,7 +438,7 @@ generate_token() {
   expires=$(echo "$response" | jq -r '.expires')
 
 # Debug
-#  echo -e "$BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY"
+#  echo -e "\n $BASE_URL$API_ENDPOINT?expiry=$TOKEN_EXPIRY \n"
 
   if [ "$token" != "null" ]; then
     echo "$token" > $TOKEN_FILE
@@ -472,11 +474,9 @@ generate_token() {
 # Validate the existing token
 validate_token() {
 
-
-  generate_token
-
   if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ]; then
-    return 1
+    echo -e "\n ⛔ ${COLOR_RED}No valid token found. Generating a new token...${COLOR_RESET}"
+    generate_token
   fi
 
   token=$(cat $TOKEN_FILE)
@@ -484,13 +484,14 @@ validate_token() {
   current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   if [[ "$current_time" < "$expires" ]]; then
-    echo -e "\n ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
-    return 0
+    echo -e " ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
+#    return 0
   else
-    echo -e "\n ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
+    echo -e " ⛔ ${COLOR_RED}The token is invalid. Expiry: $expires${COLOR_RESET}"
 		generate_token
-    return 1
+#    return 1
   fi
+
 }
 
 #################################
@@ -512,6 +513,7 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
           show-default) SHOW_DEFAULT=true ;;
           backup) BACKUP=true ;;
           backup-host)
+							validate_token
               BACKUP_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
@@ -527,42 +529,50 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
                 RESTORE_HOST=true
               fi
               ;;
-          ssl-regenerate) SSL_REGENERATE=true ;;
-          ssl-restore) SSL_RESTORE=true ;;          
+          ssl-regenerate) validate_token; SSL_REGENERATE=true ;;
+          ssl-restore) validate_token; SSL_RESTORE=true ;;
           create-user)
+							validate_token
               CREATE_USER=true
               USERNAME="${!OPTIND}"; shift
               PASSWORD="${!OPTIND}"; shift
               EMAIL="${!OPTIND}"; shift
               ;;
           delete-user)
+							validate_token
               DELETE_USER=true
               USERNAME="${!OPTIND}"; shift
               ;;
           host-delete)
+							validate_token
               DELETE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           host-show)
+							validate_token
               HOST_SHOW=true
               HOST_ID="${!OPTIND}"; shift
-              ;;              
-          host-list) LIST_HOSTS=true ;;
-          host-list-full) LIST_HOSTS_FULL=true ;;
-          host-list-users) LIST_USERS=true ;;
+              ;;
+          host-list) validate_token; LIST_HOSTS=true ;;
+          host-list-full) validate_token; LIST_HOSTS_FULL=true ;;
+          host-list-users) validate_token; LIST_USERS=true ;;
           host-search)
+							validate_token
               SEARCH_HOST=true
               SEARCH_HOSTNAME="${!OPTIND}"; shift
               ;;
           host-enable)
+							validate_token
               ENABLE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           host-disable)
+							validate_token
               DISABLE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           host-acl-enable)
+              validate_token
               ENABLE_ACL=true
               # Expecting "HOST_ID,ACCESS_LIST_ID"
               ACL_ARG="${!OPTIND}"; shift
@@ -573,20 +583,24 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               fi
               ;;
           host-acl-disable)
+              validate_token
               DISABLE_ACL=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           check-token) CHECK_TOKEN=true ;;
           generate-cert)
+							validate_token
               GENERATE_CERT=true
               DOMAIN="${!OPTIND}"; shift
               EMAIL="${!OPTIND}"; shift
               ;;
           delete-cert)
+              validate_token
               DELETE_CERT=true
               DOMAIN="${!OPTIND}"; shift
               ;;
           host-ssl-enable)
+              validate_token
               ENABLE_SSL=true
               HOST_ID="${!OPTIND}"; shift
               # Check if HOST_ID is provided
@@ -597,21 +611,24 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               fi  
               ;;
           host-ssl-disable)
+              validate_token
               DISABLE_SSL=true
               HOST_ID="${!OPTIND}"; shift
               ;;
-          force-cert-creation) FORCE_CERT_CREATION=true ;;
+          force-cert-creation)
+              validate_token
+							 FORCE_CERT_CREATION=true ;;
           list-ssl-certificates)
+              validate_token
               LIST_SSL_CERTIFICATES=true
-              DOMAIN="$2"            
+              DOMAIN="$2"
               #DOMAIN="${!OPTIND}"; shift
-              ;;    
-          access-list) ACCESS_LIST=true  ;;                    
+              ;;
+          access-list) validate_token; ACCESS_LIST=true  ;;
           examples) EXAMPLES=true ;;
           info) INFO=true ;;
       esac ;;
-      *) INFO=true
-#      display_info; exit 0
+      *) INFO=true  # display_info; exit 0
        ;;
   esac
 done
@@ -811,7 +828,7 @@ restore_ssl_certificates() {
 # Function to delete all existing proxy hosts
 delete_all_proxy_hosts() {
   echo -e "\n 🗑️ ${COLOR_ORANGE}Deleting all existing proxy hosts...${COLOR_RESET}"
-  
+
   existing_hosts=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
     -H "Authorization: Bearer $(cat $TOKEN_FILE)" | jq -r '.[].id')
 
@@ -819,7 +836,7 @@ delete_all_proxy_hosts() {
     echo -e " 💣 Deleting host ID $host_id..."
     response=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE "$BASE_URL/nginx/proxy-hosts/$host_id" \
       -H "Authorization: Bearer $(cat $TOKEN_FILE)")
-    
+
     http_body=$(echo "$response" | sed -e 's/HTTPSTATUS\:.*//g')
     http_status=$(echo "$response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
@@ -2125,6 +2142,7 @@ elif [ "$ENABLE_ACL" = true ]; then
 elif [ "$DISABLE_ACL" = true ]; then
   disable_acl
 elif [ "$CHECK_TOKEN" = true ]; then
+	#generate_token
   validate_token
 elif [ "$BACKUP_LIST" = true ]; then
   list_backups
