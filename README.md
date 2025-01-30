@@ -12,7 +12,8 @@
 8. [Examples](#examples)
    - [Info script](#info)
    - [List HOST](#list)
-   - [Enable SSL](#ssl)     
+   - [Enable SSL](#ssl)
+   - [update specific fields of an existing proxy host](#update)  
 12. [Screens](#screens)
 13. [TODO](#todo)
 
@@ -162,11 +163,11 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ```
  
 
-##### Verifying the Configuration
+#### Verifying the Configuration
 
 Some info of settings in the script with `./nginx_proxy_manager_cli_.sh --info`
 
-##### info
+#### info
 ```bash
 ./nginx_proxy_manager_cli_.sh --info
 
@@ -184,11 +185,11 @@ Script Variables Information:
 ```
 
 
-##### **How to activate SSL ?** 
+#### **How to activate SSL ?** 
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
-##### List
+#### List
  List all Host in one command and show ´id´ , ´status´ and ´SSL´ status:
 
     ./nginx_proxy_manager_cli.sh --host-list
@@ -200,7 +201,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
       3      tutu.fun                              enabled  ✅
 
 
-
+#### ssl
 ##### Enable SSL for the Host
 
   Assuming the host ID is *1*, you would enable SSL for the host as follows:
@@ -217,7 +218,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
       2      titi.fun                              disable  ✅
       3      tutu.fun                              enabled  ✅
 
-      
+#### update      
 ##### update specific fields of an existing proxy host
 
 The `--update-host` command allows you to **update specific fields** of an existing proxy host in Nginx Proxy Manager **without recreating it**.  
