@@ -320,6 +320,5 @@ Host proxy info command `--host-show id`
 - [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
 - [x] Backup  all settings from NPM
-- [ ] Domain TLS check validity
-- [ ] Better Error Handeling
-- [ ] Restore Function need to be optimized
+- [ ] creation of ACCESS list
+- [ ] Restore Function not work properly , need to find FIX.
