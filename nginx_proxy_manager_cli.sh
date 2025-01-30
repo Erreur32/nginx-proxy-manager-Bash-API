@@ -2,9 +2,9 @@
 
 # Nginx Proxy Manager CLI Script
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
-#   Erreur32 July 2024
+#   By Erreur32 - July 2024
 
-VERSION="2.5.6"
+VERSION="2.5.7"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -167,6 +167,7 @@ LIST_HOSTS_FULL=false
 LIST_SSL_CERTIFICATES=false
 LIST_USERS=false
 INFO=false
+UPDATE_FIELD=false
 SEARCH_HOST=false
 ENABLE_HOST=false
 DISABLE_HOST=false
@@ -303,7 +304,8 @@ usage() {
   echo -e "  --list-ssl-certificates [domain]       📋 ${COLOR_YELLOW}List${COLOR_RESET}    All SSL certificates availables or filtered by [domain name]  (JSON)"  
   echo -e "  --generate-cert domain email           🌀 ${COLOR_GREEN}Generate${COLOR_RESET} Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' and '${COLOR_YELLOW}email${COLOR_RESET}'"
   echo -e "  --delete-cert domain                   💣 ${COLOR_ORANGE}Delete${COLOR_RESET}  Certificate for the given '${COLOR_YELLOW}domain${COLOR_RESET}' "
-
+  echo -e "  --update-host id field=value           🔄 ${COLOR_GREEN}Update${COLOR_RESET} a specific field of an existing proxy host by ${COLOR_YELLOW}ID${COLOR_RESET} (e.g., --update-host 42 forward_host=foobar.local)"
+  
   echo -e "  --examples                             🔖 Examples commands, more explicits"
 
   echo -e "  --help                                 👉 It's me"
@@ -382,7 +384,7 @@ display_info() {
 		else
 		  echo -e " File $TOKEN_FILE ✅"
 		fi
-    echo -e "\n  🔖 Check token\n"
+    echo -e "\n  🔖 Check token 🆔\n"
 
    generate_token
 	 #validate_token
@@ -447,9 +449,9 @@ generate_token() {
   if [ "$token" != "null" ]; then
     echo "$token" > $TOKEN_FILE
     echo "$expires" > $EXPIRY_FILE
-    echo "Token: $token"
-    echo "Expiry: $expires"
-		echo -e "\n ✅ ${COLOR_GREEN}The token is valid. Expiry: $expires${COLOR_RESET}"
+    echo "  Token 🆔: $token"
+    echo "  Expiry  : $expires"
+		echo -e "\n ✅ ${COLOR_GREEN}The token is valid.  Expiry: $expires${COLOR_RESET}"
   else
     echo -e "  ${COLOR_RED}Error generating token.${COLOR_RESET}"
     echo -e "  Check your credentials."
@@ -596,6 +598,7 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               HOST_ID="${!OPTIND}"; shift
               ;;
           check-token) CHECK_TOKEN=true ;;
+
           generate-cert)
 							validate_token
               GENERATE_CERT=true
@@ -633,6 +636,14 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               #DOMAIN="${!OPTIND}"; shift
               ;;
           access-list) validate_token; ACCESS_LIST=true  ;;
+          update-host)
+              validate_token
+              UPDATE_FIELD=true
+              HOST_ID="${!OPTIND}"; shift
+              FIELD_VALUE="${!OPTIND}"; shift
+              FIELD=$(echo "$FIELD_VALUE" | cut -d= -f1)
+              VALUE=$(echo "$FIELD_VALUE" | cut -d= -f2-)
+              ;;
           examples) EXAMPLES=true ;;
           info) INFO=true ;;
       esac ;;
@@ -649,6 +660,24 @@ if [ $# -eq 0 ]; then
   exit 0
 fi
 
+
+################################
+# DEBUG
+debug_var(){
+  # 🔍 Debugging Data
+  echo -e "\n 🔍 Debugging variables before JSON update:"
+  echo " DOMAIN_NAMES: $DOMAIN_NAMES"
+  echo " FORWARD_HOST: $FORWARD_HOST"
+  echo " FORWARD_PORT: $FORWARD_PORT"
+  echo " FORWARD_SCHEME: $FORWARD_SCHEME"
+  echo " CACHING_ENABLED: $CACHING_ENABLED_JSON"
+  echo " BLOCK_EXPLOITS: $BLOCK_EXPLOITS_JSON"
+  echo " ALLOW_WEBSOCKET_UPGRADE: $ALLOW_WEBSOCKET_UPGRADE_JSON"
+  echo " HTTP2_SUPPORT: $HTTP2_SUPPORT_JSON"
+  echo " CUSTOM_LOCATIONS: $CUSTOM_LOCATIONS_ESCAPED"
+  echo " ADVANCED_CONFIG: $ADVANCED_CONFIG"
+
+}
 ######################################
 
 list_access() {
@@ -672,6 +701,8 @@ list_access() {
     fi
   fi
 }
+
+
 
 
 ################################
@@ -751,9 +782,9 @@ host-check-id() {
 # Function to validate JSON files
 validate_json() {
   local file=$1
-  jq empty "$file" 2>/dev/null
-  if [ $? -ne 0 ]; then
-    echo "Invalid JSON: $file"
+  if ! jq empty "$file" 2>/dev/null; then
+    echo -e "\n ⛔ Invalid JSON detected in file: $file"
+    cat "$file"  # Afficher le contenu du fichier pour debug
     return 1
   fi
   return 0
@@ -788,53 +819,7 @@ regenerate_all_ssl_certificates() {
   done
 }
 
-# Function to restore SSL certificates from a backup file (not used)
-restore_ssl_certificates() {
-  echo -e "\n🩹 Restoring SSL certificates from backup..."
-
-  local ssl_files=($(ls ./backups/ssl_certif_*.json 2>/dev/null))
-  if [ ${#ssl_files[@]} -eq 0 ]; then
-    echo " ⛔ No SSL backup files found."
-    return 1
-  fi
-
-  echo -e "\n🔍 Available SSL backup files:"
-  for i in "${!ssl_files[@]}"; do
-    echo "$((i+1))) ${ssl_files[$i]}"
-  done
-
-  echo -n "#? "
-  read -r ssl_choice
-
-  local selected_file=${ssl_files[$((ssl_choice-1))]}
-  if [ -z "$selected_file" ]; then
-    echo "Invalid selection."
-    return 1
-  fi
-
-  echo -e "\n🩹 Restoring SSL certificates from $selected_file..."
-
-  validate_json "$selected_file"
-  if [ $? -ne 0 ]; then
-    echo " ⛔ Restoration aborted due to invalid JSON file."
-    return 1
-  fi
-
-  local response=$(curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d @"$selected_file" "$NGINX_API_URL/nginx/certificates/restore")
-
-  if [[ $response == *"error"* ]]; then
-    echo -e " ⛔ Error restoring SSL certificates: $response"
-    return 1
-  fi
-
-  echo -e " ✅ SSL certificates restored successfully!"
-}
-
-
 ##############################################################
-
-
 # Function to delete all existing proxy hosts
 delete_all_proxy_hosts() {
   echo -e "\n 🗑️ ${COLOR_ORANGE}Deleting all existing proxy hosts...${COLOR_RESET}"
@@ -862,8 +847,6 @@ delete_all_proxy_hosts() {
 
 
 ##############################################################
-
-
 # Delete a proxy host by ID
 delete_proxy_host() {
   if [ -z "$HOST_ID" ]; then
@@ -889,21 +872,24 @@ delete_proxy_host() {
 
 
 ################################
-
 # Check if a proxy host with the given domain names already exists
 check_existing_proxy_host() {
+  echo -e "\n 🔎 Checking if proxy host $DOMAIN_NAMES already exists..."
+
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+
+#  echo -e "\n 🔍 Raw API Response: $RESPONSE"  # Debugging API response
   EXISTING_HOST=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
 
   if [ -n "$EXISTING_HOST" ]; then
-    echo -e "\n 🔔 Proxy host for $DOMAIN_NAMES already exists.${COLOR_GREEN}"
-    read -p " 👉 Do you want to update it with the new configuration? (y/n): " -r
+    echo -e "\n 🔔 Proxy host for $DOMAIN_NAMES already exists."
+    read -p " 👉 Do you want to update it? (y/n): " -r
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id')
       update_proxy_host "$HOST_ID"
     else
-      echo -e "${COLOR_RESET} No changes made.\n"
+      echo -e " ${COLOR_YELLOW}🚫 No changes made.${COLOR_RESET}"
       exit 0
     fi
   else
@@ -911,87 +897,57 @@ check_existing_proxy_host() {
   fi
 }
 
+################################
 # Update an existing proxy host
 update_proxy_host() {
   HOST_ID=$1
-  echo -e "\n 🌀 Updating proxy host for $DOMAIN_NAMES..."
+  echo -e "\n 🔄 Updating proxy host for $DOMAIN_NAMES..."
 
-  if [ -n "$CUSTOM_LOCATIONS" ]; then
-    CUSTOM_LOCATIONS_ESCAPED=$(printf '%s' "$CUSTOM_LOCATIONS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
-  else
-    CUSTOM_LOCATIONS_ESCAPED="[]"
-  fi
-
-  ADVANCED_CONFIG_ESCAPED=$(printf '%s' "$ADVANCED_CONFIG" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
-
-  DATA=$(printf '{
-    "domain_names": ["%s"],
-    "forward_host": "%s",
-    "forward_port": %s,
-    "access_list_id": null,
-    "certificate_id": null,
-    "ssl_forced": %s,
-    "caching_enabled": %s,
-    "block_exploits": %s,
-    "advanced_config": "%s",
-    "meta": {
-      "dns_challenge": "%s"
-    },
-    "allow_websocket_upgrade": %s,
-    "http2_support": %s,
-    "forward_scheme": "%s",
-    "enabled": true,
-    "locations": %s
-  }' "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" "$SSL_FORCED" "$CACHING_ENABLED" "$BLOCK_EXPLOITS" "$ADVANCED_CONFIG_ESCAPED" "$DNS_CHALLENGE" "$ALLOW_WEBSOCKET_UPGRADE" "$HTTP2_SUPPORT" "$FORWARD_SCHEME" "$CUSTOM_LOCATIONS_ESCAPED")
-
-  echo -e "\n Request Data: $DATA"
-
-  echo "$DATA" | jq . > /dev/null 2>&1
-  if [ $? -ne 0 ]; then
-    echo -e "\n ${COLOR_RED}Invalid JSON format${COLOR_RESET}"
+  # 🔥 Vérifier que les variables obligatoires sont bien définies
+  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ] || [ -z "$FORWARD_SCHEME" ]; then
+    echo -e "  ⛔${COLOR_RED} ERROR: Missing required parameters (domain, forward host, forward port, forward scheme).${COLOR_RESET}"
     exit 1
   fi
 
-  RESPONSE=$(curl -v -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
-  -H "Content-Type: application/json; charset=UTF-8" \
-  --data-raw "$DATA")
-
-  echo -e "Response: $RESPONSE"
-
-  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
-    echo -e " ✅ ${COLOR_GREEN}Proxy host updated successfully!${COLOR_RESET} "
-  else
-    echo -e " ⛔ ${COLOR_RED}Failed to update proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}"
+  # 🔥 Vérifier que FORWARD_PORT est un nombre valide
+  if ! [[ "$FORWARD_PORT" =~ ^[0-9]+$ ]]; then
+    echo -e "  ⛔${COLOR_RED} ERROR: FORWARD_PORT is not a number! Value: '$FORWARD_PORT'${COLOR_RESET}"
+    exit 1
   fi
-}
 
-# Create a new proxy host
-create_new_proxy_host() {
-  echo -e "\n 🌍 Creating proxy host for $DOMAIN_NAMES..."
-
-  if [ -n "$CUSTOM_LOCATIONS" ]; then
-    CUSTOM_LOCATIONS_ESCAPED=$(printf '%s' "$CUSTOM_LOCATIONS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
-  else
+  # 🔥 Correction : S'assurer que `CUSTOM_LOCATIONS` est toujours un JSON valide
+  if [[ -z "$CUSTOM_LOCATIONS" || "$CUSTOM_LOCATIONS" == "null" ]]; then
     CUSTOM_LOCATIONS_ESCAPED="[]"
+  else
+    CUSTOM_LOCATIONS_ESCAPED=$(echo "$CUSTOM_LOCATIONS" | jq -c . 2>/dev/null || echo '[]')
   fi
 
+  # Correction des booléens (true / false en JSON)
+  CACHING_ENABLED_JSON=$( [ "$CACHING_ENABLED" == "true" ] && echo true || echo false )
+  BLOCK_EXPLOITS_JSON=$( [ "$BLOCK_EXPLOITS" == "true" ] && echo true || echo false )
+  ALLOW_WEBSOCKET_UPGRADE_JSON=$( [ "$ALLOW_WEBSOCKET_UPGRADE" == "true" ] && echo true || echo false )
+  HTTP2_SUPPORT_JSON=$( [ "$HTTP2_SUPPORT" == "true" ] && echo true || echo false )
+
+	# 🔍 Debugging variables before JSON update:
+	debug_var
+
+  # 🔥 Générer le JSON proprement
   DATA=$(jq -n \
     --arg domain "$DOMAIN_NAMES" \
     --arg host "$FORWARD_HOST" \
-    --argjson port "$FORWARD_PORT" \
-    --argjson caching "$CACHING_ENABLED" \
-    --argjson block_exploits "$BLOCK_EXPLOITS" \
-    --arg advanced_config "$ADVANCED_CONFIG" \
-    --argjson websocket_upgrade "$ALLOW_WEBSOCKET_UPGRADE" \
-    --argjson http2_support "$HTTP2_SUPPORT" \
+    --arg port "$FORWARD_PORT" \
     --arg scheme "$FORWARD_SCHEME" \
+    --argjson caching "$CACHING_ENABLED_JSON" \
+    --argjson block_exploits "$BLOCK_EXPLOITS_JSON" \
+    --arg advanced_config "$ADVANCED_CONFIG" \
+    --argjson websocket_upgrade "$ALLOW_WEBSOCKET_UPGRADE_JSON" \
+    --argjson http2_support "$HTTP2_SUPPORT_JSON" \
     --argjson enabled true \
     --argjson locations "$CUSTOM_LOCATIONS_ESCAPED" \
     '{
       domain_names: [$domain],
       forward_host: $host,
-      forward_port: $port,
+      forward_port: ($port | tonumber),
       access_list_id: null,
       certificate_id: null,
       ssl_forced: false,
@@ -1007,34 +963,120 @@ create_new_proxy_host() {
     }'
   )
 
-	if $HOST_ACL_ENABLE; then
-	  DATA=$(echo "$DATA" | jq --arg acl_id "$ACL_ID" '. + {access_list_id: ($acl_id | tonumber)}')
-	elif $HOST_ACL_DISABLE; then
-	  DATA=$(echo "$DATA" | jq '. + {access_list_id: null}')
-	fi
-
-
-# add dns_challenge 
-  echo -e "\n Request Data: $DATA"
-
-  echo "$DATA" | jq . > /dev/null 2>&1
-  if [ $? -ne 0 ]; then
-    echo -e "\n ${COLOR_RED}Invalid JSON format${COLOR_RESET}"
+  # 🔍 Vérifier si le JSON est valide avant l'envoi
+  if ! echo "$DATA" | jq empty > /dev/null 2>&1; then
+    echo -e "  ⛔${COLOR_RED} ERROR: Invalid JSON generated:\n$DATA ${COLOR_RESET}"
     exit 1
   fi
 
+  # 🚀 Envoyer la requête API pour mise à jour
+  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+  -H "Content-Type: application/json; charset=UTF-8" \
+  --data-raw "$DATA")
+
+  # 📢 Vérifier la réponse de l'API
+  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  if [ -z "$ERROR_MSG" ]; then
+    echo -e "\n  ✅ ${COLOR_GREEN}SUCCESS: Proxy host 🔗$DOMAIN_NAMES updated successfully! 🎉${COLOR_RESET}"
+  else
+    echo -e "  ⛔ ${COLOR_RED}Failed to update proxy host. Error: $ERROR_MSG ${COLOR_RESET}"
+    exit 1
+  fi
+}
+
+###########################
+# Create a new proxy host
+create_new_proxy_host() {
+  echo -e "\n 🌍 Creating proxy host for $DOMAIN_NAMES..."
+
+  # Vérifier que les variables obligatoires sont bien définies
+  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ] || [ -z "$FORWARD_SCHEME" ]; then
+    echo -e "  ⛔${COLOR_RED} ERROR: Missing required parameters ${COLOR_RESET}(domain, forward host, forward port, forward scheme)."
+    exit 1
+  fi
+
+  # Vérifier que FORWARD_PORT est bien un nombre
+  if ! [[ "$FORWARD_PORT" =~ ^[0-9]+$ ]]; then
+    echo -e "  ⛔${COLOR_RED} ERROR: FORWARD_PORT is not a number! Value: '$FORWARD_PORT'${COLOR_RESET}"
+    exit 1
+  fi
+
+  # 🔥 Correction : S'assurer que `CUSTOM_LOCATIONS` est toujours un JSON valide
+  if [[ -z "$CUSTOM_LOCATIONS" || "$CUSTOM_LOCATIONS" == "null" ]]; then
+    CUSTOM_LOCATIONS_ESCAPED="[]"
+  else
+    CUSTOM_LOCATIONS_ESCAPED=$(echo "$CUSTOM_LOCATIONS" | jq -c . 2>/dev/null || echo '[]')
+  fi
+
+  # Correction des booléens (true / false en JSON)
+  CACHING_ENABLED_JSON=$( [ "$CACHING_ENABLED" == "true" ] && echo true || echo false )
+  BLOCK_EXPLOITS_JSON=$( [ "$BLOCK_EXPLOITS" == "true" ] && echo true || echo false )
+  ALLOW_WEBSOCKET_UPGRADE_JSON=$( [ "$ALLOW_WEBSOCKET_UPGRADE" == "true" ] && echo true || echo false )
+  HTTP2_SUPPORT_JSON=$( [ "$HTTP2_SUPPORT" == "true" ] && echo true || echo false )
+
+  #🔍 Debugging variables before JSON update:
+	#debug_var
+
+  # 🔥 Générer le JSON proprement  
+  DATA=$(jq -n \
+    --arg domain "$DOMAIN_NAMES" \
+    --arg host "$FORWARD_HOST" \
+    --arg port "$FORWARD_PORT" \
+    --arg scheme "$FORWARD_SCHEME" \
+    --argjson caching "$CACHING_ENABLED_JSON" \
+    --argjson block_exploits "$BLOCK_EXPLOITS_JSON" \
+    --arg advanced_config "$ADVANCED_CONFIG" \
+    --argjson websocket_upgrade "$ALLOW_WEBSOCKET_UPGRADE_JSON" \
+    --argjson http2_support "$HTTP2_SUPPORT_JSON" \
+    --argjson enabled true \
+    --argjson locations "$CUSTOM_LOCATIONS_ESCAPED" \
+    '{
+      domain_names: [$domain],
+      forward_host: $host,
+      forward_port: ($port | tonumber),
+      access_list_id: null,
+      certificate_id: null,
+      ssl_forced: false,
+      caching_enabled: $caching,
+      block_exploits: $block_exploits,
+      advanced_config: $advanced_config,
+      meta: { dns_challenge: null },
+      allow_websocket_upgrade: $websocket_upgrade,
+      http2_support: $http2_support,
+      forward_scheme: $scheme,
+      enabled: $enabled,
+      locations: $locations
+    }'
+  )
+
+  # Vérifier si le JSON est valide avant l'envoi
+  if ! echo "$DATA" | jq empty > /dev/null 2>&1; then
+    echo -e " ${COLOR_RED} ⛔ ERROR: Invalid JSON generated:\n$DATA ${COLOR_RESET}"
+    exit 1
+  fi
+
+  # 🚀 Send API payload
   RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
   -H "Content-Type: application/json; charset=UTF-8" \
   --data-raw "$DATA")
 
-  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
-    echo -e " ✅ ${COLOR_GREEN}Proxy host created successfully!${COLOR_RESET}"
-  else
-    echo -e " ⛔ ${COLOR_RED}Failed to create proxy host. Error: $(echo "$RESPONSE" | jq -r '.message')${COLOR_RESET}\n"
-  fi
+  # 📢 Check answer from API
+  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+if [ -z "$ERROR_MSG" ]; then
+    echo -e "\n  ${COLOR_GREEN} ✅  SUCCESS: Proxy host 🔗$DOMAIN_NAMES was created successfully! 🎉${COLOR_RESET}\n"
+else
+    echo -e "  ⛔${COLOR_RED} Failed to create proxy host. Error: $ERROR_MSG ${COLOR_RESET}"
+    exit 1
+fi
+
+	# 🔥 Affichage du JSON généré
+	echo -e "\n📝 JSON envoyé à l'API :"
+	echo "$DATA" | jq .
 }
 
+###############################
 # Create or update a proxy host based on the existence of the domain
 create_or_update_proxy_host() {
   if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
@@ -1047,7 +1089,88 @@ create_or_update_proxy_host() {
 }
 
 
+###############################
+# Update field of existing proxy host
+update_field() {
+  HOST_ID="$1"
+  FIELD="$2"
+  NEW_VALUE="$3"
 
+  # ✅ 1) Vérifier si les trois arguments sont passés
+  if [ -z "$HOST_ID" ] || [ -z "$FIELD" ] || [ -z "$NEW_VALUE" ]; then
+    echo -e "  ⛔ ${COLOR_RED}ERROR:${COLOR_RESET} Missing parameters. Usage:"
+    echo -e "  ./nginx_proxy_manager_cli.sh --update-host ID FIELD=VALUE"
+    exit 1
+  fi
+
+  # ✅ 2) Récupérer la config complète du proxy depuis l'API
+  CURRENT_DATA=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+
+  # Vérifier qu'elle est valide
+  if ! echo "$CURRENT_DATA" | jq empty > /dev/null 2>&1; then
+    echo -e "  ⛔ ${COLOR_RED}ERROR:${COLOR_RESET} Failed to fetch current proxy configuration."
+    exit 1
+  fi
+
+  # ✅ 3) Filtrer les champs autorisés par l’API (liste blanche)
+  #    (Retire ainsi les champs qui causent 'additional properties')
+  FILTERED_DATA=$(echo "$CURRENT_DATA" | jq '{
+    domain_names,
+    forward_host,
+    forward_port,
+    access_list_id,
+    certificate_id,
+    ssl_forced,
+    caching_enabled,
+    block_exploits,
+    advanced_config,
+    meta,
+    allow_websocket_upgrade,
+    http2_support,
+    forward_scheme,
+    enabled,
+    locations,
+    hsts_enabled,
+    hsts_subdomains
+  }')
+
+  # ✅ 4)  Modifier UN champ dans l'objet filtré
+  #     Certains champs (comme forward_port) doivent être convertis en nombre
+  if [ "$FIELD" = "forward_port" ]; then
+    # Si c'est forward_port, on force en nombre
+    UPDATED_DATA=$(echo "$FILTERED_DATA" \
+      | jq --argjson newVal "$(echo "$NEW_VALUE" | jq -R 'tonumber? // 0')" \
+           '.forward_port = $newVal')
+  else
+    # Sinon, on traite la nouvelle valeur comme une chaîne
+    UPDATED_DATA=$(echo "$FILTERED_DATA" \
+      | jq --arg newVal "$NEW_VALUE" \
+           ".$FIELD = \$newVal")
+  fi
+
+  # Vérifier si le JSON final est valide
+  if ! echo "$UPDATED_DATA" | jq empty > /dev/null 2>&1; then
+    echo -e "  ⛔ ${COLOR_RED}ERROR: Invalid JSON generated:${COLOR_RESET}\n$UPDATED_DATA"
+    exit 1
+  fi
+
+  # ✅ 5) Envoyer la mise à jour via API (PUT)
+  echo -e "\n  🔄 Updating proxy host ${COLOR_ORANGE}🆔${COLOR_RESET} ${COLOR_YELLOW}$HOST_ID${COLOR_RESET} with ${COLOR_ORANGE}$FIELD${COLOR_RESET} ${COLOR_YELLOW}$NEW_VALUE${COLOR_RESET}"
+  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "$UPDATED_DATA")
+
+  # ✅ 6) Vérifier la réponse API
+  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  if [ -z "$ERROR_MSG" ]; then
+    echo -e "\n ✅ ${COLOR_GREEN}SUCCESS:${COLOR_RESET} Proxy host 🆔 $HOST_ID  updated successfully! 🎉"
+  else
+    echo -e "\n ⛔ ${COLOR_RED}Failed to update proxy host. Error:${COLOR_RESET} $ERROR_MSG"
+    exit 1
+  fi
+}
 
 # Function to pad strings to a certain length
 pad() {
@@ -1192,9 +1315,7 @@ list_ssl_certificates() {
   fi
 }
 
-
-
-
+############################
 # List all users
 list_users() {
   echo -e "\n 👉 List of users..."
@@ -1203,6 +1324,7 @@ list_users() {
   echo -e "\n $RESPONSE" | jq
 }
 
+############################
 # Create a new user
 create_user() {
   if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ] || [ -z "$EMAIL" ]; then
@@ -1241,7 +1363,7 @@ create_user() {
   fi
 }
 
-###########################
+############################
 # Delete a user by username
 delete_user() {
   if [ -z "$USERNAME" ]; then
@@ -1669,8 +1791,6 @@ show_default() {
 
 ##################################
 ## backup
-
-
 # Function to make a full backup
 full_backup() {
   mkdir -p "$BACKUP_DIR"
@@ -2131,12 +2251,10 @@ elif [ "$HOST_SHOW" = true ]; then
    host_show
 elif [ "$LIST_SSL_CERTIFICATES" = true ]; then
   if [ -n "$DOMAIN_ARG" ]; then
-    list_ssl_certificates "$DOMAIN_ARG"  
+    list_ssl_certificates "$DOMAIN_ARG"
   else
-    list_ssl_certificates   
-  fi   
-# elif [ "$LIST_SSL_CERTIFICATES" = true ]; then
-#   list_ssl_certificates
+    list_ssl_certificates
+  fi
 elif [ "$LIST_USERS" = true ]; then
   list_users
 elif [ "$SEARCH_HOST" = true ]; then
@@ -2173,17 +2291,17 @@ elif [ "$SHOW_DEFAULT" = true ]; then
 elif [ "$SSL_REGENERATE" = true ]; then
   regenerate_all_ssl_certificates
 elif [ "$INFO" = true ]; then
-  display_info 
-elif [ "$EXAMPLES" = true ]; then  
+  display_info
+elif [ "$EXAMPLES" = true ]; then
   examples_cli
-
 elif [ "$RESTORE" = true ]; then
   restore_backup
 elif [ "$RESTORE_HOST" = true ]; then
   restore-host
 elif [ "$SSL_RESTORE" = true ]; then
   restore_ssl_certificates
- 
+elif [ "$UPDATE_FIELD" = true ]; then
+	update_field "$HOST_ID" "$FIELD" "$VALUE"
 else
   create_or_update_proxy_host
 fi
