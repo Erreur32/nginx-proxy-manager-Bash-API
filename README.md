@@ -129,7 +129,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
 #   --list-access                         List all available access lists (ID and name)
 #   --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
 #   --host-acl-disable id                 Disable ACL for a proxy host by ID
-#   --update-host id field=value          Modify any filed on existing entry host
+#   --update-host id field=value          Modify any field on existing entry host
 #   --help                                Display this help
 
 ```
