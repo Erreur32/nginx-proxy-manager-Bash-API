@@ -164,11 +164,9 @@ BASE_DIR="/path/nginx_proxy_script/data"
 
 ##### Verifying the Configuration
 
-######  Info
-
 Some info of settings in the script with `./nginx_proxy_manager_cli_.sh --info`
 
-
+##### info
 ```bash
 ./nginx_proxy_manager_cli_.sh --info
 
@@ -186,7 +184,7 @@ Script Variables Information:
 ```
 
 
-**How to activate SSL ?** 
+##### **How to activate SSL ?** 
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
@@ -202,8 +200,8 @@ By following these steps, you can enable SSL for your proxy host for the first t
       3      tutu.fun                              enabled  ✅
 
 
-##### SSL
-Enable SSL for the Host:
+
+##### Enable SSL for the Host
 
   Assuming the host ID is *1*, you would enable SSL for the host as follows:
 
@@ -219,11 +217,38 @@ Enable SSL for the Host:
       2      titi.fun                              disable  ✅
       3      tutu.fun                              enabled  ✅
 
+      
+##### update specific fields of an existing proxy host
+
+The `--update-host` command allows you to **update specific fields** of an existing proxy host in Nginx Proxy Manager **without recreating it**.  
+
+Simply specify the **proxy host ID** and the **field you want to update**, like this:
+
+```bash
+./nginx_proxy_manager_cli.sh --update-host 42 forward_host=new.backend.local
+```
  
- Et Voilà.
+| Field Name               | Type      | Description                                                                 |
+|--------------------------|-----------|-----------------------------------------------------------------------------|
+| `domain_names`           | `array`   | List of domains handled by this proxy.                                      |
+| `forward_host`           | `string`  | The destination (backend) hostname or IP.                                   |
+| `forward_port`           | `integer` | The destination port (e.g., `8000`, `443`).                                 |
+| `forward_scheme`         | `string`  | The scheme: `http` or `https`.                                              |
+| `enabled`                | `boolean` | Whether the proxy is enabled (`true` or `false`).                           |
+| `ssl_forced`             | `boolean` | Redirect all HTTP requests to HTTPS.                                        |
+| `certificate_id`         | `integer` | The ID of the SSL certificate to use.                                       |
+| `meta.letsencrypt_agree` | `boolean` | Agree to Let's Encrypt TOS (`true` or `false`).                             |
+| `meta.dns_challenge`     | `boolean` | Use DNS challenge for SSL cert (`true` or `false`).                         |
+| `allow_websocket_upgrade`| `boolean` | Enable WebSocket support (`true` or `false`).                               |
+| `http2_support`          | `boolean` | Enable HTTP/2 (`true` or `false`).                                          |
+| `caching_enabled`        | `boolean` | Enable caching (`true` or `false`).                                         |
+| `block_exploits`         | `boolean` | Block known exploits (`true` or `false`).                                   |
+| `advanced_config`        | `string`  | Custom Nginx directives (multiline string).                                 |
+| `locations`              | `array`   | Custom location blocks (advanced use).                                      |
 
 
-**Other Exemple command:**
+
+##### **Other Exemple command:**
 
 
 Host proxy info command `--host-show id`
