@@ -106,7 +106,7 @@ CONFIG_FILE="$SCRIPT_DIR/nginx_proxy_manager_cli.conf"
 
 ################################
 # PERSISTENT Config
-# Create config file  $SCRIPT_DIR/nginx_proxy_manager_cli.conf and Variables to Edit (required) 
+# Create config file  $SCRIPT_DIR/nginx_proxy_manager_cli.conf and Edit Variables (required)
 # NGINX_IP="127.0.0.1"
 # API_USER="admin@example.com"
 # API_PASS="changeme"
@@ -118,7 +118,7 @@ if [ -f "$CONFIG_FILE" ]; then
   # configuration file loading
   source "$CONFIG_FILE"
 else
-  echo -e "  ⚠️ Configuration file $CONFIG_FILE don't exists. Used Default Variables... "
+  echo -e "  ⚠️ Configuration file $CONFIG_FILE doesn't exists. Using Default Variables... "
 fi
 
 
@@ -867,7 +867,7 @@ delete_proxy_host() {
     echo -e " ⛔ ${COLOR_RED}Failed to delete proxy host. HTTP status: $HTTP_STATUS. Error: $HTTP_BODY${CoR}"
     return 1
   else
-    echo -e " ✅ ${COLOR_GREEN}Proxy host 💣 deleted successfully!${CoR}\n"
+    echo -e " ✅ ${COLOR_GREEN}Proxy host successfully deleted! 💣${CoR}\n"
     return 0
   fi
 }
