@@ -41,7 +41,7 @@ La fonction RESTORE n'est pas encore terminée.
 
 ## Prerequisites
 
-And of course the excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
+The excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
 
 Required basic dependencies. 
   > The script will automatically check if they are installed and will download them if necessary:
