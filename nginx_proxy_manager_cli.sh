@@ -1571,7 +1571,7 @@ generate_certificate() {
 
   echo -e "\n  🔔 Please WAIT until validation !!(or not)!! \n Data being sent: $DATA"  # Log the data being sent
 
-  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/certificates" \
+  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/users" \
     -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
