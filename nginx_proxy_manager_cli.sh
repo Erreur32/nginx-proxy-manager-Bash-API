@@ -4,7 +4,7 @@
 #   Github [ https://github.com/Erreur32/nginx-proxy-manager-Bash-API ]
 #   By Erreur32 - July 2024
 
-VERSION="2.5.8"
+VERSION="2.5.9"
 
 #
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -56,6 +56,7 @@ VERSION="2.5.8"
 #   -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
 #   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)"
 #   -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
+#   -y                                    Automatic yes to prompts
 #
 # 📦 Backup and Restore:
 #   --backup                              Backup all configurations to a file
@@ -179,6 +180,7 @@ SHOW_DEFAULT=false
 ENABLE_ACL=false
 DISABLE_ACL=false
 ACCESS_LIST=false
+AUTO_YES=false  # Added: Flag for automatic confirmation (y)
 # Colors Custom
 COLOR_GREEN="\033[32m"
 COLOR_RED="\033[41;1m"
@@ -509,7 +511,7 @@ validate_token() {
 #################################
 # Main menu logic
 #################################
-while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
+while getopts "d:i:p:f:c:b:w:a:l:y-:" opt; do
   case $opt in
     d) DOMAIN_NAMES="$OPTARG" ;;
     i) FORWARD_HOST="$OPTARG" ;;
@@ -520,12 +522,13 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
     w) ALLOW_WEBSOCKET_UPGRADE="$OPTARG" ;;
     a) ADVANCED_CONFIG="$OPTARG" ;;
     l) CUSTOM_LOCATIONS="$OPTARG" ;;
+    y) AUTO_YES=true ;;  # Neu: -y Flag für automatische "yes" Bestätigung
     -)
       case "${OPTARG}" in
           show-default) SHOW_DEFAULT=true ;;
           backup) BACKUP=true ;;
           backup-host)
-							validate_token
+              validate_token
               BACKUP_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
@@ -544,24 +547,24 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
           ssl-regenerate) validate_token; SSL_REGENERATE=true ;;
           ssl-restore) validate_token; SSL_RESTORE=true ;;
           create-user)
-							validate_token
+              validate_token
               CREATE_USER=true
               USERNAME="${!OPTIND}"; shift
               PASSWORD="${!OPTIND}"; shift
               EMAIL="${!OPTIND}"; shift
               ;;
           delete-user)
-							validate_token
+              validate_token
               DELETE_USER=true
               USERNAME="${!OPTIND}"; shift
               ;;
           host-delete)
-							validate_token
+              validate_token
               DELETE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           host-show)
-							validate_token
+              validate_token
               HOST_SHOW=true
               HOST_ID="${!OPTIND}"; shift
               ;;
@@ -569,17 +572,17 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
           host-list-full) validate_token; LIST_HOSTS_FULL=true ;;
           host-list-users) validate_token; LIST_USERS=true ;;
           host-search)
-							validate_token
+              validate_token
               SEARCH_HOST=true
               SEARCH_HOSTNAME="${!OPTIND}"; shift
               ;;
           host-enable)
-							validate_token
+              validate_token
               ENABLE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
           host-disable)
-							validate_token
+              validate_token
               DISABLE_HOST=true
               HOST_ID="${!OPTIND}"; shift
               ;;
@@ -602,7 +605,7 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
           check-token) CHECK_TOKEN=true
               ;;
           generate-cert)
-							validate_token
+              validate_token
               GENERATE_CERT=true
               DOMAIN="${!OPTIND}"; shift
               EMAIL="${!OPTIND}"; shift
@@ -630,7 +633,7 @@ while getopts "d:i:p:f:c:b:w:a:l:-:" opt; do
               ;;
           force-cert-creation)
               validate_token
-							 FORCE_CERT_CREATION=true ;;
+              FORCE_CERT_CREATION=true ;;
           list-ssl-certificates)
               validate_token
               LIST_SSL_CERTIFICATES=true
@@ -886,7 +889,12 @@ check_existing_proxy_host() {
 
   if [ -n "$EXISTING_HOST" ]; then
     echo -e "\n 🔔 Proxy host for $DOMAIN_NAMES already exists."
-    read -p " 👉 Do you want to update it? (y/n): " -r
+    if [ "$AUTO_YES" = true ]; then
+        REPLY="y"
+        echo -e "🔔 Option -y detected. Skipping confirmation prompt and proceeding with update..."
+    else
+        read -p " 👉 Do you want to update it? (y/n): " -r
+    fi
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id')
       update_proxy_host "$HOST_ID"
@@ -1488,7 +1496,12 @@ delete_certificate() {
   echo -e " ✅ Certificate found for $DOMAIN (Provider: $PROVIDER, Expires on: $EXPIRES_ON)."
 
   # Ask for confirmation before deleting the certificate
-  read -p "⚠️ Are you sure you want to delete the certificate for $DOMAIN? (y/n): " CONFIRM
+  if [ "$AUTO_YES" = true ]; then
+    echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
+    CONFIRM="y"
+  else
+    read -p "⚠️ Are you sure you want to delete the certificate for $DOMAIN? (y/n): " CONFIRM
+  fi
   if [[ "$CONFIRM" != "y" ]]; then
     echo -e " ❌ Certificate deletion aborted."
     exit 0
@@ -1522,7 +1535,7 @@ generate_certificate() {
   echo -e "\n 👀 Checking if Let's Encrypt certificate for domain: $DOMAIN exists..."
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)")
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)")
 
   EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" '.[] | select(.domain_names[] == $DOMAIN)')
 
@@ -1533,7 +1546,13 @@ generate_certificate() {
   fi
 
   # Ask for confirmation before creating a new certificate
-  read -p "⚠️ No existing certificate found for $DOMAIN. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM
+  if [ "$AUTO_YES" = true ]; then
+    echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
+    CONFIRM="y"
+  else
+    read -p "⚠️ No existing certificate found for $DOMAIN. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM
+  fi
+
   if [[ "$CONFIRM" != "y" ]]; then
     echo -e " ❌ Certificate creation aborted."
     exit 0
@@ -1552,10 +1571,10 @@ generate_certificate() {
 
   echo -e "\n  🔔 Please WAIT until validation !!(or not)!! \n Data being sent: $DATA"  # Log the data being sent
 
-  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/certificates" \
-  -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
-  -H "Content-Type: application/json; charset=UTF-8" \
-  --data-raw "$DATA")
+  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/users" \
+    -H "Authorization: Bearer $(cat $TOKEN_FILE)" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "$DATA")
 
   HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
   HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
@@ -1617,7 +1636,12 @@ enable_ssl() {
       EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
       echo -e " 🔔 Certificate for $DOMAIN_NAMES already exists and is valid until $EXPIRES_ON.\n"
     else
-      read -p "⚠️ No certificate found for $DOMAIN_NAMES. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM_CREATE
+      if [ "$AUTO_YES" = true ]; then
+        echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
+        CONFIRM_CREATE="y"
+      else
+        read -p "⚠️ No certificate found for $DOMAIN_NAMES. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM_CREATE
+      fi
       if [[ "$CONFIRM_CREATE" == "y" ]]; then
         # Prompt for email if not set
         read -p "Please enter your email for Let's Encrypt: " EMAIL
@@ -2195,7 +2219,12 @@ restore_host() {
   # Verify if the proxy host exists
   if [ -n "$HOST_ID_RESPONSE" ] && [ "$(echo "$HOST_ID_RESPONSE" | jq -r '.id')" = "$HOST_ID" ]; then
     echo -e " 🔔 Proxy host for ID $HOST_ID already exists.\n ${COLOR_ORANGE}"
-    read -p " 👉 Do you want to delete the existing proxy host and restore from the backup? (y/n): " -r confirm
+    if [ "$AUTO_YES" = true ]; then
+      echo -e "🔔 The -y parameter is active. Skipping confirmation prompt..."
+      confirm="y"
+    else
+      read -p " 👉 Do you want to delete the existing proxy host and restore from the backup? (y/n): " -r confirm
+    fi
     echo -e "${CoR}" 
     if [[ $confirm =~ ^[Yy]$ ]]; then
       echo -e "${CoR}" 
