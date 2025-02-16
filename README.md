@@ -103,6 +103,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
    -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)
    -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
+   -y                                    Automatic yes prompts, yes sir!
 
 📦 Backup and Restore:
    --backup                             Backup all configurations to a file
@@ -149,18 +150,49 @@ BASE_DIR="/path/nginx_proxy_script/data"
    ./nginx_proxy_manager_cli.sh --host-list
    ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
 
+ 🤖 Automatic operations (no prompts):
+   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -y
+   ./nginx_proxy_manager_cli.sh --host-delete 42 -y
+   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10 -y   
+
+ 🔍 Information and Status:
+   ./nginx_proxy_manager_cli.sh --info                    # Show script configuration and status
+   ./nginx_proxy_manager_cli.sh --check-token            # Verify token validity
+   ./nginx_proxy_manager_cli.sh --host-search domain.com # Search for a specific domain
+
+ 🔄 Host Management:
+   # Enable/Disable hosts
+   ./nginx_proxy_manager_cli.sh --host-enable 42
+   ./nginx_proxy_manager_cli.sh --host-disable 42
+
+ 🛡️ Access Control Lists:
+   ./nginx_proxy_manager_cli.sh --list-access                    # List all access lists
+   ./nginx_proxy_manager_cli.sh --host-acl-enable 42,5          # Enable ACL ID 5 for host 42
+   ./nginx_proxy_manager_cli.sh --host-acl-disable 42           # Disable ACL for host 42
+
+ 🔒 SSL Management:
+   ./nginx_proxy_manager_cli.sh --list-ssl-certificates         # List all SSL certificates
+   ./nginx_proxy_manager_cli.sh --delete-cert domain.com        # Delete certificate for domain
+
+ 🔄 Update Specific Fields:
+   # Update individual fields without recreating the entire host
+   ./nginx_proxy_manager_cli.sh --update-host 42 forward_scheme=https
+   ./nginx_proxy_manager_cli.sh --update-host 42 forward_port=8443
+   ./nginx_proxy_manager_cli.sh --update-host 42 block_exploits=true
+   ./nginx_proxy_manager_cli.sh --update-host 42 allow_websocket_upgrade=true
+
  🔧 Advanced Example:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 
  🛡️ Custom Certificate:
    ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com 
+   # Note: This will generate a Let's Encrypt certificate only
 
  🛡️  Custom locations:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 
 🔖 Full options:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
-
 ```
  
 #### update      
@@ -311,14 +343,20 @@ Host proxy info command `--host-show id`
 
 
 ```
-
-
-![https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-default.png](https://github.com/Erreur32/nginx-proxy-manager-API/blob/main/screen-nginx-proxy-default.png)
-
+ 
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
 - [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
-- [x] Backup  all settings from NPM
-- [ ] creation of ACCESS list
-- [ ] Restore Function not work properly , need to find FIX.
+- [x] Backup all settings from NPM
+- [x] Add automatic confirmation with -y parameter
+- [ ] Clean/minimize output when using -y parameter for better script integration
+- [ ] Creation of ACCESS list through CLI
+- [ ] Restore Function not working properly, need to find FIX
+- [ ] Add support for custom SSL certificates (currently only Let's Encrypt)
+- [ ] Add batch operations support (multiple hosts/operations at once)
+
+## Credits & Thanks
+
+Special thanks to:
+- [@ichbinder](https://github.com/ichbinder) for implementing the `-y` parameter for automatic confirmations

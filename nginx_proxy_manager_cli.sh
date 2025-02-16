@@ -56,7 +56,7 @@ VERSION="2.5.9"
 #   -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
 #   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)"
 #   -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
-#   -y                                    Automatic yes to prompts
+#   -y                                    Automatic yes prompts !
 #
 # 📦 Backup and Restore:
 #   --backup                              Backup all configurations to a file
@@ -274,6 +274,7 @@ usage() {
   echo -e "  -w ALLOW_WEBSOCKET_UPGRADE              Allow WebSocket upgrade (true/false, default: $(colorize_boolean $ALLOW_WEBSOCKET_UPGRADE))"
   echo -e "  -l CUSTOM_LOCATIONS                     Custom locations (${COLOR_YELLOW}JSON array${CoR} of location objects)"
   echo -e "  -a ADVANCED_CONFIG                      Advanced configuration (${COLOR_YELLOW}string${CoR})"
+  echo -e "  -y                                      Automatic yes prompts !"
   echo ""
   echo -e "  --info                                 ℹ️  ${COLOR_YELLOW}Display${CoR} Script Variables Information"
   echo -e "  --show-default                         🔍 ${COLOR_YELLOW}Show${CoR}    Default settings for creating hosts"
@@ -522,7 +523,7 @@ while getopts "d:i:p:f:c:b:w:a:l:y-:" opt; do
     w) ALLOW_WEBSOCKET_UPGRADE="$OPTARG" ;;
     a) ADVANCED_CONFIG="$OPTARG" ;;
     l) CUSTOM_LOCATIONS="$OPTARG" ;;
-    y) AUTO_YES=true ;;  # Neu: -y Flag für automatische "yes" Bestätigung
+    y) AUTO_YES=true ;;
     -)
       case "${OPTARG}" in
           show-default) SHOW_DEFAULT=true ;;
