@@ -127,6 +127,10 @@ BASE_DIR="/path/nginx_proxy_script/data"
    • Uptime: 15 days
    • Version: 2.4.0
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 Use --help to see available commands
+```
+
 ## Options
 ```tcl
 
