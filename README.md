@@ -151,28 +151,29 @@ BASE_DIR="/path/nginx_proxy_script/data"
    --backup-host id                     Backup a single host configuration and its certificate (if exists)
 
  🔧 Miscellaneous:
-#   --check-token                         Check if the current token is valid
-#   --create-user user pass email         Create a user with a username, password and email
-#   --delete-user username                Delete a user by username
-#   --host-delete id                      Delete a proxy host by ID
-#   --host-show id                        Show full details for a specific host by ID
-#   --show-default                        Show default settings for creating hosts
-#   --host-list                           List the names of all proxy hosts
-#   --host-list-full                      List all proxy hosts with full details
-#   --host-list-users                     List all users
-#   --host-search hostname                Search for a proxy host by domain name
-#   --host-enable id                      Enable a proxy host by ID
-#   --host-disable id                     Disable a proxy host by ID
-#   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
-#   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-#   --list-ssl-certificates               List All SSL certificates availables (JSON)
-#   --generate-cert domain email          Generate certificate for the given domain and email
-#   --delete-cert domain                  Delete   certificate for the given domain
-#   --list-access                         List all available access lists (ID and name)
-#   --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
-#   --host-acl-disable id                 Disable ACL for a proxy host by ID
-#   --update-host id field=value          Modify any field on existing entry host
-#   --help                                Display this help
+   --check-token                         Check if the current token is valid
+   --create-user user pass email         Create a user with a username, password and email
+   --delete-user username                Delete a user by username
+   --host-delete id                      Delete a proxy host by ID
+   --host-show id                        Show full details for a specific host by ID
+   --show-default                        Show default settings for creating hosts
+   --host-list                           List the names of all proxy hosts
+   --host-list-full                      List all proxy hosts with full details
+   --list-users                          List all users
+
+   --host-search hostname                Search for a proxy host by domain name
+   --host-enable id                      Enable a proxy host by ID
+   --host-disable id                     Disable a proxy host by ID
+   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
+   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
+   --list-ssl-certificates               List All SSL certificates availables (JSON)
+   --generate-cert domain email          Generate certificate for the given domain and email
+   --delete-cert domain                  Delete   certificate for the given domain
+   --list-access                         List all available access lists (ID and name)
+   --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
+   --host-acl-disable id                 Disable ACL for a proxy host by ID
+   --update-host id field=value          Modify any field on existing entry host
+   --help                                Display this help
 
 ```
 
