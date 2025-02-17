@@ -90,6 +90,43 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ./nginx_proxy_manager_cli.sh  --show-default 
 ```
 
+
+> [!NOTE]  
+> **New in version 2.6.0:**
+> - 📊 New dashboard (by default)
+> - 🔐 Improved token management
+> - 📋 Enhanced command display and options
+> - 🎨 More user-friendly interface with icons and colors
+
+## NEW dashboard
+
+```bash
+📊 NGINX - Proxy Manager - Dashboard 🔧
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Proxy Hosts:
+   • Total:    42
+   • Enabled:  38
+   • Disabled: 4
+
+🔄 Redirections:
+   • Total: 5
+
+🔌 Stream Hosts:
+   • Total: 3
+
+🔒 SSL Certificates:
+   • Total:   15
+   • Valid:   12
+   • Expired: 3
+
+👥 Users:
+   • Total: 4
+
+🆙 Server Status:
+   • Uptime: 15 days
+   • Version: 2.4.0
+
 ## Options
 ```tcl
 
