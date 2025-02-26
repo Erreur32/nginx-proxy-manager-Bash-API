@@ -246,31 +246,31 @@ BASE_DIR="/path/nginx_proxy_script/data"
 
 ### Schema of the backup directory:
 ```
-📁 data/                                    # Root directory
-├── 📁 backups/                             # Backup directories
-│   └── 📁 [IP]_[PORT]/                     # NPM Instance (IP:PORT)
-│       ├── 📁 .access_lists/               # Access Lists configurations
-│       ├── 📁 .Proxy_Hosts/                # Host configurations
-│       │   ├── 📁 [DOMAIN]/                # Directory for each domain
-│       │   │   ├── 📁 logs/               # Log directory
-│       │   │   ├── 📁 ssl/                # SSL directory
-│       │   │   │   ├── 📄 certificate_meta.json  # Certificate metadata
+📁 data/                                         # Root directory
+├── 📁 backups/                                  # Backup directories
+│   └── 📁 [IP]_[PORT]/                          # NPM Instance (IP:PORT)
+│       ├── 📁 .access_lists/                    # Access Lists configurations
+│       ├── 📁 .Proxy_Hosts/                     # Host configurations
+│       │   ├── 📁 [DOMAIN]/                     # Directory for each domain
+│       │   │   ├── 📁 logs/                     # Log directory
+│       │   │   ├── 📁 ssl/                      # SSL directory
+│       │   │   │   ├── 📄 certificate_meta.json # Certificate metadata
 │       │   │   │   ├── 📄 certificate.pem       # Certificate
-│       │   │   │   ├── 📄 chain.pem            # Chain of certificates
-│       │   │   │   └── 📄 private.key          # Private key
-│       │   │   ├── 📄 nginx.conf          # Nginx configuration
-│       │   │   └── 📄 proxy_config.json   # Proxy configuration
-│       │   ├── 📄 all_hosts_[DATE].json    # List of all hosts
-│       │   └── 📄 all_hosts_latest.json    # Symlink to latest backup
-│       ├── 📁 .settings/                   # NPM settings
-│       ├── 📁 .ssl/                        # SSL certificates
-│       ├── 📁 .user/                       # User configurations
-│       ├── 📄 full_config_[DATE].json      # Full backup
-│       └── 🔗 full_config_latest.json      # Symlink to latest backup
+│       │   │   │   ├── 📄 chain.pem             # Chain of certificates
+│       │   │   │   └── 📄 private.key           # Private key
+│       │   │   ├── 📄 nginx.conf                # Nginx configuration
+│       │   │   └── 📄 proxy_config.json         # Proxy configuration
+│       │   ├── 📄 all_hosts_[DATE].json         # List of all hosts
+│       │   └── 📄 all_hosts_latest.json         # Symlink to latest backup
+│       ├── 📁 .settings/                        # NPM settings
+│       ├── 📁 .ssl/                             # SSL certificates
+│       ├── 📁 .user/                            # User configurations
+│       ├── 📄 full_config_[DATE].json           # Full backup
+│       └── 🔗 full_config_latest.json           # Symlink to latest backup
 │
-└── 📁 token/                               # Token directory
-    ├── 📄 token_[IP]_[PORT].txt            # Authentication token
-    └── 📄 expiry_[IP]_[PORT].txt           # Token expiry date
+└── 📁 token/                                    # Token directory
+    ├── 📄 token_[IP]_[PORT].txt                 # Authentication token
+    └── 📄 expiry_[IP]_[PORT].txt                # Token expiry date
 ```
 
 #### update      
