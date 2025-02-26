@@ -168,7 +168,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    --host-disable id                     Disable a proxy host by ID
    --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
    --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-   --list-ssl-certificates               List All SSL certificates availables (JSON)
+   --list-ssl-cert                       List All SSL certificates availables (JSON)
    --generate-cert domain email          Generate certificate for the given domain and email
    --delete-cert domain                  Delete   certificate for the given domain
    --list-access                         List all available access lists (ID and name)
