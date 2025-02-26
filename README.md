@@ -236,7 +236,45 @@ BASE_DIR="/path/nginx_proxy_script/data"
 🔖 Full options:
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
- 
+
+### backup
+
+```bash
+./nginx_proxy_manager_cli.sh --backup
+```
+
+
+### Schema of the backup directory:
+```
+📁 data/                                    # Root directory
+├── 📁 backups/                             # Backup directories
+│   └── 📁 [IP]_[PORT]/                     # NPM Instance (IP:PORT)
+│       ├── 📁 .access_lists/               # Access Lists configurations
+│       ├── 📁 .proxy_configs/              # Proxy configurations
+│       │   └── 📁 proxy_[ID]_[DOMAIN]/     # Directory for each proxy
+│       │       ├── 📄 proxy_config.json    # Proxy configuration
+│       │       ├── 📄 nginx.conf           # Nginx configuration
+│       │       ├── 📄 access.log           # Access logs
+│       │       ├── 📄 error.log            # Error logs
+│       │       ├── 📄 ssl_certificate.json # SSL certificate data
+│       │       ├── 📄 certificate.pem      # Certificate
+│       │       ├── 📄 private.key          # Private key
+│       │       └── 📄 chain.pem            # Chain of certificates
+│       ├── 📁 .Proxy_Hosts/                # Host configurations
+│       │   ├── 📄 all_hosts_[DATE].json    # List of all hosts
+│       │   └── 📄 all_hosts_latest.json    # Symlink to latest backup
+│       ├── 📁 .settings/                   # NPM settings
+│       ├── 📁 .ssl/                        # SSL certificates
+│       ├── 📁 .user/                       # User configurations
+│       ├── 📄 full_config_[DATE].json      # Full backup
+│       └── 🔗 full_config_latest.json      # Symlink to latest backup
+│
+└── 📁 token/                               # Token directory
+    ├── 📄 token_[IP]_[PORT].txt            # Authentication token
+    └── 📄 expiry_[IP]_[PORT].txt           # Token expiry date
+
+```
+
 #### update      
 ##### update specific fields of an existing proxy host
 
