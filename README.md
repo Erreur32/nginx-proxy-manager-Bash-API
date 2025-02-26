@@ -20,7 +20,7 @@
 > [!WARNING]
 > The  --restore command is disabled  (a fix is in progress).
 > 
-> V2.6.0 introduced some issues. A fix has been tested and pushed,  but user feedback is required to ensure everything works as expected.
+> V2.6.0 introduced some issues. A fix has been tested and pushed,  but user feedback is required to ensure everything works as expected with V2.7.0.
 
 
 
