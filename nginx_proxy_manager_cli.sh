@@ -3084,7 +3084,7 @@ full_backup() {
 
     # Create required subdirectories
     echo -e "\n📂 ${COLOR_CYAN}Creating backup directories...${CoR}"
-    for dir in ".user" ".settings" ".access_lists" ".Proxy_Hosts" ".proxy_configs" ".ssl"; do
+    for dir in ".user" ".settings" ".access_lists" ".Proxy_Hosts" ".ssl"; do
         mkdir -p "$BACKUP_PATH/$dir" || {
             echo -e " ⛔ ${COLOR_RED}Failed to create $dir directory${CoR}"
             return 1

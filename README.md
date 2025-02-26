@@ -250,17 +250,16 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ├── 📁 backups/                             # Backup directories
 │   └── 📁 [IP]_[PORT]/                     # NPM Instance (IP:PORT)
 │       ├── 📁 .access_lists/               # Access Lists configurations
-│       ├── 📁 .proxy_configs/              # Proxy configurations
-│       │   └── 📁 proxy_[ID]_[DOMAIN]/     # Directory for each proxy
-│       │       ├── 📄 proxy_config.json    # Proxy configuration
-│       │       ├── 📄 nginx.conf           # Nginx configuration
-│       │       ├── 📄 access.log           # Access logs
-│       │       ├── 📄 error.log            # Error logs
-│       │       ├── 📄 ssl_certificate.json # SSL certificate data
-│       │       ├── 📄 certificate.pem      # Certificate
-│       │       ├── 📄 private.key          # Private key
-│       │       └── 📄 chain.pem            # Chain of certificates
 │       ├── 📁 .Proxy_Hosts/                # Host configurations
+│       │   ├── 📁 [DOMAIN]/                # Directory for each domain
+│       │   │   ├── 📁 logs/               # Log directory
+│       │   │   ├── 📁 ssl/                # SSL directory
+│       │   │   │   ├── 📄 certificate_meta.json  # Certificate metadata
+│       │   │   │   ├── 📄 certificate.pem       # Certificate
+│       │   │   │   ├── 📄 chain.pem            # Chain of certificates
+│       │   │   │   └── 📄 private.key          # Private key
+│       │   │   ├── 📄 nginx.conf          # Nginx configuration
+│       │   │   └── 📄 proxy_config.json   # Proxy configuration
 │       │   ├── 📄 all_hosts_[DATE].json    # List of all hosts
 │       │   └── 📄 all_hosts_latest.json    # Symlink to latest backup
 │       ├── 📁 .settings/                   # NPM settings
