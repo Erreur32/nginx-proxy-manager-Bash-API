@@ -200,7 +200,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    ./nginx_proxy_manager_cli.sh --host-ssl-enable 10 -y   
 
  🔍 Information and Status:
-   ./nginx_proxy_manager_cli.sh --info                    # Show script configuration and status
+   ./nginx_proxy_manager_cli.sh --info                   # Show script configuration and status
    ./nginx_proxy_manager_cli.sh --check-token            # Verify token validity
    ./nginx_proxy_manager_cli.sh --host-search domain.com # Search for a specific domain
 
@@ -210,12 +210,12 @@ BASE_DIR="/path/nginx_proxy_script/data"
    ./nginx_proxy_manager_cli.sh --host-disable 42
 
  🛡️ Access Control Lists:
-   ./nginx_proxy_manager_cli.sh --list-access                    # List all access lists
+   ./nginx_proxy_manager_cli.sh --list-access                   # List all access lists
    ./nginx_proxy_manager_cli.sh --host-acl-enable 42,5          # Enable ACL ID 5 for host 42
    ./nginx_proxy_manager_cli.sh --host-acl-disable 42           # Disable ACL for host 42
 
  🔒 SSL Management:
-   ./nginx_proxy_manager_cli.sh --list-ssl-certificates         # List all SSL certificates
+   ./nginx_proxy_manager_cli.sh --list-ssl-cert                 # List all SSL certificates
    ./nginx_proxy_manager_cli.sh --delete-cert domain.com        # Delete certificate for domain
 
  🔄 Update Specific Fields:
@@ -239,7 +239,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
 
-### backup
+### --backup
 
 ```bash
 ./nginx_proxy_manager_cli.sh --backup
@@ -275,7 +275,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
     └── 📄 expiry_[IP]_[PORT].txt                # Token expiry date
 ```
 
-#### update      
+#### --update-host      
 ##### update specific fields of an existing proxy host
 
 The `--update-host` command allows you to **update specific fields** of an existing proxy host in Nginx Proxy Manager **without recreating it**.  
@@ -332,7 +332,7 @@ Script Variables Information:
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
-#### List
+#### --host-list
  List all Host in one command and show ´id´ , ´status´ and ´SSL´ status:
 
     ./nginx_proxy_manager_cli.sh --host-list
@@ -344,7 +344,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
       3      tutu.fun                              enabled  ✅
 
 
-#### ssl
+#### --host-ssl-enable
 ##### Enable SSL for the Host
 
   Assuming the host ID is *1*, you would enable SSL for the host as follows:
@@ -363,7 +363,6 @@ By following these steps, you can enable SSL for your proxy host for the first t
 
 
 ##### **Other Exemple command:**
-
 
 Host proxy info command `--host-show id`
 
