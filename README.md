@@ -271,7 +271,6 @@ BASE_DIR="/path/nginx_proxy_script/data"
 └── 📁 token/                               # Token directory
     ├── 📄 token_[IP]_[PORT].txt            # Authentication token
     └── 📄 expiry_[IP]_[PORT].txt           # Token expiry date
-
 ```
 
 #### update      
