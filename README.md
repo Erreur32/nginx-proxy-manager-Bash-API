@@ -407,21 +407,8 @@ Host proxy info command `--host-show id`
 
  
 ## Screens:
-```
-# ./nginx_proxy_manager_cli.sh --backup
- 
- ✅ Users backup completed        🆗: /path/to/nginx_proxy/backups/users_127_0_0_1_2024_07_29__14_01_23.json
- ✅ Settings backup completed     🆗: /path/to/nginx_proxy/backups/settings_127_0_0_1_2024_07_29__14_01_23.json
- ✅ Proxy host backup completed   🆗: /path/to/nginx_proxy/backups
- ✅ Access lists backup completed 🆗: /path/to/nginx_proxy/backups/access_lists_127_0_0_1_2024_07_29__14_01_23.json
- ✅ Backup 🆗
- 📦 Backup Summary:
-   - Number of users backed up: 1
-   - Number of proxy hosts backed up: 31
-   - Total number of backup files: 42
+![screen-nginx-proxy-default](https://github.com/user-attachments/assets/5a87bb64-c8aa-4b67-b118-9fa10423d396)
 
-
-```
  
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
@@ -432,8 +419,7 @@ Host proxy info command `--host-show id`
 - [ ] Clean/minimize output when using -y parameter for better script integration
 - [ ] Creation of ACCESS list through CLI
 - [ ] Restore Function not working properly, need to find FIX
-- [ ] Add support for custom SSL certificates (currently only Let's Encrypt)
-- [ ] Add batch operations support (multiple hosts/operations at once)
+
 
 ## Credits & Thanks
 
