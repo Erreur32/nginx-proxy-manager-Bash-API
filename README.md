@@ -1,3 +1,12 @@
+[![Release][release-shield]][release]
+![Project Stage][project-stage-shield]
+![Project Maintenance][maintenance-shield]
+[![License][license-shield]][license]
+[![Contributors][contributors-shield]][contributors]
+[![Issues][issues-shield]][issue]
+[![Stargazers][stars-shield]][stars]
+
+
 # Nginx Proxy Manager CLI Script
 
 ## Table of Contents
@@ -425,3 +434,22 @@ Host proxy info command `--host-show id`
 
 Special thanks to:
 - [@ichbinder](https://github.com/ichbinder) for implementing the `-y` parameter for automatic confirmations
+
+## License
+
+MIT License - see the [LICENSE.md][license] file for details
+
+[contributors]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/graphs/contributors
+[erreur32]: https://github.com/Erreur32
+[issue]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues
+[license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
+[maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
+[project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
+[release-shield]: https://img.shields.io/badge/version-v0.1.48-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v2.7.0
+[contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
+[license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
+[issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
+[stars-shield]: https://img.shields.io/github/stars/Erreur32/nginx-proxy-manager-Bash-API.svg
+[stars]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/stargazers
+
