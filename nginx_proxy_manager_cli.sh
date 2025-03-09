@@ -5,7 +5,7 @@
 #   By Erreur32 - July 2024
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 
-VERSION="2.7.0"
+VERSION="2.8.0"
 # Debug
 set -u 
 #set -x  # Activer le mode de débogage
