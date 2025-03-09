@@ -14,9 +14,10 @@ All notable changes to the nginx_proxy_manager_cli.sh script will be documented 
   The `-d` option has been removed in favor of a more intuitive syntax where the domain is provided directly after `--host-create`
 
 ### ✨ New Features
+- Change -d to --host-create for new host creation (Breaking Changes)
 - Added dashboard display when no arguments are provided
-- Reorganized help menu with clear categories and emojis
-- Added French translations for all user messages
+- Reorganized help menu with clear categories.
+- Code optimisation.
 
 ### 🛠️ Improvements
 - Simplified host creation and update process
