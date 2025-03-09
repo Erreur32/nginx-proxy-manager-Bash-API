@@ -3,7 +3,7 @@
 All notable changes to the nginx_proxy_manager_cli.sh script will be documented in this file.
 
 
-## [2.8.0] - 2024-03-XX
+## [2.8.0] - 2025-03-08
 
 ### 🔄 Breaking Changes
 - **Host Creation Syntax Changed**
@@ -42,7 +42,7 @@ If you're upgrading from version 1.x, please note:
 2. Review the new help menu (`--help`) for updated command syntax
 3. Test your existing automation with the new syntax
 
-## [2.7.0] - 2025-03-09
+## [2.7.0] - 2025-03-08
 
 ### Added
 - DNS Challenge Support
