@@ -752,7 +752,7 @@ check_token() {
         generate_new_token
         return
     fi
-    token=$(get_token)
+    token=$(cat "$TOKEN_FILE")
     expires=$(cat "$EXPIRY_FILE")
     current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     if ! date -d "$expires" >/dev/null 2>&1; then
@@ -796,7 +796,7 @@ get_token() {
         echo "Error: Token file not found after check_token" >&2
         exit 1
     fi
-    get_token
+    cat "$TOKEN_FILE"
 }
 
 ################################
