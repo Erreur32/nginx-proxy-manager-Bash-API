@@ -73,6 +73,10 @@ CoR="\033[0m"
 COLOR_GREY="\e[90m"
 WHITE_ON_GREEN="\033[30;48;5;83m"
 
+# Token variables
+token=""
+expires=""
+
 # load config file if exists
 if [ -f "$CONFIG_FILE" ]; then
   # First set default values
@@ -133,21 +137,17 @@ BACKUP_DIR="$BASE_DIR/backups/${NGINX_IP}_${NGINX_PORT}"
 TOKEN_FILE="$TOKEN_DIR/token_${NGINX_IP}_${NGINX_PORT}.txt"
 EXPIRY_FILE="$TOKEN_DIR/expiry_${NGINX_IP}_${NGINX_PORT}.txt"
 
-if [ -f "$TOKEN_FILE" ]; then
-  token=$(get_token)
-else
-  #echo -e "  Create $TOKEN_DIR"
+# Token initialization
+if [ ! -f "$TOKEN_FILE" ]; then
   mkdir -p "$TOKEN_DIR"
   CHECK_TOKEN=true
 fi
 
-if [ -f "$EXPIRY_FILE" ]; then
-  expires=$(cat "$EXPIRY_FILE")
-else
-  #echo -e "  Create $EXPIRY_FILE"
+if [ ! -f "$EXPIRY_FILE" ]; then
   touch "$EXPIRY_FILE"
   CHECK_TOKEN=true
 fi
+
 
 # Set Token duration validity.
 #TOKEN_EXPIRY="365d"
@@ -890,32 +890,33 @@ create_new_proxy_host() {
 ################################
 # Check if a proxy host with the given domain names already exists
 check_existing_proxy_host() {
-  echo -e "\n 🔎 Checking if proxy host $DOMAIN_NAMES already exists..."
+    echo -e "\n 🔎 Checking if proxy host $DOMAIN_NAMES already exists..."
 
-  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-  -H "Authorization: Bearer $(get_token)")
+    RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+    -H "Authorization: Bearer $(get_token)")
 
-#  echo -e "\n 🔍 Raw API Response: $RESPONSE"  # Debugging API response
-  EXISTING_HOST=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
+    EXISTING_HOST=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
 
-  if [ -n "$EXISTING_HOST" ]; then
-    echo -e "\n 🔔 Proxy host for $DOMAIN_NAMES already exists."
-    if [ "$AUTO_YES" = true ]; then
-        REPLY="y"
-        echo -e "🔔 Option -y detected. Skipping confirmation prompt and proceeding with update..."
-    else
-        read -r -p " 👉 Do you want to update it? (y/n): " -r
+    if [ -n "$EXISTING_HOST" ]; then
+        echo -e "\n 🔔 Proxy host for $DOMAIN_NAMES already exists."
+        if [ "$AUTO_YES" = true ]; then
+            REPLY="y"
+            echo -e "🔔 Option -y detected. Skipping confirmation prompt and proceeding with update..."
+        else
+            read -r -p " 👉 Do you want to update it? (y/n): " -r
+        fi
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id')
+            update_proxy_host "$HOST_ID"
+            exit 0
+        else
+            echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}"
+            exit 0
+        fi
     fi
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-      HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id')
-      update_proxy_host "$HOST_ID"
-    else
-      echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}"
-      exit 0
-    fi
-  else
+    
+    # If we get here, proxy doesn't exist, create it
     create_new_proxy_host
-  fi
 }
 
  
@@ -1023,7 +1024,7 @@ process_host_creation_options() {
     fi
 
     # Créer ou mettre à jour l'hôte
-    create_or_update_proxy_host
+    #create_or_update_proxy_host
 }
 
 # Affiche l'aide pour la création d'hôte
@@ -1107,24 +1108,25 @@ create_or_update_proxy_host() {
     fi
 
     if [ -n "$HOST_ID" ]; then
-        # Update existing host
+        # Mise à jour de l'hôte existant
         echo -e "\n 🔄 Updating the proxy host for $DOMAIN_NAMES..."
-        if [ "$AUTO_YES" != true ]; then
-            read -r -p " 👉 Do you want to update this host? (o/n): " -r
-            if [[ ! $REPLY =~ ^[OoYy]$ ]]; then
+        if [ "$AUTO_YES" != "true" ]; then
+            read -r -p " 👉 Do you want to update this host? (o/n): " answer
+            if [[ ! $answer =~ ^[OoYy]$ ]]; then
                 echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}"
                 exit 0
             fi
         fi
-        
+
         METHOD="PUT"
         URL="$BASE_URL/nginx/proxy-hosts/$HOST_ID"
     else
-        # Create a new host
+        # Création d'un nouvel hôte
         echo -e "\n 🌍 Creating a new proxy host for $DOMAIN_NAMES..."
         METHOD="POST"
         URL="$BASE_URL/nginx/proxy-hosts"
     fi
+
 
     # Send API request
     RESPONSE=$(curl -s -X "$METHOD" "$URL" \
@@ -4336,4 +4338,5 @@ elif [ "$CREATE_HOST" = true ]; then
 else
   help
 fi
+
 
