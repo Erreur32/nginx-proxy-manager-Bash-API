@@ -4,6 +4,14 @@ All notable changes to the nginx_proxy_manager_cli.sh script will be documented 
 
 ## [2.8.0] - 2025-03-15
 
+- **Host Creation Syntax Changed**
+  ```diff
+  - OLD: ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080
+  + NEW: ./nginx_proxy_manager_cli.sh --host-create example.com -i 192.168.1.10 -p 8080
+  ```
+  The `-d` option has been removed in favor of a more intuitive syntax where the domain is provided directly after `--host-create`
+
+
 ### ✨ New Features
 - Added comprehensive dashboard with `display_dashboard()` showing:
   - Proxy hosts status (enabled/disabled)
