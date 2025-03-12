@@ -1,0 +1,4 @@
+# IDE specific files
+.vscode/
+
+# ... existing code ... 

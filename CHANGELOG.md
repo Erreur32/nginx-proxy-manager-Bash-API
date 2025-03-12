@@ -2,8 +2,68 @@
 
 All notable changes to the nginx_proxy_manager_cli.sh script will be documented in this file.
 
+## [2.8.0] - 2025-03-15
 
-## [2.8.0] - 2025-03-08
+### ✨ New Features
+- Added comprehensive dashboard with `display_dashboard()` showing:
+  - Proxy hosts status (enabled/disabled)
+  - SSL certificates (valid/expired)
+  - Access lists and clients
+  - System statistics
+
+- Enhanced SSL Certificate Management:
+  - Improved wildcard certificate support
+  - Enhanced domain validation
+  - DNS challenge management for wildcard certificates
+  - Support for multiple DNS providers (Cloudflare, DigitalOcean, etc.)
+
+- New Access List Management Interface:
+  - Interactive access list creation
+  - Basic authentication support
+  - IP whitelist management
+  - Rule satisfaction options (ANY/ALL)
+
+### 🔧 Technical Improvements
+- Enhanced Token Management:
+  - Automatic validation
+  - Smart renewal
+  - Secure storage
+
+- Improved Host Management Commands:
+  - Enhanced display with `host_show()`
+  - Better error handling
+  - Advanced configuration support
+
+### 🎨 UI Enhancements
+- Added color coding for better readability
+- More detailed and explanatory error messages
+- Improved command documentation
+- New emojis for a more user-friendly interface
+
+### 🛠️ Fixes and Optimizations
+- Fixed SSL certificate management bugs
+- Improved user input validation
+- Optimized API requests
+- Enhanced HTTP error handling
+
+### 📚 Documentation
+- Added detailed examples for each command
+- Improved option documentation
+- Better help and error messages
+
+### 🔐 Security
+- Enhanced user input validation
+- Improved authentication token handling
+- Protection against command injection
+
+### 🔄 Migration Notes
+To migrate to this version:
+1. Backup your current configuration
+2. Update the script
+3. Verify configuration with `--info`
+4. Test new features
+
+## [2.7.5] - 2025-03-08
 
 ### 🔄 Breaking Changes
 - **Host Creation Syntax Changed**
