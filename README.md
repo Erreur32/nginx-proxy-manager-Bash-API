@@ -445,9 +445,6 @@ Host proxy info command `--host-show id`
 ```
 
  
-## Screens:
-![screen-nginx-proxy-default](https://github.com/user-attachments/assets/5a87bb64-c8aa-4b67-b118-9fa10423d396)
-
  
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`

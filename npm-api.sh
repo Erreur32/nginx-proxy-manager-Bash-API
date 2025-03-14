@@ -12,7 +12,7 @@ VERSION="2.8.0"
 # functionalities such as creating proxy hosts, managing users, listing hosts,
 # backing up configurations, and more.
 #
-# TIPS: Create manually a Config file for persistent variables 'nginx_proxy_manager_cli.conf' :
+# TIPS: Create manually a Config file for persistent variables 'npm-api.conf' :
 #  With these variables:
 #    NGINX_IP="127.0.0.1"
 #    API_USER="admin@example.com"
@@ -47,9 +47,9 @@ set -eu -o pipefail
 #set -x  # Active dbog
 #set -eu -o pipefail
 
-# Check if config file nginx_proxy_manager_cli.conf exist
+# Check if config file npm-api.conf exist
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/nginx_proxy_manager_cli.conf"
+CONFIG_FILE="$SCRIPT_DIR/npm-api.conf"
 
 ################################
 # Variables to Edit (required) #
@@ -118,7 +118,7 @@ fi
 
 ################################
 # PERSISTENT Config
-# Create config file  $SCRIPT_DIR/nginx_proxy_manager_cli.conf and Edit Variables (required)
+# Create config file  $SCRIPT_DIR/npm-api.conf and Edit Variables (required)
 # NGINX_IP="127.0.0.1"
 # NGINX_PORT="81"
 # API_USER="admin@example.com"
@@ -178,8 +178,8 @@ USER_DELETE=false
 USER_LIST=false
 
 HOST_SHOW=false
-HOSTS_LIST=false
-HOSTS_LIST_FULL=false
+HOST_LIST=false
+HOST_LIST_FULL=false
 HOST_SEARCH=false
 HOST_UPDATE=false
 HOST_ENABLE=false
@@ -188,7 +188,7 @@ HOST_DISABLE=false
 HOST_DELETE=false
 HOST_ACL_ENABLE=false
 HOST_ACL_DISABLE=false
-HOSTS_CREATE_update=false
+HOST_CREATE=false
 
 LIST_CERT=false
 GENERATE_CERT=false
@@ -681,7 +681,7 @@ display_info() {
   echo -e "${COLOR_YELLOW}\n Script Info:  ${COLOR_GREEN}${VERSION}${CoR}"
   echo -e " ${COLOR_YELLOW}Script Variables Information:${CoR}"
   #echo -e "\n ${COLOR_GREEN}DATA_DIR${CoR} ${DATA_DIR}"
-  echo -e " ${COLOR_GREEN}Config${CoR}      : ${DATA_DIR}/nginx_proxy_manager_cli.conf"
+  echo -e " ${COLOR_GREEN}Config${CoR}      : ${DATA_DIR}/npm-api.conf"
   echo -e " ${COLOR_GREEN}BASE  URL${CoR}   : ${BASE_URL}"
   echo -e " ${COLOR_GREEN}NGINX  IP${CoR}   : ${NGINX_IP}"
   echo -e " ${COLOR_GREEN}USER NPM${CoR}    : ${API_USER}"
@@ -1315,57 +1315,7 @@ create_or_update_proxy_host() {
     fi
 }
 
-# List all proxy hosts with basic details, including SSL certificate status and associated domain
-host_list_presque() {
-  echo -e "\n${COLOR_ORANGE} 👉 List of proxy hosts (simple)${CoR}"
-  printf "  %-6s %-36s %-9s %-4s %-36s\n" "ID" "Domain" "Status" "SSL" "Certificate Domain"
-
-  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-  -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-
-  # Clean the response to remove control characters
-  CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
-
-  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
-		if [ "$enabled" = "true" ]; then
-  		status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
-		else
-  		status="$(echo -e "${COLOR_RED} disable ${CoR}")"
-		fi
-
-    #    if [ "$enabled" -eq 1 ]; then
-    #      status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
-    #    else
-    #      status="$(echo -e "${COLOR_RED} disable ${CoR}")"
-    #    fi
-
-    # Default SSL status
-    ssl_status="✘"
-    cert_domain=""
-
-    # Check if a valid certificate ID is present and not null
-    if [ "$certificate_id" != "null" ] && [ -n "$certificate_id" ]; then
-      # Fetch the certificate details using the certificate_id
-      CERT_DETAILS=$(curl -s -X GET "$BASE_URL/nginx/certificates/$certificate_id" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-
-      # Check if the certificate details are valid and domain_names is not null
-      if [ "$(echo "$CERT_DETAILS" | jq -r '.domain_names')" != "null" ]; then
-        cert_domain=$(echo "$CERT_DETAILS" | jq -r '.domain_names | join(", ")')
-        ssl_status="✅"
-      else
-        ssl_status="✘"  # If no valid certificate domain is found
-        cert_domain=""
-      fi
-    fi
-
-    # Print the row with colors and certificate domain (if available)
-    printf "  ${COLOR_YELLOW}%6s${CoR} ${COLOR_GREEN}%-36s${CoR} %-8s %-4s %-36s\n" \
-      "$(pad "$id" 6)" "$(pad "$domain" 36)" "$status" "$ssl_status" "$cert_domain"
-  done
-  echo ""
-  exit 0
-}
+ 
 
 # List all proxy hosts with basic details, including SSL certificate status and associated domain
 host_list() {
@@ -3237,8 +3187,8 @@ while [[ "$#" -gt 0 ]]; do
             host_id="$1"
             HOST_SHOW=true
             ;;
-        --host-list) HOSTS_LIST=true ;;
-        --host-list-full) HOSTS_LIST_FULL=true ;;
+        --host-list) HOST_LIST=true ;;
+        --host-list-full) HOST_LIST_FULL=true ;;
         --host-search)
             HOST_SEARCH=true
             shift  # On retire --host-search des arguments            
@@ -3278,7 +3228,6 @@ while [[ "$#" -gt 0 ]]; do
             HOST_DISABLE=true
             ;;
         --host-delete)
-            #HOST_DELETE=true
             shift
             if [ -z "${1}" ]; then
                 echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-delete option requires a host 🆔${CoR}"
@@ -3325,9 +3274,6 @@ while [[ "$#" -gt 0 ]]; do
                   exit 1
               fi
 
-             # HOST_UPDATE=true
-              #echo -e "\n 🔄 DEBUG: HOST_UPDATE est maintenant défini à $HOST_UPDATE"
-              # Décalage : on retire l'option et ses arguments
               shift 3
               host_update "$HOST_ID" "$FIELD" "$VALUE"
               #HOST_UPDATE=true
@@ -3338,78 +3284,155 @@ while [[ "$#" -gt 0 ]]; do
           ;;
 
         --host-create)
+            #HOST_CREATE=true
             shift
-            if [[ -n "$1" && "$1" != -* ]]; then
-                DOMAIN_NAMES="$1"
-                shift
-                
-                # Process remaining options
-                while [[ $# -gt 0 ]]; do
-                    case "$1" in
-                        -i|--forward-host)
-                            if [[ -n "$2" && "$2" != -* ]]; then
-                                FORWARD_HOST="$2"
-                                shift 2
-                            else
-                                echo -e "${COLOR_RED}⛔ ERREUR: --forward-host nécessite une valeur valide${CoR}"
-                                exit 1
-                            fi
-                            ;;
-                        -p|--forward-port)
-                            if [[ -n "$2" && "$2" != -* && "$2" =~ ^[0-9]+$ ]]; then
-                                FORWARD_PORT="$2"
-                                shift 2
-                            else
-                                echo -e "${COLOR_RED}⛔ ERREUR: --forward-port doit être un nombre valide${CoR}"
-                                exit 1
-                            fi
-                            ;;
-                        -f|--forward-scheme)
-                            if [[ -n "$2" && "$2" != -* && "$2" =~ ^(http|https)$ ]]; then
-                                FORWARD_SCHEME="$2"
-                                shift 2
-                            else
-                                echo -e "${COLOR_RED}⛔ ERREUR: --forward-scheme doit être 'http' ou 'https'${CoR}"
-                                exit 1
-                            fi
-                            ;;
-                        *)
-                            echo -e "${COLOR_YELLOW}⚠️ AVERTISSEMENT: Option inconnue ignorée -> $1${CoR}"
-                            shift
-                            ;;
-                    esac
-                done
-
-                # Validate required parameters
-                if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
-                    echo -e "\n${COLOR_RED}⛔ ERROR: Missing required arguments for host creation${CoR}"
-                    echo -e "\nRequired options:"
-                    echo -e "  Domain name (positional argument)"
-                    echo -e "  -i, --forward-host     Forward host (e.g., 127.0.0.1)"
-                    echo -e "  -p, --forward-port     Forward port (e.g., 8080)"
-                    echo -e "\nExample: $0 --host-create example.com -i 127.0.0.1 -p 8080"
-                    exit 1
-                fi
-
-                # Set default values for optional parameters
-                FORWARD_SCHEME=${FORWARD_SCHEME:-"http"}
-                CACHING_ENABLED=${CACHING_ENABLED:-"false"}
-                BLOCK_EXPLOITS=${BLOCK_EXPLOITS:-"false"}
-                ALLOW_WEBSOCKET_UPGRADE=${ALLOW_WEBSOCKET_UPGRADE:-"false"}
-                HTTP2_SUPPORT=${HTTP2_SUPPORT:-"false"}
-                ADVANCED_CONFIG=${ADVANCED_CONFIG:-""}
-                CUSTOM_LOCATIONS=${CUSTOM_LOCATIONS:-"[]"}
-
-                # Create/update the proxy host
-                create_or_update_proxy_host
-                exit 0
-            else
-                echo -e "\n ⛔ ${COLOR_RED}INVALID command: Missing domain argument${CoR}"
-                echo -e " Usage  : ${COLOR_ORANGE}$0 --host-create <domain> -i <host> -p <port>${CoR}"
-                echo -e " Example: ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080${CoR}\n"
+            # Check if there are any remaining arguments after shift
+            if [ $# -eq 0 ]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-create option requires arguments${CoR}"
+                echo -e "\n Required options:"
+                echo -e "  • Domain name ${COLOR_GREY}(positional argument)${CoR}"
+                echo -e "  • -i, --forward-host     ${COLOR_GREY}Forward host (e.g., 127.0.0.1)${CoR}"
+                echo -e "  • -p, --forward-port     ${COLOR_GREY}Forward port (e.g., 8080)${CoR}"
+                echo -e "\n Optional:"
+                echo -e "  • -f, --forward-scheme   ${COLOR_GREY}Protocol (http/https, default: http)${CoR}"
+                echo -e "  • -b, --block-exploits   ${COLOR_GREY}Block common exploits (true/false, default: false)${CoR}"
+                echo -e "  • -c, --cache            ${COLOR_GREY}Enable caching (true/false, default: false)${CoR}"
+                echo -e "  • -w, --websocket        ${COLOR_GREY}Allow websocket upgrade (true/false, default: false)${CoR}"
+                echo -e "  • -h, --http2            ${COLOR_GREY}Enable HTTP/2 support (true/false, default: false)${CoR}"
+                echo -e "  • -s, --ssl-force        ${COLOR_GREY}Force SSL (true/false, default: false)${CoR}"
+                echo -e "\n Example:"
+                echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080${CoR}"
+                echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080 -f https -b true${CoR}\n"
                 exit 1
             fi
-            ;;
+            
+            # Check if first argument is a valid domain (not starting with -)
+            if [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: First argument after --host-create must be a domain name${CoR}"
+                exit 1
+            fi
+
+            DOMAIN_NAMES="$1"
+            shift
+            
+            # Process remaining options
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    -i|--forward-host)
+                        if [[ -n "$2" && "$2" != -* ]]; then
+                            FORWARD_HOST="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --forward-host option requires a valid value${CoR}"
+                            echo -e "\n Required options:"
+                            echo -e "  • Domain name ${COLOR_GREY}(positional argument)${CoR}"
+                            echo -e "  • -i, --forward-host     ${COLOR_GREY}Forward host (e.g., 127.0.0.1)${CoR}"
+                            echo -e "  • -p, --forward-port     ${COLOR_GREY}Forward port (e.g., 8080)${CoR}"
+                            echo -e "\n Optional:"
+                            echo -e "  • -f, --forward-scheme   ${COLOR_GREY}Protocol (http/https, default: http)${CoR}"
+                            echo -e "  • -b, --block-exploits   ${COLOR_GREY}Block common exploits (true/false, default: false)${CoR}"
+                            echo -e "  • -c, --cache            ${COLOR_GREY}Enable caching (true/false, default: false)${CoR}"
+                            echo -e "  • -w, --websocket        ${COLOR_GREY}Allow websocket upgrade (true/false, default: false)${CoR}"
+                            echo -e "  • -h, --http2            ${COLOR_GREY}Enable HTTP/2 support (true/false, default: false)${CoR}"
+                            echo -e "  • -s, --ssl-force        ${COLOR_GREY}Force SSL (true/false, default: false)${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -p|--forward-port)
+                        if [[ -n "$2" && "$2" != -* && "$2" =~ ^[0-9]+$ ]]; then
+                            FORWARD_PORT="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --forward-port option requires a valid number${CoR}"
+                            echo -e "\n Required options:"
+                            echo -e "  • Domain name ${COLOR_GREY}(positional argument)${CoR}"
+                            echo -e "  • -i, --forward-host     ${COLOR_GREY}Forward host (e.g., 127.0.0.1)${CoR}"
+                            echo -e "  • -p, --forward-port     ${COLOR_GREY}Forward port (e.g., 8080)${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -f|--forward-scheme)
+                        if [[ -n "$2" && "$2" != -* && "$2" =~ ^(http|https)$ ]]; then
+                            FORWARD_SCHEME="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --forward-scheme option must be 'http' or 'https'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -b|--block-exploits)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+                            BLOCK_EXPLOITS="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --block-exploits option must be 'true' or 'false'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -c|--cache)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+                            CACHING_ENABLED="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --cache option must be 'true' or 'false'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -w|--websocket)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+                            ALLOW_WEBSOCKET_UPGRADE="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --websocket option must be 'true' or 'false'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -h|--http2)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+                            HTTP2_SUPPORT="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --http2 option must be 'true' or 'false'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -s|--ssl-force)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+                            SSL_FORCED="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --ssl-force option must be 'true' or 'false'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    *)
+                        echo -e "\n ⚠️ ${COLOR_YELLOW}WARNING: Unknown option ignored -> $1${CoR}"
+                        shift
+                        ;;
+                esac
+            done
+
+            # Vérification finale des paramètres obligatoires
+            if [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: Missing required parameters${CoR}"
+                echo -e "\n Required options:"
+                echo -e "  • Domain name: ${COLOR_GREEN}$DOMAIN_NAMES${CoR} ${COLOR_GREY}(provided)${CoR}"
+                if [ -z "$FORWARD_HOST" ]; then
+                    echo -e "  • -i, --forward-host     ${COLOR_RED}Missing${CoR} ${COLOR_GREY}(e.g., 127.0.0.1)${CoR}"
+                fi
+                if [ -z "$FORWARD_PORT" ]; then
+                    echo -e "  • -p, --forward-port     ${COLOR_RED}Missing${CoR} ${COLOR_GREY}(e.g., 8080)${CoR}"
+                fi
+                echo -e "\n Example:"
+                echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080${CoR}\n"
+                exit 1
+            fi
+
+            # Appel de la fonction host_create avec tous les paramètres
+            create_or_update_proxy_host "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" \
+                       "${FORWARD_SCHEME:-http}" "${BLOCK_EXPLOITS:-false}" "${CACHE_ENABLED:-false}" \
+                       "${WEBSOCKET_SUPPORT:-false}" "${HTTP2_SUPPORT:-false}" "${SSL_FORCED:-false}"
+        ;;
 
         --host-ssl-enable)
             shift
@@ -3548,16 +3571,45 @@ elif [ "$ACCESS_LIST_DELETE" = true ]; then
 
 
 # Actions hotes
-elif [ "$HOSTS_LIST" = true ]; then
+elif [ "$HOST_LIST" = true ]; then
   host_list
-elif [ "$HOSTS_LIST_FULL" = true ]; then
+elif [ "$HOST_LIST_FULL" = true ]; then
   host_list_full
 elif [ "$HOST_SEARCH" = true ]; then
   host_search
 elif [ "$HOST_SHOW" = true ]; then
   host_show "$HOST_ID"
-elif [ "$HOSTS_CREATE_update" = true ]; then
-  create_or_update_proxy_host  
+elif [ "$HOST_CREATE" = true ]; then
+  # Validate required parameters
+  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: Missing required arguments for host creation${CoR}"
+      echo -e "\n Required options:"
+      echo -e "  • Domain name ${COLOR_GREY}(positional argument)${CoR}"
+      echo -e "  • -i, --forward-host     ${COLOR_GREY}Forward host (e.g., 127.0.0.1)${CoR}"
+      echo -e "  • -p, --forward-port     ${COLOR_GREY}Forward port (e.g., 8080)${CoR}"
+      echo -e "\n Optional:"
+      echo -e "  • -f, --forward-scheme   ${COLOR_GREY}Protocol (http/https, default: http)${CoR}"
+      echo -e "  • -b, --block-exploits   ${COLOR_GREY}Block common exploits (true/false, default: false)${CoR}"
+      echo -e "  • -c, --cache            ${COLOR_GREY}Enable caching (true/false, default: false)${CoR}"
+      echo -e "  • -w, --websocket        ${COLOR_GREY}Allow websocket upgrade (true/false, default: false)${CoR}"
+      echo -e "  • -h, --http2            ${COLOR_GREY}Enable HTTP/2 support (true/false, default: false)${CoR}"
+      echo -e "  • -s, --ssl-force        ${COLOR_GREY}Force SSL (true/false, default: false)${CoR}"
+      echo -e "\n Example:"
+      echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080${CoR}"
+      echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080 -f https -b true${CoR}\n"
+      exit 1
+  fi
+
+  # Set default values for optional parameters if not set
+  FORWARD_SCHEME=${FORWARD_SCHEME:-"http"}
+  BLOCK_EXPLOITS=${BLOCK_EXPLOITS:-"false"}
+  CACHING_ENABLED=${CACHING_ENABLED:-"false"}
+  ALLOW_WEBSOCKET_UPGRADE=${ALLOW_WEBSOCKET_UPGRADE:-"false"}
+  HTTP2_SUPPORT=${HTTP2_SUPPORT:-"false"}
+  SSL_FORCED=${SSL_FORCED:-"false"}
+  ADVANCED_CONFIG=${ADVANCED_CONFIG:-""}
+  CUSTOM_LOCATIONS=${CUSTOM_LOCATIONS:-"[]"}
+  create_or_update_proxy_host
 elif [ "$HOST_DELETE" = true ]; then
   host_delete "$HOST_ID"
 elif [ "$HOST_ENABLE" = true ]; then
