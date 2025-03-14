@@ -3580,36 +3580,7 @@ elif [ "$HOST_SEARCH" = true ]; then
 elif [ "$HOST_SHOW" = true ]; then
   host_show "$HOST_ID"
 elif [ "$HOST_CREATE" = true ]; then
-  # Validate required parameters
-  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
-      echo -e "\n ⛔ ${COLOR_RED}INVALID: Missing required arguments for host creation${CoR}"
-      echo -e "\n Required options:"
-      echo -e "  • Domain name ${COLOR_GREY}(positional argument)${CoR}"
-      echo -e "  • -i, --forward-host     ${COLOR_GREY}Forward host (e.g., 127.0.0.1)${CoR}"
-      echo -e "  • -p, --forward-port     ${COLOR_GREY}Forward port (e.g., 8080)${CoR}"
-      echo -e "\n Optional:"
-      echo -e "  • -f, --forward-scheme   ${COLOR_GREY}Protocol (http/https, default: http)${CoR}"
-      echo -e "  • -b, --block-exploits   ${COLOR_GREY}Block common exploits (true/false, default: false)${CoR}"
-      echo -e "  • -c, --cache            ${COLOR_GREY}Enable caching (true/false, default: false)${CoR}"
-      echo -e "  • -w, --websocket        ${COLOR_GREY}Allow websocket upgrade (true/false, default: false)${CoR}"
-      echo -e "  • -h, --http2            ${COLOR_GREY}Enable HTTP/2 support (true/false, default: false)${CoR}"
-      echo -e "  • -s, --ssl-force        ${COLOR_GREY}Force SSL (true/false, default: false)${CoR}"
-      echo -e "\n Example:"
-      echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080${CoR}"
-      echo -e " ${COLOR_GREEN}$0 --host-create example.com -i 127.0.0.1 -p 8080 -f https -b true${CoR}\n"
-      exit 1
-  fi
-
-  # Set default values for optional parameters if not set
-  FORWARD_SCHEME=${FORWARD_SCHEME:-"http"}
-  BLOCK_EXPLOITS=${BLOCK_EXPLOITS:-"false"}
-  CACHING_ENABLED=${CACHING_ENABLED:-"false"}
-  ALLOW_WEBSOCKET_UPGRADE=${ALLOW_WEBSOCKET_UPGRADE:-"false"}
-  HTTP2_SUPPORT=${HTTP2_SUPPORT:-"false"}
-  SSL_FORCED=${SSL_FORCED:-"false"}
-  ADVANCED_CONFIG=${ADVANCED_CONFIG:-""}
-  CUSTOM_LOCATIONS=${CUSTOM_LOCATIONS:-"[]"}
-  create_or_update_proxy_host
+  create_or_update_proxy_host "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT"
 elif [ "$HOST_DELETE" = true ]; then
   host_delete "$HOST_ID"
 elif [ "$HOST_ENABLE" = true ]; then
