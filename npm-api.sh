@@ -1132,11 +1132,20 @@ display_import_summary() {
 }
 
 ################################
-# Function to list all SSL certificates or filter by ID
- 
+# Function to list SSL certificates by ID or domain
 list_cert() {
     check_token_notverbose
     local search_term="$1"
+    
+    # If no search term is provided, show usage
+    if [ -z "$search_term" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERREUR: Argument manquant${CoR}"
+        echo -e " Usage: "
+        echo -e "   ${COLOR_ORANGE}$0 --list-cert <domain>${CoR}     🔍 Rechercher par nom de domaine"
+        echo -e "   ${COLOR_ORANGE}$0 --list-cert <id>${CoR}         🔢 Rechercher par ID"
+        echo -e "   ${COLOR_ORANGE}$0 --list-cert-all${CoR}          📜 Lister tous les certificats\n"
+        exit 1
+    fi
     
     # Get all certificates
     RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
@@ -1147,27 +1156,6 @@ list_cert() {
         exit 1
     fi
 
-    # If no search term is provided, display all certificates
-    if [ -z "$search_term" ]; then
-        echo -e "\n 📜 Listing all SSL certificates:"
-        
-        # Debug: Check the response content
-        if [ "$RESPONSE" = "[]" ]; then
-            echo -e " ℹ️ ${COLOR_YELLOW}No certificates found${CoR}"
-            return 0
-        fi
-
-        # Process each certificate individually to avoid jq array issues
-        echo "$RESPONSE" | jq -r '.[] | @base64' | while read -r cert; do
-            echo "$cert" | base64 --decode | jq -r '"🔒 ID: \(.id)\n   • Domain(s): \(.domain_names | join(", "))\n   • Provider: \(.provider)\n   • Valid from: \(.valid_from)\n   • Valid to: \(.valid_to)\n   • Status: \(if .expired then "❌ EXPIRED" else "✅ VALID" end)"'
-            echo ""
-        done
-
-        TOTAL_CERTS=$(echo "$RESPONSE" | jq '. | length')
-        echo -e "\n ℹ️ Total certificates: $TOTAL_CERTS"
-        return 0
-    fi
-    
     # Search by ID if numeric
     if [[ "$search_term" =~ ^[0-9]+$ ]]; then
         echo -e "\n 🔍 Searching for certificate with ID: ${COLOR_YELLOW}$search_term${CoR}"
@@ -1196,6 +1184,42 @@ list_cert() {
         echo -e " ✅ ${COLOR_GREEN}Certificates found:${CoR}"
         echo "$DOMAIN_CERTS" | jq -r '"🔒 ID: \(.id)\n   • Domain(s): \(.domain_names | join(", "))\n   • Provider: \(.provider)\n   • Valid from: \(.valid_from)\n   • Valid to: \(.valid_to)\n   • Status: \(if .expired then "❌ EXPIRED" else "✅ VALID" end)\n"'
     fi
+}
+
+################################
+# Function to list all SSL certificates
+list_cert_all() {
+    check_token_notverbose
+    
+    # Get all certificates
+    RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+        
+    if [ -z "$RESPONSE" ] || [ "$RESPONSE" == "null" ]; then
+        echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve certificates${CoR}"
+        exit 1
+    fi
+
+    echo -e "\n 📜 Liste de tous les certificats SSL:"
+    
+    # Check if there are any certificates
+    if [ "$RESPONSE" = "[]" ]; then
+        echo -e " ℹ️ ${COLOR_YELLOW}Aucun certificat trouvé${CoR}"
+        return 0
+    fi
+
+    # Process and display all certificates
+    echo "$RESPONSE" | jq -r '.[] | "🔒 ID: \(.id)\n   • Domain(s): \(.domain_names | join(", "))\n   • Provider: \(.provider)\n   • Valid from: \(.valid_from)\n   • Valid to: \(.valid_to)\n   • Status: \(if .expired then "❌ EXPIRED" else "✅ VALID" end)\n"'
+
+    # Display statistics
+    TOTAL_CERTS=$(echo "$RESPONSE" | jq '. | length')
+    VALID_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired == false)] | length')
+    EXPIRED_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired == true)] | length')
+    
+    echo -e "\n📊 Statistiques:"
+    echo -e " • Total des certificats: ${COLOR_CYAN}$TOTAL_CERTS${CoR}"
+    echo -e " • Certificats valides: ${COLOR_GREEN}$VALID_CERTS${CoR}"
+    echo -e " • Certificats expirés: ${COLOR_RED}$EXPIRED_CERTS${CoR}\n"
 }
 
  
@@ -3506,9 +3530,9 @@ while [[ "$#" -gt 0 ]]; do
             shift
             SEARCH_TERM="${1:-}"
             LIST_CERT=true
-            if [ -n "$SEARCH_TERM" ]; then
-                echo -e "\n 🔍 Recherche avec le terme: ${COLOR_YELLOW}$SEARCH_TERM${CoR}"
-            fi
+            ;;
+        --list-cert-all)
+            LIST_CERT_ALL=true
             ;;
         --access-list)
             ACCESS_LIST=true
@@ -3609,6 +3633,8 @@ elif [ "$SSL_RESTORE" = true ]; then
   restore_ssl_certificates
 elif [ "$LIST_CERT" = true ]; then
     list_cert "$SEARCH_TERM"
+elif [ "$LIST_CERT_ALL" = true ]; then
+    list_cert_all
 
 # Actions backup/restore
 elif [ "$BACKUP" = true ]; then
