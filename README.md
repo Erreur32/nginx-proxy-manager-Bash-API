@@ -50,6 +50,36 @@ La fonction RESTORE n'est pas encore terminée.
 ## Reference
 ![https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
 
+
+# 🚨 Important Notice: Repository History Rewritten 🚨
+
+## ⚠️ Action Required for All Contributors
+
+We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
+
+### 🛠️ What You Need to Do?
+
+To avoid any issues, please follow these steps to update your local repository:
+
+```bash
+git fetch --all
+git reset --hard origin/main  # Replace 'main' with your branch name if different
+```
+
+If you have local changes that you **don’t want to lose**, consider making a backup before running these commands.
+
+### ❓ Why Was This Done?
+
+This action was necessary to **remove sensitive data** from the repository’s history and ensure better security.
+
+### 💀 Need Help?
+
+If you encounter any issues or have questions, feel free to open an **issue** or contact the repository maintainers.
+
+Thank you for your understanding! 🙌  
+🚀 **Stay secure & happy coding!**
+
+
 ## Prerequisites
 
 The excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
