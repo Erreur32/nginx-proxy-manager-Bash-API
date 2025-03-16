@@ -2074,16 +2074,19 @@ generate_certificate() {
 
   if [ -n "$EXISTING_CERT" ]; then
     EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
+    CERT_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
     # Check if certificate is expired or expires soon (30 days)
     EXPIRY_DATE=$(date -d "$EXPIRES_ON" +%s)
     CURRENT_DATE=$(date +%s)
     DAYS_UNTIL_EXPIRY=$(( ($EXPIRY_DATE - $CURRENT_DATE) / 86400 ))
     
     if [ $DAYS_UNTIL_EXPIRY -gt 30 ]; then
-      echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
+      echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (ID: ${COLOR_CYAN}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
+      echo -e " 💡 To enable SSL for this proxy host, use:"
+      echo -e "    ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}\n"
       exit 0
     else
-      echo -e " ${COLOR_YELLOW}⚠️${CoR} Certificate expires soon or is expired (in ${COLOR_ORANGE}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_ORANGE}$EXPIRES_ON${CoR})."
+      echo -e " ${COLOR_YELLOW}⚠️${CoR} Certificate (ID: ${COLOR_CYAN}$CERT_ID${CoR}) expires soon or is expired (in ${COLOR_ORANGE}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_ORANGE}$EXPIRES_ON${CoR})."
     fi
   fi
 
