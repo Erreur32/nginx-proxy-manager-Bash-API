@@ -1943,12 +1943,12 @@ host_show() {
 delete_certificate() {
     if [ -z "$DOMAIN" ]; then
         echo -e "\n ⛔ ${COLOR_RED}INVALID command: Missing argument${CoR}"
-        echo -e " Usage: ${COLOR_ORANGE}$0 --delete-cert <domain>${CoR}"
-        echo -e " To list certificates, use: ${COLOR_ORANGE}$0 --list-certificates <domain>${CoR}\n"
+        echo -e "   Usage: ${COLOR_ORANGE}$0 --delete-cert <domain>${CoR}"
+        echo -e "   list : ${COLOR_ORANGE}$0 --list-certificates <domain>${CoR}\n"
         exit 1
     fi
   check_token_notverbose
-    echo -e "\n 👀 Checking if certificate for domain: $DOMAIN exists..."
+    echo -e "\n 🔍 Checking if certificate for domain: ${COLOR_GREEN}$DOMAIN${CoR} exists..."
 
     RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
@@ -1956,7 +1956,7 @@ delete_certificate() {
     EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" '.[] | select(.domain_names[] == $DOMAIN)')
 
     if [ -z "$EXISTING_CERT" ]; then
-        echo -e " ⛔ No certificate found for domain: $DOMAIN. \n"
+        echo -e " ${COLOR_RED}❌${CoR} No certificate found for domain: ${COLOR_GREEN}$DOMAIN${CoR}. \n"
         exit 0
     fi
 
@@ -1964,7 +1964,7 @@ delete_certificate() {
     echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
     CONFIRM="y"
   else
-    read -p "⚠️ Are you sure you want to delete the certificate for $DOMAIN? (y/n): " CONFIRM
+    read -p "⚠️ Are you sure you want to delete the certificate for ${COLOR_GREEN}$DOMAIN${CoR}? (y/n): " CONFIRM
   fi
 
     CERTIFICATE_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
@@ -2014,13 +2014,31 @@ generate_certificate() {
     EMAIL="$DEFAULT_EMAIL"
     echo -e "\n 📧 Using default email: ${COLOR_YELLOW}$EMAIL${CoR}"
   fi
+  check_token_notverbose
+  # Check if domain exists in NPM proxy hosts
+  echo -e "\n ${COLOR_CYAN}🔍${CoR} Checking if domain exists in NPM..."
+  PROXY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+  
+  DOMAIN_EXISTS=$(echo "$PROXY_RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
+    '.[] | select(.domain_names[] == $DOMAIN) | .id')
 
-  echo -e "\n 📝 Certificate generation parameters:"
-  echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
-  echo -e " • Email: ${COLOR_YELLOW}$EMAIL${CoR}"
-  if [ -n "$DNS_PROVIDER" ]; then
-    echo -e " • DNS Provider: ${COLOR_YELLOW}$DNS_PROVIDER${CoR}"
+  if [ -z "$DOMAIN_EXISTS" ]; then
+    echo -e " ${COLOR_RED}❌${CoR} Domain ${COLOR_YELLOW}$DOMAIN${CoR} is not configured in NPM."
+    echo -e " ${COLOR_CYAN}💡${CoR} First create a proxy host with:"
+    echo -e " ${COLOR_CYAN}$0 --host-create -d $DOMAIN -i <forward_host> -p <forward_port>${CoR}"
+    exit 1
+  else
+    echo -e " ${COLOR_GREEN}✅${CoR} Domain ${COLOR_YELLOW}$DOMAIN${CoR} found in NPM (Host ID: ${COLOR_CYAN}$DOMAIN_EXISTS${CoR})"
   fi
+
+  echo -e "\n ${COLOR_CYAN}📝${CoR} Certificate generation parameters:"
+  echo -e "  • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
+  echo -e "  • Email: ${COLOR_YELLOW}$EMAIL${CoR}"
+  if [ -n "$DNS_PROVIDER" ]; then
+    echo -e "  • DNS Provider: ${COLOR_YELLOW}$DNS_PROVIDER${CoR}"
+  fi
+
 
   #if [ "$AUTO_YES" != "true" ]; then
   #  read -r -p "Do you want to proceed with certificate generation? (y/n): " confirm
@@ -2035,14 +2053,14 @@ generate_certificate() {
   if [[ "$DOMAIN" == \** ]]; then
     if [ -z "$DNS_PROVIDER" ] || [ -z "$DNS_API_KEY" ]; then
       echo -e "\n ⛔ ${COLOR_RED}Wildcard certificates require DNS challenge. Please provide dns-provider and dns-api-key.${CoR}"
-      echo -e " Example: ${COLOR_GREEN}$0 --generate-cert *.example.com admin@example.com dns-provider dynu dns-api-key YOUR_API_KEY${CoR}\n"
-      echo -e " Supported DNS providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53\n"
+      echo -e "   Example: ${COLOR_GREEN}$0 --generate-cert *.example.com admin@example.com dns-provider dynu dns-api-key YOUR_API_KEY${CoR}\n"
+      echo -e "   Supported DNS providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53\n"
       exit 1
     fi
   fi
-
+  echo ""
   check_token_notverbose
-  echo -e "\n 👀 Checking existing certificates for domain: $DOMAIN..."
+  #echo -e "\n ${COLOR_GREEN}🔍${CoR} Checking existing certificates for domain: ${COLOR_GREEN}$DOMAIN${CoR}"
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
   
@@ -2062,32 +2080,33 @@ generate_certificate() {
     DAYS_UNTIL_EXPIRY=$(( ($EXPIRY_DATE - $CURRENT_DATE) / 86400 ))
     
     if [ $DAYS_UNTIL_EXPIRY -gt 30 ]; then
-      echo -e " 🔔 Valid certificate found for $DOMAIN (expires in $DAYS_UNTIL_EXPIRY days: $EXPIRES_ON).\n"
+      echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
       exit 0
     else
-      echo -e " ⚠️ Certificate expires soon or is expired (in $DAYS_UNTIL_EXPIRY days: $EXPIRES_ON)."
+      echo -e " ${COLOR_YELLOW}⚠️${CoR} Certificate expires soon or is expired (in ${COLOR_ORANGE}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_ORANGE}$EXPIRES_ON${CoR})."
     fi
   fi
 
   # Ask for confirmation before creating a new certificate
   if [ "$AUTO_YES" = true ]; then
-    echo -e " 🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
+    echo -e " ${COLOR_YELLOW}🔔 The -y option was provided.${CoR} AUTO Yes activate.${CoR}"
     CONFIRM="y"
   else
     if [ -n "$EXISTING_CERT" ]; then
-      read -r -p " ⚠️ Do you want to renew the existing certificate for $DOMAIN? (y/n): " CONFIRM
+      echo -en " ${COLOR_YELLOW}⚠️${CoR} Do you want to renew the existing certificate for ${COLOR_GREEN}$DOMAIN${CoR}? (y/n): "
+      read -r CONFIRM
     else
-      read -r -p " ⛔ No existing certificate found for $DOMAIN. Create new Let's Encrypt certificate? (y/n): " CONFIRM
+      echo -en " ${COLOR_RED}❌${CoR} No existing certificate found for ${COLOR_YELLOW}$DOMAIN${CoR}. Create new Let's Encrypt certificate? (y/n): "
+      read -r CONFIRM
     fi
   fi
 
   if [[ "$CONFIRM" != "y" ]]; then
-    echo -e " ❌ Certificate creation aborted."
+    echo -e "${COLOR_RED} ❌ Certificate creation aborted.${CoR}"
     exit 0
   fi
 
-  echo -e " ⚙️ Generating Let's Encrypt certificate for domain: $DOMAIN..."
-
+  #echo -e " ${COLOR_CYAN}⚙️  Generating Let's Encrypt certificate for domain: ${COLOR_GREEN}$DOMAIN${CoR}"
   # Prepare the meta object based on whether DNS challenge is requested
   local meta_json="{}"
   if [ -n "$DNS_PROVIDER" ] && [ -n "$DNS_API_KEY" ]; then
@@ -2128,19 +2147,19 @@ generate_certificate() {
       meta: $meta
     }')
 
-  echo -e "\n 🔔 ${COLOR_YELLOW}Initiating certificate generation...${CoR}"
-  echo -e " This may take a few minutes, especially for DNS challenges."
-  echo -e " Data being sent: $DATA"
+  echo -e " ${COLOR_YELLOW}🔔 Initiating certificate generation...${COLOR_GREEN}$DOMAIN${CoR}${CoR}"
+  #echo -e " This may take a few minutes, especially for DNS challenges." 
+  #echo -e " Data being sent: $DATA"
+  #echo -e "\n 📝 Certificate generation request details:"
+  #echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
+  #echo -e " • Email: ${COLOR_YELLOW}$EMAIL${CoR}"
 
-  echo -e "\n 📝 Certificate generation request details:"
-  echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
-  echo -e " • Email: ${COLOR_YELLOW}$EMAIL${CoR}"
   if [ -n "$DNS_PROVIDER" ]; then
     echo -e " • DNS Provider: ${COLOR_YELLOW}$DNS_PROVIDER${CoR}"
   fi
 
-  echo -e "\n 🔄 Sending certificate generation request..."
-  echo -e " ⏳ This process may take a few minutes..."
+  echo -e " ${COLOR_CYAN}🚀 Sending certificate generation request${CoR}"
+  echo -e " ${COLOR_ORANGE}⏳ This process may take a few minutes...${CoR}"
 
   HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/certificates" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
@@ -2161,35 +2180,50 @@ generate_certificate() {
 
     # Check if certificate is actually created
     echo -e "\n 🔍 Verifying certificate status..."
-    sleep 5  # Wait a bit for the certificate to be processed
+    for i in {1..6}; do
+        echo -e " ⏳ Checking attempt $i/6..."
+        VERIFY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERT_ID" \
+          -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+        
+        if [ -n "$VERIFY_RESPONSE" ]; then
+            CERT_STATUS=$(echo "$VERIFY_RESPONSE" | jq -r '.expired')
+            EXPIRES_ON=$(echo "$VERIFY_RESPONSE" | jq -r '.expires_on')
+            
+            if [ "$CERT_STATUS" = "false" ]; then
+                echo -e " ✅ ${COLOR_GREEN}Certificate is active and valid${CoR}"
+                echo -e " 📅 Expires on: ${COLOR_YELLOW}$EXPIRES_ON${CoR}"
+                echo -e "\n 💡 To enable SSL for a proxy host, use:"
+                echo -e " ${COLOR_CYAN}$0 --host-ssl-enable <host_id>${CoR}"
+                exit 0
+            fi
+        fi
+        
+        # Attendre 10 secondes entre chaque vérification
+        if [ $i -lt 6 ]; then
+            echo -e " 🕐 Waiting 10 seconds before next check..."
+            sleep 10
+        fi
+    done
 
-    VERIFY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERT_ID" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-    
-    if [ -n "$VERIFY_RESPONSE" ]; then
-      CERT_STATUS=$(echo "$VERIFY_RESPONSE" | jq -r '.expired')
-      EXPIRES_ON=$(echo "$VERIFY_RESPONSE" | jq -r '.expires_on')
-      
-      if [ "$CERT_STATUS" = "false" ]; then
-        echo -e " ✅ ${COLOR_GREEN}Certificate is active and valid${CoR}"
-        echo -e " 📅 Expires on: ${COLOR_YELLOW}$EXPIRES_ON${CoR}"
-      else
-        echo -e " ⚠️ ${COLOR_YELLOW}Certificate might still be processing${CoR}"
-        echo -e " 💡 You can check the status later using:"
-        echo -e " ${COLOR_CYAN}$0 --list-cert $DOMAIN${CoR}"
-      fi
-    fi
+    # Si après toutes les tentatives, le certificat n'est toujours pas validé
+    echo -e "\n ℹ️ ${COLOR_YELLOW}Certificate generation is still in progress${CoR}"
+    echo -e " 📝 Certificate ID: ${COLOR_YELLOW}$CERT_ID${CoR}"
+    echo -e "\n 💡 You can check the status using:"
+    echo -e " ${COLOR_CYAN}$0 --list-cert $DOMAIN${CoR}"
+    echo -e " ${COLOR_CYAN}$0 --list-cert $CERT_ID${CoR}"
+    echo -e "\n 🔒 Once the certificate is ready, enable SSL for your proxy host with:"
+    echo -e " ${COLOR_CYAN}$0 --host-ssl-enable <host_id>${CoR}"
   else
-    echo -e "\n ❌ ${COLOR_RED}Certificate generation failed!${CoR}"
+    echo -e "\n ${COLOR_RED}❌ Certificate generation failed!${CoR}"
     ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
-    echo -e " ⛔ Error: ${COLOR_RED}$ERROR_MSG${CoR}"
-    echo -e "\n 🔍 Troubleshooting suggestions:"
-    echo -e " • Verify domain DNS records are properly configured"
-    echo -e " • Ensure domain is accessible via HTTP/HTTPS"
-    echo -e " • Check if Let's Encrypt rate limits are not exceeded"
+    echo -e " ${COLOR_RED}⛔${CoR} Error: ${COLOR_RED}$ERROR_MSG${CoR}"
+    echo -e "\n ${COLOR_CYAN}🔍 Troubleshooting suggestions:${CoR}"
+    echo -e "  • Verify domain DNS records are properly configured"
+    echo -e "  • Ensure domain is accessible via HTTP/HTTPS"
+    echo -e "  • Check if Let's Encrypt rate limits are not exceeded"
     if [ -n "$DNS_PROVIDER" ]; then
-      echo -e " • Verify DNS provider credentials"
-      echo -e " • Allow time for DNS propagation (up to 24 hours)"
+      echo -e "  • Verify DNS provider credentials"
+      echo -e "  • Allow time for DNS propagation (up to 24 hours)"
     fi
     exit 1
   fi
