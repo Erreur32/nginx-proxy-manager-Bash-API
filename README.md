@@ -58,24 +58,19 @@ La fonction RESTORE n'est pas encore terminée.
 We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
 
 ### 🛠️ What You Need to Do?
-
 To avoid any issues, please follow these steps to update your local repository:
 
 ```bash
 git fetch --all
 git reset --hard origin/main  # Replace 'main' with your branch name if different
 ```
-
 If you have local changes that you **don't want to lose**, consider making a backup before running these commands.
 
 ### ❓ Why Was This Done?
-
 This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
 
 ### 💀 Need Help?
-
 If you encounter any issues or have questions, feel free to open an **issue** or contact the repository maintainers.
-
 Thank you for your understanding! 🙌  
 🚀 **Stay secure & happy coding!**
 
@@ -95,9 +90,8 @@ Required basic dependencies.
 ```bash
 wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/npm-api.sh
 chmod +x npm-api.sh
-# Create a config file nginx_proxy_manager_cli.conf in same directory (to keep your config safe) check below.
-echo -e "## Nginx proxy IP address (your Nginx IP)\nNGINX_IP=\"127.0.0.1\"\nAPI_USER=\"existingUser@mail.com\"\nAPI_PASS=\"password\"\nBASE_DIR=\"$(pwd)\"" > nginx_proxy_manager_cli.conf
-./npm-api.sh --info
+# Run the script.
+./npm-api.sh
 ```
 
 
@@ -107,21 +101,24 @@ echo -e "## Nginx proxy IP address (your Nginx IP)\nNGINX_IP=\"127.0.0.1\"\nAPI_
 
 ## Settings
 > [!IMPORTANT]
-> (Optional) You can create a configuration file named `nginx_proxy_manager_cli.conf` with these 4 required variables.
+> (Optional) You can create a configuration file named `npm-api.conf` with these 4 required variables.
 
 To ensure the script is functional, edit these 4 variables (mandatory).
 
 ```bash
-# nginx_proxy_manager_cli.conf
+# npm-api.conf
 
 ## Nginx proxy IP address (your Nginx IP)
 NGINX_IP="127.0.0.1"
 ## Existing user (user and password) on NPM
 API_USER="admin@example.com"
 API_PASS="changeme"
-# Path to store .txt files and Backups
-BASE_DIR="/path/nginx_proxy_script/data"
 
+# Optional (only if you want in other placer than script directory)
+# DATA_DIR="/path/nginx_backup/dir"
+
+# Optional (for checking NPM docker)
+# NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
 ```
 
 ## Usage
@@ -130,7 +127,6 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ./npm-api.sh  --help
 ./npm-api.sh  --show-default 
 ```
-
 
 > [!NOTE]  
 > **New in version 2.6.0:**

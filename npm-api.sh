@@ -24,22 +24,22 @@ VERSION="2.8.0"
 # 
 #
 # 1. Create a new proxy host:
-#    ./nginx_proxy_manager_cli.sh --host-create example.com -i 192.168.1.10 -p 8080
+#    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080
 #
 # 2. Enable SSL for a host:
-#    ./nginx_proxy_manager_cli.sh --host-ssl-enable 1
+#    ./npm-api.sh --host-ssl-enable 1
 #
 # 3. Create a new user:
-#    ./nginx_proxy_manager_cli.sh --user-create admin admin@example.com password123
+#    ./npm-api.sh --user-create admin admin@example.com password123
 #
 # 4. List all proxy hosts:
-#    ./nginx_proxy_manager_cli.sh --host-list
+#    ./npm-api.sh --host-list
 #
 # 5. Generate SSL certificate:
-#    ./nginx_proxy_manager_cli.sh --generate-cert *.example.com admin@example.com
+#    ./npm-api.sh --generate-cert *.example.com admin@example.com
 #
 # 6. Show host details:
-#    ./nginx_proxy_manager_cli.sh --host-show 1
+#    ./npm-api.sh --host-show 1
 #
 
 # debug version
@@ -123,8 +123,9 @@ fi
 # NGINX_PORT="81"
 # API_USER="admin@example.com"
 # API_PASS="changeme"
+# Optional (only if you want in other placer than script directory)
 # DATA_DIR="/path/nginx_backup/dir"
-# Only required for ...
+# Optional
 # NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
 ################################
 
@@ -190,6 +191,7 @@ HOST_ACL_ENABLE=false
 HOST_ACL_DISABLE=false
 HOST_CREATE=false
 
+LIST_CERT_ALL=false
 LIST_CERT=false
 GENERATE_CERT=false
 DELETE_CERT=false
@@ -537,49 +539,50 @@ show_help() {
   echo -e "  --host-show ${COLOR_CYAN}🆔${CoR}                          Show ${COLOR_GREY}Full details for a specific host by ${COLOR_YELLOW}ID${CoR}"
   echo ""  
 
-  echo -e "  --host-create ${COLOR_ORANGE}domain${CoR} -i ${COLOR_ORANGE}forward_host${CoR} -p ${COLOR_ORANGE}forward_port${CoR} [options]\n" 
+  echo -e "  --host-create ${COLOR_ORANGE}domain${CoR} ${COLOR_CYAN}-i ${COLOR_ORANGE}forward_host${CoR} ${COLOR_CYAN}-p ${COLOR_ORANGE}forward_port${CoR} [options]\n" 
   echo -e "     ${COLOR_RED}Required:${CoR}"
-  echo -e "       domain                             Domain name (${COLOR_RED}required${CoR})"
-  echo -e "       -i, --forward-host                 IP address or domain name of the target server (${COLOR_RED}required${CoR})"
-  echo -e "       -p, --forward-port                 Port of the target server (${COLOR_RED}required${CoR})\n"
+  echo -e "       ${COLOR_CYAN}domain${CoR}                             Domain name (${COLOR_RED}required${CoR})"
+  echo -e "       ${COLOR_CYAN}-i${CoR}   forward-host                  IP address or domain name of the target server (${COLOR_RED}required${CoR})"
+  echo -e "       ${COLOR_CYAN}-p${CoR}   forward-port                  Port of the target server (${COLOR_RED}required${CoR})\n"
 
   echo -e "     optional: ${COLOR_GREY}(Check default settings,no argument needed if already set!)${CoR}"  
-  echo -e "       -f ${COLOR_GREY}FORWARD_SCHEME${CoR}                  Scheme for forwarding (http/https, default: $(colorize_booleanh "$FORWARD_SCHEME"))"
-  echo -e "       -c ${COLOR_GREY}CACHING_ENABLED${CoR}                 Enable caching (true/false, default: $(colorize_boolean "$CACHING_ENABLED"))"
-  echo -e "       -b ${COLOR_GREY}BLOCK_EXPLOITS${CoR}                  Block exploits (true/false, default: $(colorize_boolean "$BLOCK_EXPLOITS"))"
-  echo -e "       -w ${COLOR_GREY}ALLOW_WEBSOCKET_UPGRADE${CoR}         Allow WebSocket upgrade (true/false, default: $(colorize_boolean "$ALLOW_WEBSOCKET_UPGRADE"))"
-  echo -e "       -l ${COLOR_GREY}CUSTOM_LOCATIONS${CoR}                Custom locations (${COLOR_YELLOW}JSON array${CoR} of location objects)"
-  echo -e "       -a ${COLOR_GREY}ADVANCED_CONFIG${CoR}                 Advanced configuration (${COLOR_YELLOW}string${CoR})"
+  echo -e "       ${COLOR_CYAN}-f ${COLOR_GREY}FORWARD_SCHEME${CoR}                  Scheme for forwarding (http/https, default: $(colorize_booleanh "$FORWARD_SCHEME"))"
+  echo -e "       ${COLOR_CYAN}-c ${COLOR_GREY}CACHING_ENABLED${CoR}                 Enable caching (true/false, default: $(colorize_boolean "$CACHING_ENABLED"))"
+  echo -e "       ${COLOR_CYAN}-b ${COLOR_GREY}BLOCK_EXPLOITS${CoR}                  Block exploits (true/false, default: $(colorize_boolean "$BLOCK_EXPLOITS"))"
+  echo -e "       ${COLOR_CYAN}-w ${COLOR_GREY}ALLOW_WEBSOCKET_UPGRADE${CoR}         Allow WebSocket upgrade (true/false, default: $(colorize_boolean "$ALLOW_WEBSOCKET_UPGRADE"))"
+  echo -e "       ${COLOR_CYAN}-l ${COLOR_GREY}CUSTOM_LOCATIONS${CoR}                Custom locations (${COLOR_YELLOW}JSON array${CoR} of location objects)"
+  echo -e "       ${COLOR_CYAN}-a ${COLOR_GREY}ADVANCED_CONFIG${CoR}                 Advanced configuration (${COLOR_YELLOW}string${CoR})"
 
   echo ""
-  echo -e "  --host-enable ${COLOR_CYAN}🆔${CoR}                        Enable Proxy ${COLOR_GREY}host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-disable ${COLOR_CYAN}🆔${CoR}                       Disable Proxy ${COLOR_GREY}host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-delete ${COLOR_CYAN}🆔${CoR}                        Delete ${COLOR_GREY}Proxy host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-update ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[field]=value${CoR}          Update ${COLOR_GREY}One specific field of an existing proxy host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --host-enable ${COLOR_CYAN}🆔${CoR}                        Enable Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --host-disable ${COLOR_CYAN}🆔${CoR}                       Disable Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --host-delete ${COLOR_CYAN}🆔${CoR}                        Delete Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --host-update ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[field]=value${CoR}          Update One specific field of an existing proxy host by ${COLOR_YELLOW}ID${CoR}"
   echo -e "                                          (eg., --host-update 42 forward_host=foobar.local)${CoR}"
   echo ""
-  echo -e "  --host-acl-enable ${COLOR_CYAN}🆔${CoR},${COLOR_CYAN}access_list_id${CoR}     Enable ACL ${COLOR_GREY}for Proxy host by ${COLOR_YELLOW}ID${CoR} with ${COLOR_GREY}Access List ID ${CoR}"
-  echo -e "  --host-acl-disable ${COLOR_CYAN}🆔${CoR}                   Disable ACL ${COLOR_GREY}for Proxy host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-ssl-enable ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[cert_id]${CoR}          Enable SSL for host ID ${COLOR_GREY}optionally using ${CoR}specific certificate ID"
-  echo -e "  --host-ssl-disable ${COLOR_CYAN}🆔${CoR}                   Disable SSL${COLOR_GREY}, HTTP/2, and HSTS for a proxy host${CoR}"
+  echo -e "  --host-acl-enable ${COLOR_CYAN}🆔${CoR},${COLOR_CYAN}access_list_id${CoR}     Enable ACL for Proxy host by ${COLOR_YELLOW}ID${CoR} with Access List ID"
+  echo -e "  --host-acl-disable ${COLOR_CYAN}🆔${CoR}                   Disable ACL for Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --host-ssl-enable ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[cert_id]${CoR}          Enable SSL for host ID optionally using specific certificate ID"
+  echo -e "  --host-ssl-disable ${COLOR_CYAN}🆔${CoR}                   Disable SSL, HTTP/2, and HSTS for a proxy host${CoR}"
   echo ""
-  echo -e "  --list-cert ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}                List ${COLOR_GREY}All ${CoR}SSL ${COLOR_GREY}certificates availables or filtered by [domain name] (JSON)${CoR}"  
-  echo -e "  --generate-cert ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}          Generate ${COLOR_GREY}Let's Encrypt Certificate or others Providers.${CoR}"
-  echo -e "                                           • ${COLOR_GREY}Standard domains:${CoR} example.com, sub.example.com"
-  echo -e "                                           • ${COLOR_GREY}Wildcard domains:${CoR} *.example.com ${COLOR_GREY}(requires DNS challenge)${CoR}"
-  echo -e "                                           • ${COLOR_GREY}DNS Challenge:${CoR} Required for wildcard certificates"
-  echo -e "                                             - ${COLOR_GREY}Format:${CoR} dns-provider PROVIDER dns-api-key KEY"
-  echo -e "                                             - ${COLOR_GREY}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud"
-  echo -e "  --delete-cert ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}              Delete ${COLOR_GREY}Certificate for the given '${COLOR_YELLOW}domain${CoR}'"
+  echo -e "  --list-cert ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}                List SSL certificates filtered by [domain name] (${COLOR_YELLOW}JSON${CoR})${CoR}" 
+  echo -e "  --list-cert-all                         List ALL SSL certificates"   
+  echo -e "  --generate-cert ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}          Generate Let's Encrypt Certificate or others Providers.${CoR}"
+  echo -e "                                           • ${COLOR_YELLOW}Standard domains:${CoR} example.com, sub.example.com"
+  echo -e "                                           • ${COLOR_YELLOW}Wildcard domains:${CoR} *.example.com (requires DNS challenge)${CoR}"
+  echo -e "                                           • DNS Challenge:${CoR} Required for wildcard certificates"
+  echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} dns-provider PROVIDER dns-api-key KEY"
+  echo -e "                                             - ${COLOR_YELLOW}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud"
+  echo -e "  --delete-cert ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}              Delete Certificate for the given '${COLOR_YELLOW}domain${CoR}'"
   echo ""
-  echo -e "  --user-list                             List ${COLOR_GREY}All Users${CoR}"
-  echo -e "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR}   Create ${COLOR_GREY}User with a ${COLOR_YELLOW}username${CoR}, ${COLOR_YELLOW}password${CoR} and ${COLOR_YELLOW}email${CoR}"
-  echo -e "  --user-delete ${COLOR_CYAN}🆔${CoR}                        Delete ${COLOR_GREY}User by ${COLOR_YELLOW}username${CoR}"
+  echo -e "  --user-list                             List All Users"
+  echo -e "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR}   Create User with a ${COLOR_YELLOW}username${CoR}, ${COLOR_YELLOW}password${CoR} and ${COLOR_YELLOW}email${CoR}"
+  echo -e "  --user-delete ${COLOR_CYAN}🆔${CoR}                        Delete User by ${COLOR_YELLOW}username${CoR}"
   echo "" 
-  echo -e "  --access-list                           List ${COLOR_GREY}All available Access Lists (ID and Name)${CoR}"
-  echo -e "  --access-list-create                    Create ${COLOR_GREY}Access Lists${CoR}"
-  echo -e "  --access-list-delete                    Delete ${COLOR_GREY}Access Lists${CoR}"
-  echo -e "  --access-list-update                    Update ${COLOR_GREY}Access Lists${CoR}"  
+  echo -e "  --access-list                           List All available Access Lists (ID and Name)"
+  echo -e "  --access-list-create                    Create Access Lists"
+  echo -e "  --access-list-delete                    Delete Access Lists"
+  echo -e "  --access-list-update                    Update Access Lists"  
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo -e "  --examples                             ${COLOR_ORANGE}🔖 ${CoR}Examples ${COLOR_GREY}commands, more explicits${CoR}"
   echo -e "  --help                                 ${COLOR_YELLOW}👉 ${COLOR_GREY}It's me${CoR}"
@@ -1989,14 +1992,20 @@ delete_certificate() {
 ################################
 # Generate Let's Encrypt certificate if not exists
 generate_certificate() {
+
+   DOMAIN="$1"
+   EMAIL="$2"
+   DNS_PROVIDER="$3"
+   DNS_API_KEY="$4"
+
   if [ -z "$DOMAIN" ]; then
     echo -e "\n 🛡️ The --generate-cert option requires a domain."
-    echo -e " Usage: ${COLOR_ORANGE}$0 --generate-cert domain [email] [dns-provider provider dns-api-key key]${CoR}"
-    echo -e " Note: If email is not provided, default email ${COLOR_YELLOW}$DEFAULT_EMAIL${CoR} will be used"
-    echo -e " For wildcard certificates (*.domain.com), DNS challenge is required\n"
-    echo -e " Examples:"
-    echo -e "   ${COLOR_GREEN}$0 --generate-cert example.com admin@example.com${CoR}"
-    echo -e "   ${COLOR_GREEN}$0 --generate-cert *.example.com admin@example.com dns-provider dynu dns-api-key YOUR_API_KEY${CoR}\n"
+    echo -e "     Usage: ${COLOR_ORANGE}$0 --generate-cert domain [email] [dns-provider <provider>] [dns-api-key <key>]${CoR}"
+    echo -e "     Note : If email is not provided, default email ${COLOR_YELLOW}$DEFAULT_EMAIL${CoR} will be used"
+    echo -e "     For wildcard certificates (*.domain.com), DNS challenge is required\n"
+    echo -e "    Examples:"
+    echo -e "      ${COLOR_GREEN}$0 --generate-cert example.com admin@example.com${CoR}"
+    echo -e "      ${COLOR_GREEN}$0 --generate-cert *.example.com admin@example.com dns-provider dynu dns-api-key YOUR_API_KEY${CoR}\n"
     exit 1
   fi
 
@@ -2005,6 +2014,22 @@ generate_certificate() {
     EMAIL="$DEFAULT_EMAIL"
     echo -e "\n 📧 Using default email: ${COLOR_YELLOW}$EMAIL${CoR}"
   fi
+
+  echo -e "\n 📝 Certificate generation parameters:"
+  echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
+  echo -e " • Email: ${COLOR_YELLOW}$EMAIL${CoR}"
+  if [ -n "$DNS_PROVIDER" ]; then
+    echo -e " • DNS Provider: ${COLOR_YELLOW}$DNS_PROVIDER${CoR}"
+  fi
+
+  #if [ "$AUTO_YES" != "true" ]; then
+  #  read -r -p "Do you want to proceed with certificate generation? (y/n): " confirm
+  #  if [[ ! $confirm =~ ^[Yy]$ ]]; then
+  #    echo -e "\n ❌ Certificate generation cancelled."
+  #    exit 0
+  #  fi
+  #fi
+
 
   # Check if this is a wildcard certificate and validate DNS requirements
   if [[ "$DOMAIN" == \** ]]; then
@@ -2019,7 +2044,7 @@ generate_certificate() {
   check_token_notverbose
   echo -e "\n 👀 Checking existing certificates for domain: $DOMAIN..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(get_token)")
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
   
   # Check for exact match and wildcard matches
   EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
@@ -2029,7 +2054,7 @@ generate_certificate() {
       ($DOMAIN | startswith("*.") and (.domain_names[] | endswith(.[2:])))
     )')
 
-  if [ -n "$EXISTING_CERT" ] && ! $FORCE_CERT_CREATION; then
+  if [ -n "$EXISTING_CERT" ]; then
     EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
     # Check if certificate is expired or expires soon (30 days)
     EXPIRY_DATE=$(date -d "$EXPIRES_ON" +%s)
@@ -2046,13 +2071,13 @@ generate_certificate() {
 
   # Ask for confirmation before creating a new certificate
   if [ "$AUTO_YES" = true ]; then
-    echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
+    echo -e " 🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
     CONFIRM="y"
   else
     if [ -n "$EXISTING_CERT" ]; then
-      read -r -p "⚠️ Do you want to renew the existing certificate for $DOMAIN? (y/n): " CONFIRM
+      read -r -p " ⚠️ Do you want to renew the existing certificate for $DOMAIN? (y/n): " CONFIRM
     else
-      read -r -p "⚠️ No existing certificate found for $DOMAIN. Create new Let's Encrypt certificate? (y/n): " CONFIRM
+      read -r -p " ⛔ No existing certificate found for $DOMAIN. Create new Let's Encrypt certificate? (y/n): " CONFIRM
     fi
   fi
 
@@ -2107,38 +2132,66 @@ generate_certificate() {
   echo -e " This may take a few minutes, especially for DNS challenges."
   echo -e " Data being sent: $DATA"
 
+  echo -e "\n 📝 Certificate generation request details:"
+  echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
+  echo -e " • Email: ${COLOR_YELLOW}$EMAIL${CoR}"
+  if [ -n "$DNS_PROVIDER" ]; then
+    echo -e " • DNS Provider: ${COLOR_YELLOW}$DNS_PROVIDER${CoR}"
+  fi
+
+  echo -e "\n 🔄 Sending certificate generation request..."
+  echo -e " ⏳ This process may take a few minutes..."
+
   HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(get_token)" \
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
 
   HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
+
   if [ "$HTTP_STATUS" -eq 201 ]; then
-    echo -e " ✅ ${COLOR_GREEN}Certificate generated successfully!${CoR}"
-    # Get the certificate ID from the response
+    echo -e "\n ✅ ${COLOR_GREEN}Certificate generation initiated successfully!${CoR}"
     CERT_ID=$(echo "$HTTP_BODY" | jq -r '.id')
-    echo -e " 📝 Certificate ID: ${COLOR_YELLOW}$CERT_ID${CoR}"
-    echo -e " 📅 Expires on: ${COLOR_YELLOW}$(echo "$HTTP_BODY" | jq -r '.expires_on')${CoR}\n"
-  else
-    echo -e "\n ⛔ ${COLOR_RED}Failed to generate certificate. HTTP status: $HTTP_STATUS${CoR}"
-    ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
-    echo -e " Error: ${COLOR_RED}$ERROR_MSG${CoR}"
+    echo -e " 📋 Certificate Details:"
+    echo -e " • Certificate ID: ${COLOR_YELLOW}$CERT_ID${CoR}"
+    echo -e " • Status: ${COLOR_GREEN}Created${CoR}"
+    echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
+    echo -e " • Provider: ${COLOR_YELLOW}Let's Encrypt${CoR}"
+
+    # Check if certificate is actually created
+    echo -e "\n 🔍 Verifying certificate status..."
+    sleep 5  # Wait a bit for the certificate to be processed
+
+    VERIFY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERT_ID" \
+      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
     
-    if [ -n "$DNS_PROVIDER" ]; then
-      echo -e "\n 🔍 Troubleshooting DNS challenge:"
-      echo -e " • Verify DNS provider credentials"
-      echo -e " • Check if DNS provider ($DNS_PROVIDER) is supported"
-      echo -e " • Allow time for DNS propagation (up to 24 hours)"
-      echo -e " • Verify DNS records for $DOMAIN"
-      echo -e " • Check if domain is properly configured\n"
-    else
-      echo -e "\n 🔍 Troubleshooting HTTP challenge:"
-      echo -e " • Verify domain points to correct IP"
-      echo -e " • Check if port 80 is accessible"
-      echo -e " • Verify domain configuration"
-      echo -e " • Check for firewall rules\n"
+    if [ -n "$VERIFY_RESPONSE" ]; then
+      CERT_STATUS=$(echo "$VERIFY_RESPONSE" | jq -r '.expired')
+      EXPIRES_ON=$(echo "$VERIFY_RESPONSE" | jq -r '.expires_on')
+      
+      if [ "$CERT_STATUS" = "false" ]; then
+        echo -e " ✅ ${COLOR_GREEN}Certificate is active and valid${CoR}"
+        echo -e " 📅 Expires on: ${COLOR_YELLOW}$EXPIRES_ON${CoR}"
+      else
+        echo -e " ⚠️ ${COLOR_YELLOW}Certificate might still be processing${CoR}"
+        echo -e " 💡 You can check the status later using:"
+        echo -e " ${COLOR_CYAN}$0 --list-cert $DOMAIN${CoR}"
+      fi
     fi
+  else
+    echo -e "\n ❌ ${COLOR_RED}Certificate generation failed!${CoR}"
+    ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
+    echo -e " ⛔ Error: ${COLOR_RED}$ERROR_MSG${CoR}"
+    echo -e "\n 🔍 Troubleshooting suggestions:"
+    echo -e " • Verify domain DNS records are properly configured"
+    echo -e " • Ensure domain is accessible via HTTP/HTTPS"
+    echo -e " • Check if Let's Encrypt rate limits are not exceeded"
+    if [ -n "$DNS_PROVIDER" ]; then
+      echo -e " • Verify DNS provider credentials"
+      echo -e " • Allow time for DNS propagation (up to 24 hours)"
+    fi
+    exit 1
   fi
 }
 
@@ -3477,33 +3530,8 @@ while [[ "$#" -gt 0 ]]; do
             DISABLE_SSL=true
             ;;
         --generate-cert)
-            if [[ -n "$2" && "$2" != -* ]]; then
-                DOMAIN="$2"; shift 2
-                # Vérifier si un email est fourni
-                if [[ -n "$2" && "$2" != -* ]]; then
-                    EMAIL="$2"; shift 2
-                fi
-                # Vérifier les options DNS
-                while [[ -n "$2" && "$2" != -* ]]; do
-                    case "$2" in
-                        "dns-provider")
-                            shift
-                            if [[ -n "$2" && "$2" != -* ]]; then
-                                DNS_PROVIDER="$2"; shift 2
-                            fi
-                            ;;
-                        "dns-api-key")
-                            shift
-                            if [[ -n "$2" && "$2" != -* ]]; then
-                                DNS_API_KEY="$2"; shift 2
-                            fi
-                            ;;
-                        *)
-                            break
-                            ;;
-                    esac
-                done
-            else
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
                 echo -e "\n 🛡️ The --generate-cert option requires a domain."
                 echo -e " Usage: $0 --generate-cert domain [email] [dns-provider <provider>] [dns-api-key <key>]"
                 echo -e " Note: If email is not provided, default email ${COLOR_YELLOW}$DEFAULT_EMAIL${CoR} will be used"
@@ -3513,8 +3541,63 @@ while [[ "$#" -gt 0 ]]; do
                 echo -e "   ${COLOR_GREEN}$0 --generate-cert *.example.com admin@example.com dns-provider dynu dns-api-key YOUR_API_KEY${CoR}\n"
                 exit 1
             fi
-            GENERATE_CERT=true
-            ;;  
+
+            # Stocker le domaine
+            CERT_DOMAIN="$1"
+            CERT_DNS_PROVIDER=""
+            CERT_DNS_API_KEY=""
+
+            shift
+
+            # Vérifier et stocker l'email
+            if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+                CERT_EMAIL="$1"
+                shift
+            else
+                CERT_EMAIL="$DEFAULT_EMAIL"
+            fi
+
+            # Vérifier les options DNS
+            while [ $# -gt 0 ] && [[ "$1" != -* ]]; do
+                case "$1" in
+                    "dns-provider")
+                        shift
+                        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+                            CERT_DNS_PROVIDER="$1"
+                            shift
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}Missing DNS provider value${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    "dns-api-key")
+                        shift
+                        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+                            CERT_DNS_API_KEY="$1"
+                            shift
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}Missing DNS API key value${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    *)
+                        echo -e "\n ⚠️ ${COLOR_YELLOW}Unknown option: $1${CoR}"
+                        shift
+                        ;;
+                esac
+            done
+
+            # Vérifier si c'est un certificat wildcard et si les options DNS sont fournies
+            if [[ "$CERT_DOMAIN" == \** ]] && { [ -z "$CERT_DNS_PROVIDER" ] || [ -z "$CERT_DNS_API_KEY" ]; }; then
+                echo -e "\n ⛔ ${COLOR_RED}Wildcard certificates require DNS challenge. Please provide dns-provider and dns-api-key.${CoR}"
+                echo -e " Example: ${COLOR_GREEN}$0 --generate-cert *.example.com admin@example.com dns-provider dynu dns-api-key YOUR_API_KEY${CoR}\n"
+                exit 1
+            fi
+
+            # Définir GENERATE_CERT=true seulement après avoir validé tous les arguments
+            #GENERATE_CERT=true
+             generate_certificate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_API_KEY"
+            ;;
         --delete-cert)
             shift
             if [[ -n "$1" && "$1" != -* ]]; then
@@ -3622,7 +3705,8 @@ elif [ "$HOST_ACL_DISABLE" = true ]; then
 
 # Actions SSL
 elif [ "$GENERATE_CERT" = true ]; then
-  generate_certificate
+    generate_certificate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_API_KEY"
+
 elif [ "$DELETE_CERT" = true ]; then
   delete_certificate
 elif [ "$ENABLE_SSL" = true ]; then
