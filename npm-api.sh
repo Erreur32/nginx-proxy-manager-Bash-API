@@ -153,7 +153,8 @@ FORCE_CERT_CREATION=false
 SSL_FORCED=0
 HSTS_ENABLED=0
 HSTS_SUBDOMAINS=0
-
+#DNS_PROVIDER=""
+#DNS_API_KEY=""
 # Don't touch below that line (or you know ...)
 DEFAULT_EMAIL="$API_USER"
 DOMAIN=""
@@ -1243,7 +1244,7 @@ echo "create_new_proxy_host remove"
 create_or_update_proxy_host() {
   check_token_notverbose
     # Check if the host already exists
-    echo -e "\n 🔎 Checking if the host $DOMAIN_NAMES already exists..."
+    echo -e " 🔎 Checking if the host $DOMAIN_NAMES already exists..."
     RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
 
@@ -1315,7 +1316,7 @@ create_or_update_proxy_host() {
         URL="$BASE_URL/nginx/proxy-hosts/$HOST_ID"
     else
         # Création d'un nouvel hôte
-        echo -e "\n 🌍 Creating a new proxy host for $DOMAIN_NAMES..."
+        echo -e " 🌍 Creating a new proxy host: $DOMAIN_NAMES..."
         METHOD="POST"
         URL="$BASE_URL/nginx/proxy-hosts"
     fi
@@ -1334,16 +1335,15 @@ create_or_update_proxy_host() {
         
         # Si on a demandé de générer un certificat
         if [ "$GENERATE_CERT" = true ]; then
-            echo -e "\n 🔐 Génération du certificat SSL..."
-            generate_certificate "$CERT_DOMAIN" "$CERT_EMAIL"
-            
-            # Si on a aussi demandé d'activer le SSL
-            if [ "$ENABLE_SSL" = true ]; then
-                echo -e "\n ✨ Activation du SSL pour le host..."
-                HOST_ID="$PROXY_ID"
-                host_enable_ssl "$PROXY_ID"
+            echo -e " 🔐 Generate SSL certificat ..."
+                DNS_PROVIDER=""
+                DNS_API_KEY=""
+                if [ "$AUTO_YES" = true ]; then
+                    export AUTO_YES=true
+                fi
+                # On passe ENABLE_SSL à la fonction
+                generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY" "$ENABLE_SSL"
             fi
-        fi
 
         if [ "$METHOD" = "PUT" ]; then
             echo -e "\n ✅ ${COLOR_GREEN}SUCCESS: Proxy host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$PROXY_ID${COLOR_GREEN}) updated successfully! 🎉${CoR}\n"
@@ -2011,10 +2011,11 @@ delete_certificate() {
 # Generate Let's Encrypt certificate if not exists
 generate_certificate() {
 
-   DOMAIN="$1"
-   EMAIL="$2"
-   DNS_PROVIDER="$3"
-   DNS_API_KEY="$4"
+   DOMAIN="${1:-}"
+   EMAIL="${2:-}"
+   DNS_PROVIDER="${3:-}"  # Valeur par défaut vide
+   DNS_API_KEY="${4:-}"   # Valeur par défaut vide
+   ENABLE_SSL="${5:-false}"  # Valeur par défaut false
 
   if [ -z "$DOMAIN" ]; then
     echo -e "\n 🛡️ The --generate-cert option requires a domain."
@@ -2099,12 +2100,18 @@ generate_certificate() {
     DAYS_UNTIL_EXPIRY=$(( ($EXPIRY_DATE - $CURRENT_DATE) / 86400 ))
     
     if [ $DAYS_UNTIL_EXPIRY -gt 30 ]; then
-      echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (ID: ${COLOR_CYAN}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
-      echo -e " 💡 To enable SSL for this proxy host, use:"
-      echo -e "    ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}\n"
-      exit 0
+        echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (ID: ${COLOR_CYAN}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
+        if [ "$ENABLE_SSL" = true ]; then
+            echo -e " ✨ Activating SSL automatically..."
+            host_enable_ssl "$DOMAIN_EXISTS"
+            echo -e " ✅ SSL has been enabled for host ID: $DOMAIN_EXISTS"
+        else
+            echo -e " 💡 To enable SSL for this proxy host, use:"
+            echo -e "    ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}\n"
+        fi
+        exit 0
     else
-      echo -e " ${COLOR_YELLOW}⚠️${CoR} Certificate (ID: ${COLOR_CYAN}$CERT_ID${CoR}) expires soon or is expired (in ${COLOR_ORANGE}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_ORANGE}$EXPIRES_ON${CoR})."
+        echo -e " ${COLOR_YELLOW}⚠️${CoR} Certificate (ID: ${COLOR_CYAN}$CERT_ID${CoR}) expires soon or is expired (in ${COLOR_ORANGE}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_ORANGE}$EXPIRES_ON${CoR})."
     fi
   fi
 
@@ -2194,15 +2201,31 @@ generate_certificate() {
     echo -e "\n ✅ ${COLOR_GREEN}Certificate generation initiated successfully!${CoR}"
     CERT_ID=$(echo "$HTTP_BODY" | jq -r '.id')
     echo -e " 📋 Certificate Details:"
-    echo -e " • Certificate ID: ${COLOR_YELLOW}$CERT_ID${CoR}"
-    echo -e " • Status: ${COLOR_GREEN}Created${CoR}"
-    echo -e " • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
-    echo -e " • Provider: ${COLOR_YELLOW}Let's Encrypt${CoR}"
+    echo -e "  • Certificate ID: ${COLOR_YELLOW}$CERT_ID${CoR}"
+    echo -e "  • Status: ${COLOR_GREEN}Created${CoR}"
+    echo -e "  • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
+    echo -e "  • Provider: ${COLOR_YELLOW}Let's Encrypt${CoR}"
+
+        if [ "$ENABLE_SSL" = true ]; then
+            echo -e "\n ✨ Automatic SSL Activation ..."
+            if [ -n "$DOMAIN_EXISTS" ]; then
+                HOST_ID="$DOMAIN_EXISTS"
+                host_enable_ssl "$DOMAIN_EXISTS"
+            fi
+        fi
+
+        # Modification des messages de fin selon si SSL est activé ou non
+        if [ "$ENABLE_SSL" = true ]; then
+            echo -e "\n 💡 SSL will be automatically enabled once the certificate is ready"
+        else
+            #echo -e "\n 💡 To enable SSL for this proxy host later, use:"
+            echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
+        fi
 
     # Check if certificate is actually created
     echo -e "\n 🔍 Verifying certificate status..."
-    for i in {1..6}; do
-        echo -e " ⏳ Checking attempt $i/6..."
+    for i in {1..5}; do
+        echo -e " ⏳ Checking attempt $i/5..."
         VERIFY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERT_ID" \
           -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
         
@@ -2213,14 +2236,20 @@ generate_certificate() {
             if [ "$CERT_STATUS" = "false" ]; then
                 echo -e " ✅ ${COLOR_GREEN}Certificate is active and valid${CoR}"
                 echo -e " 📅 Expires on: ${COLOR_YELLOW}$EXPIRES_ON${CoR}"
-                echo -e "\n 💡 To enable SSL for a proxy host, use:"
-                echo -e " ${COLOR_CYAN}$0 --host-ssl-enable <host_id>${CoR}"
+                if [ "$ENABLE_SSL" = true ]; then
+                    echo -e "\n ✨ Proceeding with SSL activation..."
+                    host_enable_ssl "$DOMAIN_EXISTS"
+                else
+                    echo -e "\n 💡 To enable SSL for this proxy host, use:"
+                    echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
+                fi
                 exit 0
             fi
         fi
         
+        
         # Attendre 10 secondes entre chaque vérification
-        if [ $i -lt 6 ]; then
+        if [ $i -lt 5 ]; then
             echo -e " 🕐 Waiting 10 seconds before next check..."
             sleep 10
         fi
@@ -2232,8 +2261,14 @@ generate_certificate() {
     echo -e "\n 💡 You can check the status using:"
     echo -e " ${COLOR_CYAN}$0 --list-cert $DOMAIN${CoR}"
     echo -e " ${COLOR_CYAN}$0 --list-cert $CERT_ID${CoR}"
-    echo -e "\n 🔒 Once the certificate is ready, enable SSL for your proxy host with:"
-    echo -e " ${COLOR_CYAN}$0 --host-ssl-enable <host_id>${CoR}"
+    if [ "$ENABLE_SSL" = true ]; then
+        echo -e "\n 🔒 SSL will be automatically enabled once the certificate is ready"
+        echo -e " You can check the SSL status with:"
+        echo -e " ${COLOR_CYAN}$0 --host-show $DOMAIN_EXISTS${CoR}"
+    else
+        echo -e "\n 🔒 Once the certificate is ready, enable SSL for your proxy host with:"
+        echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
+    fi
   else
     echo -e "\n ${COLOR_RED}❌ Certificate generation failed!${CoR}"
     ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
@@ -3442,10 +3477,14 @@ while [[ "$#" -gt 0 ]]; do
 
             DOMAIN_NAMES="$1"
             shift
-            
+
             # Process remaining options
             while [[ $# -gt 0 ]]; do
                 case "$1" in
+                    -y|--yes)
+                        AUTO_YES=true
+                        shift
+                        ;;
                     -i|--forward-host)
                         if [[ -n "$2" && "$2" != -* ]]; then
                             FORWARD_HOST="$2"
@@ -3533,13 +3572,37 @@ while [[ "$#" -gt 0 ]]; do
                             exit 1
                         fi
                         ;;
+                    --generate-cert)
+                        GENERATE_CERT=true
+                        CERT_DOMAIN="$DOMAIN_NAMES"
+                        shift  # On déplace après --generate-cert
+                        # On ignore l'argument suivant s'il n'est pas une option
+                        if [[ -n "$1" && "$1" != -* ]]; then
+                            shift  # On ignore l'argument (test.myoueb.fr)
+                        fi
+                        # On vérifie si le prochain argument est --host-ssl-enable
+                        if [ "$1" = "--host-ssl-enable" ]; then
+                            ENABLE_SSL=true
+                            shift  # On déplace après --host-ssl-enable
+                        fi
+                        # On utilise directement API_USER comme email
+                        CERT_EMAIL="$API_USER"
+                        echo -e "\n 📧 Using default email from API_USER: $API_USER"
+                        ;;  
+                    --host-ssl-enable)
+                        ENABLE_SSL=true
+                        shift
+                        ;;                                    
                     *)
-                        echo -e "\n ⚠️ ${COLOR_YELLOW}WARNING: Unknown option ignored -> $1${CoR}"
+                        # On ne génère plus de warning pour --host-ssl-enable
+                        if [[ "$1" != "--host-ssl-enable" ]]; then
+                            echo -e "\n ⚠️ ${COLOR_YELLOW}WARNING: Unknown option ignored -> $1${CoR}"
+                        fi
                         shift
                         ;;
                 esac
             done
-
+        
             # check settings
             if [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
                 echo -e "\n ⛔ ${COLOR_RED}INVALID: Missing required parameters${CoR}"
@@ -3556,22 +3619,24 @@ while [[ "$#" -gt 0 ]]; do
                 exit 1
             fi
 
-            if [ -n "$2" ] && [ "$2" = "--generate-cert" ]; then
-                GENERATE_CERT=true
-                CERT_DOMAIN="$DOMAIN_NAMES"
-                CERT_EMAIL="$3"
-            fi
 
-            if [ -n "$4" ] && [ "$4" = "--ssl-enable" ]; then
-                ENABLE_SSL=true
-            fi
 
             # Appel de la fonction host_create avec tous les paramètres
             create_or_update_proxy_host "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" \
                        "${FORWARD_SCHEME:-http}" "${BLOCK_EXPLOITS:-false}" "${CACHE_ENABLED:-false}" \
                        "${WEBSOCKET_SUPPORT:-false}" "${HTTP2_SUPPORT:-false}" "${SSL_FORCED:-false}"
-        ;;
 
+            if [ "$GENERATE_CERT" = true ]; then
+                echo -e "\n 🔐 Generate SSL certificat ..."
+                # On définit explicitement tous les paramètres
+                DNS_PROVIDER=""
+                DNS_API_KEY=""
+                if [ "$AUTO_YES" = true ]; then
+                    export AUTO_YES=true  # Pour que generate_certificate le voit
+                fi
+                generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY" "$ENABLE_SSL"
+            fi                 
+        ;;
         --host-ssl-enable)
             shift
             if [ $# -gt 0 ]; then
