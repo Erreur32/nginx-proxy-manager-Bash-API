@@ -16,15 +16,18 @@ VERSION="2.8.0"
 # PERSISTENT Config
 #################################
 # Create config file  $SCRIPT_DIR/npm-api.conf and Edit Variables (required)
+
 # NGINX_IP="127.0.0.1"
 # NGINX_PORT="81"
 # API_USER="admin@example.com"
 # API_PASS="changeme"
+#
 # Optional (only if you want in other placer than script directory)
 # DATA_DIR="/path/nginx_backup/dir"
 # Optional
 # NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
-#
+
+
 #################################
 # Common Examples
 # 
