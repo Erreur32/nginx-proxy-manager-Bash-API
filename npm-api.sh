@@ -12,17 +12,22 @@ VERSION="2.8.0"
 # functionalities such as creating proxy hosts, managing users, listing hosts,
 # backing up configurations, and more.
 #
-# TIPS: Create manually a Config file for persistent variables 'npm-api.conf' :
-#  With these variables:
-#    NGINX_IP="127.0.0.1"
-#    API_USER="admin@example.com"
-#    API_PASS="changeme"
-#    DATA_DIR="/path/nginx_proxy_script/data"
+#################################
+# PERSISTENT Config
+#################################
+# Create config file  $SCRIPT_DIR/npm-api.conf and Edit Variables (required)
+# NGINX_IP="127.0.0.1"
+# NGINX_PORT="81"
+# API_USER="admin@example.com"
+# API_PASS="changeme"
+# Optional (only if you want in other placer than script directory)
+# DATA_DIR="/path/nginx_backup/dir"
+# Optional
+# NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
 #
-################################
+#################################
 # Common Examples
 # 
-#
 # 1. Create a new proxy host:
 #    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080
 #
@@ -123,18 +128,7 @@ else
   fi
 fi
 
-################################
-# PERSISTENT Config
-# Create config file  $SCRIPT_DIR/npm-api.conf and Edit Variables (required)
-# NGINX_IP="127.0.0.1"
-# NGINX_PORT="81"
-# API_USER="admin@example.com"
-# API_PASS="changeme"
-# Optional (only if you want in other placer than script directory)
-# DATA_DIR="/path/nginx_backup/dir"
-# Optional
-# NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
-################################
+
 
 # API Endpoints
 BASE_URL="http://$NGINX_IP:$NGINX_PORT/api"
