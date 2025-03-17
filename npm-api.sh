@@ -61,6 +61,7 @@ DEFAULT_NGINX_IP="127.0.0.1"
 DEFAULT_NGINX_PORT="81"
 DEFAULT_API_USER="admin@example.com"
 DEFAULT_API_PASS="changeme"
+DEFAULT_NGINX_PATH_DOCKER="/path/docker/npm"
 # default backup directoy (You can override with your path)
 DEFAULT_DATA_DIR="$SCRIPT_DIR/data"
 
@@ -86,6 +87,7 @@ if [ -f "$CONFIG_FILE" ]; then
   API_USER="$DEFAULT_API_USER"
   API_PASS="$DEFAULT_API_PASS"
   DATA_DIR="$DEFAULT_DATA_DIR"
+  NGINX_PATH_DOCKER="$DEFAULT_NGINX_PATH_DOCKER"
   # Then load config file which will override defaults
   source "$CONFIG_FILE"
   # Finally set variables as read only
@@ -94,6 +96,10 @@ if [ -f "$CONFIG_FILE" ]; then
   declare -r API_USER
   declare -r API_PASS
   #declare -r DATA_DIR
+  # NGINX_PATH_DOCKER is optional, only make it readonly if it was set in config
+  if [ -n "${NGINX_PATH_DOCKER+x}" ]; then
+    declare -r NGINX_PATH_DOCKER
+  fi
 else
   # Use default values
   NGINX_IP="$DEFAULT_NGINX_IP"
@@ -101,6 +107,7 @@ else
   API_USER="$DEFAULT_API_USER"
   API_PASS="$DEFAULT_API_PASS"
   DATA_DIR="$DEFAULT_DATA_DIR"
+  NGINX_PATH_DOCKER="$DEFAULT_NGINX_PATH_DOCKER"
 
   # Check if using default API user
   if [ "$API_USER" = "$DEFAULT_API_USER" ]; then
