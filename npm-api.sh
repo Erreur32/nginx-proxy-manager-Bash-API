@@ -2105,9 +2105,11 @@ generate_certificate() {
             echo -e " ✨ Activating SSL automatically..."
             host_enable_ssl "$DOMAIN_EXISTS"
             echo -e " ✅ SSL has been enabled for host ID: $DOMAIN_EXISTS"
+            exit 0
         else
             echo -e " 💡 To enable SSL for this proxy host, use:"
             echo -e "    ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}\n"
+            exit 0
         fi
         exit 0
     else
@@ -2376,7 +2378,7 @@ host_enable_ssl() {
     hsts_subdomains: false
   }')
 
-  echo -e "\n Data being sent for SSL enablement: $DATA"  # Log the data being sent
+  #echo -e "\n Data being sent for SSL enablement: $DATA"  # Log the data being sent
   HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
   -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
   -H "Content-Type: application/json; charset=UTF-8" \
@@ -3635,6 +3637,7 @@ while [[ "$#" -gt 0 ]]; do
                     export AUTO_YES=true  # Pour que generate_certificate le voit
                 fi
                 generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY" "$ENABLE_SSL"
+                GENERATE_CERT=false
             fi                 
         ;;
         --host-ssl-enable)
