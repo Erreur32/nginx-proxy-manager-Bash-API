@@ -117,8 +117,6 @@ API_PASS="changeme"
 # Optional (only if you want in other placer than script directory)
 # DATA_DIR="/path/nginx_backup/dir"
 
-# Optional (for checking NPM docker)
-# NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
 ```
 
 ## Usage
@@ -296,15 +294,26 @@ API_PASS="changeme"
 📁 data/
 └── 📁 backups/
     └── 📁 [IP]_[PORT]/
-        ├── 📁 .access_lists/        # Access list configurations
-        ├── 📁 .Proxy_Hosts/         # All proxy host configurations
-        ├── 📁 .settings/            # NPM settings
-        ├── 📁 .ssl/                 # SSL certificates
-        ├── 📁 .user/                # User configurations
-        └── full_config.json      # Complete backup file
+        ├── 📁 .access_lists/                    # Access list configurations
+        ├── 📁 .Proxy_Hosts/                     # All proxy host configurations
+        │   ├── 📁 [DOMAIN]/                     # Directory for each domain
+        │   │   ├── 📁 logs/                     # Log directory
+        │   │   ├── 📁 ssl/                      # SSL directory
+        │   │   │   ├── 📄 certificate_meta.json # Certificate metadata
+        │   │   │   ├── 📄 certificate.pem       # Certificate
+        │   │   │   ├── 📄 chain.pem             # Chain of certificates
+        │   │   │   └── 📄 private.key           # Private key
+        │   │   ├── 📄 nginx.conf                # Nginx configuration
+        │   │   └── 📄 proxy_config.json         # Proxy configuration
+        │   ├── 📄 all_hosts_[DATE].json         # List of all hosts
+        │   └── 📄 all_hosts_latest.json         # Symlink to latest backup        
+        ├── 📁 .settings/                        # NPM settings
+        ├── 📁 .ssl/                             # SSL certificates
+        ├── 📁 .user/                            # User configurations
+        └── 📄 full_config.json                  # Complete backup file
         └── 📁 token/  
-            ├── 📄 token.txt     # Authentication token
-            └── 📄 expiry.txt    # Token expiry date        
+            ├── 📄 token.txt                     # Authentication token
+            └── 📄 expiry.txt                    # Token expiry date        
 ```
 
 #### 🔄 Backup Contents

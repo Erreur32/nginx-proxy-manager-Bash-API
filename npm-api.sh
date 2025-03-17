@@ -24,7 +24,7 @@ VERSION="2.8.0"
 #
 # Optional (only if you want in other placer than script directory)
 # DATA_DIR="/path/nginx_backup/dir"
-# Optional
+# Optional (for a future version, not use)
 # NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
 
 
@@ -546,7 +546,7 @@ show_help() {
 
   echo -e "  --host-create ${COLOR_ORANGE}domain${CoR} ${COLOR_CYAN}-i ${COLOR_ORANGE}forward_host${CoR} ${COLOR_CYAN}-p ${COLOR_ORANGE}forward_port${CoR} [options]\n" 
   echo -e "     ${COLOR_RED}Required:${CoR}"
-  echo -e "       ${COLOR_CYAN}domain${CoR}                             Domain name (${COLOR_RED}required${CoR})"
+  echo -e "            domain                        Domain name (${COLOR_RED}required${CoR})"
   echo -e "       ${COLOR_CYAN}-i${CoR}   forward-host                  IP address or domain name of the target server (${COLOR_RED}required${CoR})"
   echo -e "       ${COLOR_CYAN}-p${CoR}   forward-port                  Port of the target server (${COLOR_RED}required${CoR})\n"
 
@@ -1798,12 +1798,12 @@ host_delete() {
     
     if [ "$AUTO_YES" = true ]; then
         echo -e "\n 🔔 Auto-confirming deletion of host '$DOMAIN_NAME' (ID: $HOST_ID) due to -y option..."
+        echo -e " 🗑️ Deleting proxy host '$DOMAIN_NAME' (ID: $HOST_ID)..."
     else
-        echo -e "\n ❗ About to delete host '$DOMAIN_NAME' (ID: $HOST_ID)"
+        echo -e " 🗑️ Deleting proxy host '$DOMAIN_NAME' (ID: $HOST_ID)"
     fi
 
-    echo -e "\n 🗑️ Deleting proxy host '$DOMAIN_NAME' (ID: $HOST_ID)..."
-    RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
+     RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
         "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
 
@@ -1959,52 +1959,98 @@ host_show() {
 ################################
 # Delete a certificate in NPM
 delete_certificate() {
-    if [ -z "$DOMAIN" ]; then
-        echo -e "\n ⛔ ${COLOR_RED}INVALID command: Missing argument${CoR}"
-        echo -e "   Usage: ${COLOR_ORANGE}$0 --delete-cert <domain>${CoR}"
-        echo -e "   list : ${COLOR_ORANGE}$0 --list-certificates <domain>${CoR}\n"
-        exit 1
-    fi
-  check_token_notverbose
-    echo -e "\n 🔍 Checking if certificate for domain: ${COLOR_GREEN}$DOMAIN${CoR} exists..."
-
-    RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-
-    EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" '.[] | select(.domain_names[] == $DOMAIN)')
-
-    if [ -z "$EXISTING_CERT" ]; then
-        echo -e " ${COLOR_RED}❌${CoR} No certificate found for domain: ${COLOR_GREEN}$DOMAIN${CoR}. \n"
-        exit 0
-    fi
-
-  if [ "$AUTO_YES" = true ]; then
-    echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
-    CONFIRM="y"
-  else
-    read -p "⚠️ Are you sure you want to delete the certificate for ${COLOR_GREEN}$DOMAIN${CoR}? (y/n): " CONFIRM
+  local CERT_IDENTIFIER="$1"
+  echo -e "    📝 Certificate Identifier: $CERT_IDENTIFIER"
+  if [ -z "$CERT_IDENTIFIER" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}Error: Please specify a domain or certificate ID${CoR}"
+    echo -e "Usage: --delete-cert <domain.com or ID>"
+    exit 1
   fi
 
-    CERTIFICATE_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
-    EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
-    PROVIDER=$(echo "$EXISTING_CERT" | jq -r '.provider')
+  check_token_notverbose
 
-    echo -e " ✅ Certificate found for $DOMAIN (Provider: $PROVIDER, Expires on: $EXPIRES_ON)."
-    echo -e " 🗑️ Deleting certificate for domain: $DOMAIN..."
+  # Get certificates list from API
+  CERTIFICATES=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
 
-    HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
-        "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-
-    HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
-    HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
-
-    if [ "$HTTP_STATUS" -eq 204 ] || { [ "$HTTP_STATUS" -eq 200 ] && [ "$HTTP_BODY" == "true" ]; }; then
-        echo -e " ✅ ${COLOR_GREEN}Certificate deleted successfully!${CoR}\n"
-    else
-        echo -e " ⛔ ${COLOR_RED}Failed to delete certificate. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}\n"
-        return 1
+  # Check if input is a number (ID) or domain
+  if [[ "$CERT_IDENTIFIER" =~ ^[0-9]+$ ]]; then
+    # It's an ID
+    CERT_ID="$CERT_IDENTIFIER"
+    CERT_EXISTS=$(echo "$CERTIFICATES" | jq -r --arg id "$CERT_ID" '.[] | select(.id == ($id|tonumber)) | .id')
+    
+    # Add verification for CERT_EXISTS
+    if [ -z "$CERT_EXISTS" ]; then
+      echo -e "\n ⛔ ${COLOR_RED}No certificate found with ID: $CERT_ID${CoR}"
+      exit 1
     fi
+    echo -e "    ✅ Certificate ID $CERT_ID found"
+  else
+    # It's a domain - Get all matching certificates
+    MATCHING_CERTS=$(echo "$CERTIFICATES" | jq -r --arg domain "$CERT_IDENTIFIER" \
+      '[.[] | select(.domain_names[] == $domain or .nice_name == $domain)]')
+    
+    CERT_COUNT=$(echo "$MATCHING_CERTS" | jq 'length')
+
+    if [ "$CERT_COUNT" -eq 0 ]; then
+      echo -e " ⛔ ${COLOR_RED}No certificates found for domain: $CERT_IDENTIFIER${CoR}"
+      exit 1
+    elif [ "$CERT_COUNT" -eq 1 ]; then
+      CERT_ID=$(echo "$MATCHING_CERTS" | jq -r '.[0].id')
+    else
+      # Multiple certificates found, let user choose
+      echo -e " 📜 Multiple certificates found for $CERT_IDENTIFIER:"
+      echo "$MATCHING_CERTS" | jq -r '.[] | "ID: \(.id) - Provider: \(.provider) - Expires: \(.expires_on) - Domains: \(.domain_names|join(", "))"' | \
+        awk '{print NR ") " $0}'
+      
+      if [ "$AUTO_YES" = true ]; then
+        echo -e " ⚠️ Multiple certificates found with -y option. Please specify certificate ID instead."
+        exit 1
+      fi
+
+      read -r -p "Enter the number of the certificate to delete (1-$CERT_COUNT): " CHOICE
+      if ! [[ "$CHOICE" =~ ^[0-9]+$ ]] || [ "$CHOICE" -lt 1 ] || [ "$CHOICE" -gt "$CERT_COUNT" ]; then
+        echo -e " ⛔ ${COLOR_RED}Invalid selection${CoR}"
+        exit 1
+      fi
+      
+      CERT_ID=$(echo "$MATCHING_CERTS" | jq -r --arg idx "$((CHOICE-1))" '.[$idx|tonumber].id')
+    fi
+  fi
+
+  if [ -z "$CERT_ID" ]; then
+    echo -e " ⛔ ${COLOR_RED}No valid certificate found${CoR}"
+    exit 1
+  fi
+
+  # Ask for confirmation unless AUTO_YES is set
+  if [ "$AUTO_YES" = true ]; then
+    echo -e " 🔔 The -y option was provided. Skipping confirmation prompt..."
+    CONFIRM="y"
+  else
+    read -r -p " ⚠️ Are you sure you want to delete certificate ID: $CERT_ID? (y/n): " CONFIRM
+  fi
+
+  if [[ "$CONFIRM" != "y" ]]; then
+    echo -e "  ❌ Certificate deletion aborted."
+    exit 1
+  fi
+
+  echo -e "  🗑️ Deleting certificate ID: $CERT_ID..."
+
+  # Delete certificate through API
+  HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
+    "$BASE_URL/nginx/certificates/$CERT_ID" \
+    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+
+  HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
+  HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
+
+  if [ "$HTTP_STATUS" -eq 200 ]; then
+    echo -e "  ✅ ${COLOR_GREEN}Certificate successfully deleted!${CoR}\n"
+  else
+    echo -e "  ⛔ ${COLOR_RED}Deletion failed. Status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}\n"
+  fi
 }
 
 ################################
@@ -2208,26 +2254,17 @@ generate_certificate() {
     echo -e "  • Domain: ${COLOR_YELLOW}$DOMAIN${CoR}"
     echo -e "  • Provider: ${COLOR_YELLOW}Let's Encrypt${CoR}"
 
-        if [ "$ENABLE_SSL" = true ]; then
-            echo -e "\n ✨ Automatic SSL Activation ..."
-            if [ -n "$DOMAIN_EXISTS" ]; then
-                HOST_ID="$DOMAIN_EXISTS"
-                host_enable_ssl "$DOMAIN_EXISTS"
-            fi
+    if [ "$ENABLE_SSL" = true ]; then
+        echo -e "\n ✨ Automatic SSL Activation ..."
+        if [ -n "$DOMAIN_EXISTS" ]; then
+            HOST_ID="$DOMAIN_EXISTS"
+            host_enable_ssl "$DOMAIN_EXISTS"
         fi
-
-        # Modification des messages de fin selon si SSL est activé ou non
-        if [ "$ENABLE_SSL" = true ]; then
-            echo -e "\n 💡 SSL will be automatically enabled once the certificate is ready"
-        else
-            #echo -e "\n 💡 To enable SSL for this proxy host later, use:"
-            echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
-        fi
-
-    # Check if certificate is actually created
-    echo -e "\n 🔍 Verifying certificate status..."
-    for i in {1..5}; do
-        echo -e " ⏳ Checking attempt $i/5..."
+        
+        echo -e " ⏳ Waiting for certificate to be ready (16 seconds)..."
+        sleep 16
+        
+        # Vérification finale du statut
         VERIFY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERT_ID" \
           -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
         
@@ -2238,37 +2275,17 @@ generate_certificate() {
             if [ "$CERT_STATUS" = "false" ]; then
                 echo -e " ✅ ${COLOR_GREEN}Certificate is active and valid${CoR}"
                 echo -e " 📅 Expires on: ${COLOR_YELLOW}$EXPIRES_ON${CoR}"
-                if [ "$ENABLE_SSL" = true ]; then
-                    echo -e "\n ✨ Proceeding with SSL activation..."
-                    host_enable_ssl "$DOMAIN_EXISTS"
-                else
-                    echo -e "\n 💡 To enable SSL for this proxy host, use:"
-                    echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
-                fi
-                exit 0
             fi
         fi
         
+       # echo -e "\n 💡 You can verify the certificate status using:"
+       # echo -e " ${COLOR_CYAN}$0 --list-cert $DOMAIN${CoR}"
+       # echo -e " ${COLOR_CYAN}$0 --list-cert $CERT_ID${CoR}"
         
-        # Attendre 10 secondes entre chaque vérification
-        if [ $i -lt 5 ]; then
-            echo -e " 🕐 Waiting 10 seconds before next check..."
-            sleep 10
-        fi
-    done
-
-    # Si après toutes les tentatives, le certificat n'est toujours pas validé
-    echo -e "\n ℹ️ ${COLOR_YELLOW}Certificate generation is still in progress${CoR}"
-    echo -e " 📝 Certificate ID: ${COLOR_YELLOW}$CERT_ID${CoR}"
-    echo -e "\n 💡 You can check the status using:"
-    echo -e " ${COLOR_CYAN}$0 --list-cert $DOMAIN${CoR}"
-    echo -e " ${COLOR_CYAN}$0 --list-cert $CERT_ID${CoR}"
-    if [ "$ENABLE_SSL" = true ]; then
-        echo -e "\n 🔒 SSL will be automatically enabled once the certificate is ready"
-        echo -e " You can check the SSL status with:"
-        echo -e " ${COLOR_CYAN}$0 --host-show $DOMAIN_EXISTS${CoR}"
+        #echo -e " 🔍 Verify SSL status with:"
+        #echo -e " ${COLOR_CYAN}$0 --host-show $DOMAIN_EXISTS${CoR}"
     else
-        echo -e "\n 🔒 Once the certificate is ready, enable SSL for your proxy host with:"
+        echo -e " 🔒 Once the certificate is ready, enable SSL for your proxy host with:"
         echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
     fi
   else
@@ -2290,10 +2307,16 @@ generate_certificate() {
 ################################
 # Enable SSL for a proxy host
 host_enable_ssl() {
+      # Default values if not set
+  SSL_FORCED=${SSL_FORCED:-true}
+  HTTP2_SUPPORT=${HTTP2_SUPPORT:-true}
+  HSTS_ENABLED=${HSTS_ENABLED:-false}
+  HSTS_SUBDOMAINS=${HSTS_SUBDOMAINS:-false}
+
   if [ -z "$HOST_ID" ]; then
     echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
-    echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${CoR}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${CoR} to create one)"
-    exit 1  # Exit if no HOST_ID is provided
+    echo -e "  --host-ssl-enable id 🔒 ${COLOR_GREEN}Enable${CoR}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${CoR} to create one)"
+    exit 1
   fi
 
   # Validate that HOST_ID is a number
@@ -2301,84 +2324,31 @@ host_enable_ssl() {
     echo -e " ⛔ ${COLOR_RED}Invalid host ID: $HOST_ID. It must be a numeric value.${CoR}\n"
     exit 1
   fi
+  
   check_token_notverbose
-  echo -e "\n ✅ Enabling 🔒 SSL, HTTP/2, and HSTS for proxy host ID: $HOST_ID..."
+  echo -e " ✅ Enabling 🔒 SSL, HTTP/2, and HSTS for proxy host ID: $HOST_ID..."
 
   # Check host details
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
   -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
   CERTIFICATE_ID=$(echo "$CHECK_RESPONSE" | jq -r '.certificate_id')
-  DOMAIN_NAMES=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[]')
-  # Fetch all certificates (custom and Let's Encrypt)
-  CERTIFICATES=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-  -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-  # Find all certificates for the given domain based on either domain_names or nice_name
-  DOMAIN_CERTS=$(echo "$CERTIFICATES" | jq -c --arg domain "$DOMAIN_NAMES" \
-    '[.[] | select((.domain_names[] == $domain) or (.nice_name == $domain))]')
-  # Count the number of certificates found
-  CERT_COUNT=$(echo "$DOMAIN_CERTS" | jq 'length')
-  # Ensure CERT_COUNT is treated as an integer
-  CERT_COUNT=${CERT_COUNT:-0}
 
-  if [ "$CERT_COUNT" -eq 0 ]; then
-    echo -e " ⛔ No certificate associated with this host.\n"
-
-    # Ask user if they want to generate a new certificate
-    echo -e "\n 👀 Checking if Let's Encrypt certificate for domain: $DOMAIN_NAMES exists..."
-    EXISTING_CERT=$(echo "$CERTIFICATES" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
-    if [ -n "$EXISTING_CERT" ]; then
-      EXPIRES_ON=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
-      echo -e " 🔔 Certificate for $DOMAIN_NAMES already exists and is valid until $EXPIRES_ON.\n"
-    else
-      if [ "$AUTO_YES" = true ]; then
-        echo -e "🔔 The -y option was provided. Skipping confirmation prompt and proceeding with certificate creation..."
-        CONFIRM_CREATE="y"
-      else
-        read -r -p "⚠️ No certificate found for $DOMAIN_NAMES. Do you want to create a new Let's Encrypt certificate? (y/n): " CONFIRM_CREATE
-      fi
-      if [[ "$CONFIRM_CREATE" == "y" ]]; then
-        # Prompt for email if not set
-        read -r -p "Please enter your email for Let's Encrypt: " EMAIL
-
-        # Call the function to generate the certificate
-        DOMAIN="$DOMAIN_NAMES"
-        generate_certificate
-        return  # Exit after generating the certificate
-      else
-        echo -e " ❌ Certificate creation aborted. Exiting."
-        exit 1
-      fi
-    fi
-  elif [ "$CERT_COUNT" -gt 1 ]; then
-    echo " ⚠️ Multiple certificates found for domain $DOMAIN_NAMES. Please select one:"
-    # Display the certificates with provider and validity dates
-    echo "$DOMAIN_CERTS" | jq -r 'to_entries[] | "\(.key + 1)) Provider: \(.value.provider), Valid From: \(.value.valid_from), Valid To: \(.value.valid_to)"'
-    # Ask the user to choose the certificate
-    read -r -p "Enter the number of the certificate you want to use: " CERT_INDEX
-    # Ensure proper handling of the selected certificate
-    CERT_INDEX=$((CERT_INDEX - 1))  # Adjust for 0-index
-    CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r ".[$CERT_INDEX].id")
-  else
-    # Only one certificate found, use it
-    CERTIFICATE_ID=$(echo "$DOMAIN_CERTS" | jq -r '.[0].id')
-    echo " ✅ Using certificate ID: $CERTIFICATE_ID"
-  fi
-
-  # Verify if CERTIFICATE_ID is empty
-  if [ -z "$CERTIFICATE_ID" ]; then
-    echo " ⛔ No valid certificate ID found. Aborting."
-    exit 1
-  fi
   # Update the host with SSL enabled
-  DATA=$(jq -n --arg cert_id "$CERTIFICATE_ID" '{
-    certificate_id: $cert_id,
-    ssl_forced: true,
-    http2_support: true,
-    hsts_enabled: true,
-    hsts_subdomains: false
-  }')
+  # Update the host with SSL enabled
+  DATA=$(jq -n \
+    --arg cert_id "$CERTIFICATE_ID" \
+    --argjson ssl_forced "true" \
+    --argjson http2_support "true" \
+    --argjson hsts_enabled "false" \
+    --argjson hsts_subdomains "false" \
+    '{
+      certificate_id: $cert_id,
+      ssl_forced: $ssl_forced,
+      http2_support: $http2_support,
+      hsts_enabled: $hsts_enabled,
+      hsts_subdomains: $hsts_subdomains
+    }')
 
-  #echo -e "\n Data being sent for SSL enablement: $DATA"  # Log the data being sent
   HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
   -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
   -H "Content-Type: application/json; charset=UTF-8" \
@@ -2387,10 +2357,10 @@ host_enable_ssl() {
   HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
   if [ "$HTTP_STATUS" -eq 200 ]; then
-    echo -e "\n ✅ ${COLOR_GREEN}SSL, HTTP/2, and HSTS enabled successfully!${CoR}\n"
+    echo -e " ✅ ${COLOR_GREEN}SSL, HTTP/2, and HSTS enabled successfully!${CoR}"
   else
-    echo -e "\n 👉Data sent: $DATA"  # Log the data sent
-    echo -e "\n ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}\n"
+    echo -e " 👉Data sent: $DATA"
+    echo -e " ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}"
   fi
 }
 
@@ -3370,7 +3340,7 @@ while [[ "$#" -gt 0 ]]; do
             HOST_ENABLE=true        
             shift
             if [ -z "${1}" ]; then
-                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-enable option requires a host 🆔.PPPPPPPPPP${CoR}"
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-enable option requires a host${CoR} 🆔"
                 echo -e "    Usage  : ${COLOR_ORANGE}$0 --host-enable <host_id>${CoR}"
                 echo -e "    Example: $0 --host-enable 42"
                 echo -e "    Find ID: $0 --host-list\n"                
@@ -3382,7 +3352,7 @@ while [[ "$#" -gt 0 ]]; do
         --host-disable)
             shift
             if [[ $# -eq 0 ]]; then
-                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-disable option requires host${CoR}  🆔"
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-disable option requires host${CoR} 🆔"
                 echo -e "    Usage  : ${COLOR_GREEN}$0 --host-disable <host_id>${CoR}"
                 echo -e "    Example: $0 --host-disable 42"
                 echo -e "    Find ID: $0 --host-list\n"                 
@@ -3395,7 +3365,7 @@ while [[ "$#" -gt 0 ]]; do
         --host-delete)
             shift
             if [ -z "${1}" ]; then
-                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-delete option requires a host 🆔${CoR}"
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-delete option requires a host${CoR} 🆔"
                 echo -e "\n${COLOR_CYAN}Usage:${CoR}"
                 echo -e " ${COLOR_ORANGE}$0 --host-delete <host_id>${CoR}"
                 echo -e "\n${COLOR_CYAN}Example:${CoR}"
@@ -3591,10 +3561,10 @@ while [[ "$#" -gt 0 ]]; do
                         CERT_EMAIL="$API_USER"
                         echo -e "\n 📧 Using default email from API_USER: $API_USER"
                         ;;  
-                    --host-ssl-enable)
-                        ENABLE_SSL=true
-                        shift
-                        ;;                                    
+                    #--host-ssl-enable)
+                    #    ENABLE_SSL=true
+                    #    shift
+                    #    ;;                                    
                     *)
                         # On ne génère plus de warning pour --host-ssl-enable
                         if [[ "$1" != "--host-ssl-enable" ]]; then
@@ -3734,14 +3704,12 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --delete-cert)
             shift
-            if [[ -n "$1" && "$1" != -* ]]; then
-                DOMAIN="$1"
-                shift
-            else
+            DELETE_CERT=true
+            DOMAIN="$1"
+            if [ -z "$DOMAIN" ]; then
                 echo -e "\n ⛔ ${COLOR_RED}The --delete-cert option requires a domain.${CoR}"
                 exit 1
             fi
-            DELETE_CERT=true
             ;;
         --list-cert)
             shift
@@ -3839,10 +3807,10 @@ elif [ "$HOST_ACL_DISABLE" = true ]; then
 
 # Actions SSL
 elif [ "$GENERATE_CERT" = true ]; then
-    generate_certificate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_API_KEY"
+  generate_certificate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_API_KEY"
 
 elif [ "$DELETE_CERT" = true ]; then
-  delete_certificate
+  delete_certificate "$DOMAIN"
 elif [ "$ENABLE_SSL" = true ]; then
   host_enable_ssl "$HOST_ID"
 elif [ "$DISABLE_SSL" = true ]; then
