@@ -1331,6 +1331,20 @@ create_or_update_proxy_host() {
     ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
     if [ -z "$ERROR_MSG" ]; then
         PROXY_ID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
+        
+        # Si on a demandé de générer un certificat
+        if [ "$GENERATE_CERT" = true ]; then
+            echo -e "\n 🔐 Génération du certificat SSL..."
+            generate_certificate "$CERT_DOMAIN" "$CERT_EMAIL"
+            
+            # Si on a aussi demandé d'activer le SSL
+            if [ "$ENABLE_SSL" = true ]; then
+                echo -e "\n ✨ Activation du SSL pour le host..."
+                HOST_ID="$PROXY_ID"
+                host_enable_ssl "$PROXY_ID"
+            fi
+        fi
+
         if [ "$METHOD" = "PUT" ]; then
             echo -e "\n ✅ ${COLOR_GREEN}SUCCESS: Proxy host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$PROXY_ID${COLOR_GREEN}) updated successfully! 🎉${CoR}\n"
         else
@@ -2238,7 +2252,7 @@ generate_certificate() {
 
 ################################
 # Enable SSL for a proxy host
-enable_ssl() {
+host_enable_ssl() {
   if [ -z "$HOST_ID" ]; then
     echo -e "\n 🛡️ The --host-ssl-enable option requires a host ID."
     echo -e "  --host-ssl-enable id                   🔒 ${COLOR_GREEN}Enable${CoR}  SSL, HTTP/2, and HSTS for a proxy host (Enabled only if exist, check ${COLOR_ORANGE}--generate-cert${CoR} to create one)"
@@ -2371,7 +2385,7 @@ list_certificates_() {
 
 ################################  
 # disable_ssl
-disable_ssl() {
+host_disable_ssl() {
     if [ -z "$HOST_ID" ]; then
         echo -e "\n ⛔ ${COLOR_RED}INVALID command: Missing argument${CoR}"
         echo -e " Usage: ${COLOR_ORANGE}$0 --host-ssl-disable <host_id>${CoR}"
@@ -3526,7 +3540,7 @@ while [[ "$#" -gt 0 ]]; do
                 esac
             done
 
-            # Vérification finale des paramètres obligatoires
+            # check settings
             if [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
                 echo -e "\n ⛔ ${COLOR_RED}INVALID: Missing required parameters${CoR}"
                 echo -e "\n Required options:"
@@ -3542,6 +3556,16 @@ while [[ "$#" -gt 0 ]]; do
                 exit 1
             fi
 
+            if [ -n "$2" ] && [ "$2" = "--generate-cert" ]; then
+                GENERATE_CERT=true
+                CERT_DOMAIN="$DOMAIN_NAMES"
+                CERT_EMAIL="$3"
+            fi
+
+            if [ -n "$4" ] && [ "$4" = "--ssl-enable" ]; then
+                ENABLE_SSL=true
+            fi
+
             # Appel de la fonction host_create avec tous les paramètres
             create_or_update_proxy_host "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" \
                        "${FORWARD_SCHEME:-http}" "${BLOCK_EXPLOITS:-false}" "${CACHE_ENABLED:-false}" \
@@ -3550,18 +3574,19 @@ while [[ "$#" -gt 0 ]]; do
 
         --host-ssl-enable)
             shift
-            if [[ -n "$1" && "$1" != -* ]]; then
+            if [ $# -gt 0 ]; then
                 HOST_ID="$1"
                 shift
                 ENABLE_SSL=true
             else
                 echo -e "\n ⛔ ${COLOR_RED}The --host-ssl-enable option requires a host 🆔.${CoR}"
+                echo -e "    Usage: $0 --host-ssl-enable <host_id>"                
                 exit 1
             fi
             ;;
         --host-ssl-disable)
             shift
-            if [[ -n "$1" && "$1" != -* ]]; then
+            if [ $# -gt 0 ]; then
                 HOST_ID="$1"
                 shift
             else
@@ -3751,9 +3776,9 @@ elif [ "$GENERATE_CERT" = true ]; then
 elif [ "$DELETE_CERT" = true ]; then
   delete_certificate
 elif [ "$ENABLE_SSL" = true ]; then
-  enable_ssl
+  host_enable_ssl "$HOST_ID"
 elif [ "$DISABLE_SSL" = true ]; then
-  disable_ssl
+  host_disable_ssl
 elif [ "$SSL_RESTORE" = true ]; then
   restore_ssl_certificates
 elif [ "$LIST_CERT" = true ]; then
