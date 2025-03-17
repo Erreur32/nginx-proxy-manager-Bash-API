@@ -221,7 +221,7 @@ API_PASS="changeme"
    ./npm-api.sh --backup
 
  🌐 Host Creation:
-   ./npm-api.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 (check default values below)
    ./npm-api.sh --info
    ./npm-api.sh --show-default
    ./npm-api.sh --create-user newuser password123 user@example.com
@@ -230,7 +230,7 @@ API_PASS="changeme"
    ./npm-api.sh --host-ssl-enable 10
 
  🤖 Automatic operations (no prompts):
-   ./npm-api.sh -d example.com -i 192.168.1.10 -p 8080 -y
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -y
    ./npm-api.sh --host-delete 42 -y
    ./npm-api.sh --host-ssl-enable 10 -y   
 
@@ -261,17 +261,17 @@ API_PASS="changeme"
    ./npm-api.sh --update-host 42 allow_websocket_upgrade=true
 
  🔧 Advanced Example:
-   ./npm-api.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
 
  🛡️ Custom Certificate:
    ./npm-api.sh --generate-cert example.com user@example.com 
    # Note: This will generate a Let's Encrypt certificate only
 
  🛡️  Custom locations:
-   ./npm-api.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 
 🔖 Full options:
-   ./npm-api.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
 
 ### --backup
@@ -281,47 +281,26 @@ API_PASS="changeme"
 ```
 
 
-### Schema of the backup directory:
-```
-📁 data/                                         # Root directory
-├── 📁 backups/                                  # Backup directories
-│   └── 📁 [IP]_[PORT]/                         # NPM Instance (IP:PORT)
-│       ├── 📁 .access_lists/                    # Access Lists configurations
-│       ├── 📁 .Proxy_Hosts/                     # Host configurations
-│       │   ├── 📁 [DOMAIN]/                     # Directory for each domain
-│       │   │   ├── 📄 proxy_config.json         # Proxy configuration
-│       │   │   └── 📄 nginx.conf                # Nginx configuration
-│       │   ├── 📄 all_hosts_[DATE].json         # List of all hosts
-│       │   └── 📄 all_hosts_latest.json         # Symlink to latest backup
-│       ├── 📁 .settings/                        # NPM settings
-│       ├── 📁 .ssl/                             # SSL certificates
-│       │   ├── 📄 certificate.pem               # Certificate
-│       │   ├── 📄 chain.pem                     # Chain of certificates
-│       │   ├── 📄 private.key                   # Private key
-│       │   └── 📄 certificate_meta.json         # Certificate metadata
-│       ├── 📁 .user/                            # User configurations
-│       ├── 📄 full_config_[DATE].json           # Full backup
-│       └── 📄 full_config_latest.json           # Symlink to latest backup
-└── 📁 token/                                    # Token directory
-    ├── 📄 token_[IP].txt                        # Authentication token
-    └── 📄 expiry_[IP].txt                       # Token expiry date
-```
+
+ 
 
 ### 💾 Backup Operations
+
+#### Schema of the backup directory:
 
 ```bash
 # Full backup of all configurations
 ./npm-api.sh --backup
 
 # This will create a backup in the following structure:
-data/
-└── backups/
-    └── [IP]_[PORT]/
-        ├── .access_lists/        # Access list configurations
-        ├── .Proxy_Hosts/         # All proxy host configurations
-        ├── .settings/            # NPM settings
-        ├── .ssl/                 # SSL certificates
-        ├── .user/                # User configurations
+📁 data/
+└── 📁 backups/
+    └── 📁 [IP]_[PORT]/
+        ├── 📁 .access_lists/        # Access list configurations
+        ├── 📁 .Proxy_Hosts/         # All proxy host configurations
+        ├── 📁 .settings/            # NPM settings
+        ├── 📁 .ssl/                 # SSL certificates
+        ├── 📁 .user/                # User configurations
         └── full_config.json      # Complete backup file
         └── 📁 token/  
             ├── 📄 token.txt     # Authentication token
