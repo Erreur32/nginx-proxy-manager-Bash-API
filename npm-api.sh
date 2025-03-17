@@ -557,6 +557,7 @@ show_help() {
   echo -e "       ${COLOR_CYAN}-w ${COLOR_GREY}ALLOW_WEBSOCKET_UPGRADE${CoR}         Allow WebSocket upgrade (true/false, default: $(colorize_boolean "$ALLOW_WEBSOCKET_UPGRADE"))"
   echo -e "       ${COLOR_CYAN}-l ${COLOR_GREY}CUSTOM_LOCATIONS${CoR}                Custom locations (${COLOR_YELLOW}JSON array${CoR} of location objects)"
   echo -e "       ${COLOR_CYAN}-a ${COLOR_GREY}ADVANCED_CONFIG${CoR}                 Advanced configuration (${COLOR_YELLOW}string${CoR})"
+  #echo -e "       ${COLOR_CYAN}-h ${COLOR_GREY}HTTP2_SUPPORT${CoR}                   HTTP2 (true/false, default: $(colorize_boolean "$HTTP2_SUPPORT"))"
 
   echo ""
   echo -e "  --host-enable ${COLOR_CYAN}🆔${CoR}                        Enable Proxy host by ${COLOR_YELLOW}ID${CoR}"
@@ -619,7 +620,7 @@ examples_cli() {
     echo -e "${COLOR_GREY}  # Create new proxy host (basic)${CoR}"
     echo -e "  $0 --host-create example.com -i 192.168.1.10 -p 8080"
     echo -e "${COLOR_GREY}  # Create host with SSL and advanced config${CoR}"
-    echo -e "  $0 --host-create example.com -i 192.168.1.10 -p 8080 -f https -b true -c true"
+    echo -e "  $0 --host-create example.com -i 127.0.0.1 -p 6666 -f https -b true -c true --generate-cert example.com --host-ssl-enable -y"
     echo -e "${COLOR_GREY}  # Create host with custom locations${CoR}"
     echo -e "  $0 --host-create example.com -i 192.168.1.10 -p 8080 -l '[{\"path\":\"/api\",\"forward_host\":\"192.168.1.11\",\"forward_port\":8081}]'"
 
@@ -2146,12 +2147,10 @@ generate_certificate() {
     DAYS_UNTIL_EXPIRY=$(( ($EXPIRY_DATE - $CURRENT_DATE) / 86400 ))
     
     if [ $DAYS_UNTIL_EXPIRY -gt 30 ]; then
-        echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (ID: ${COLOR_CYAN}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
+        echo -e " ${COLOR_YELLOW}🔔${CoR} Valid certificate found for ${COLOR_GREEN}$DOMAIN${CoR} (Certificate ID: ${COLOR_ORANGE}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$DAYS_UNTIL_EXPIRY${CoR} days: ${COLOR_YELLOW}$EXPIRES_ON${CoR}).\n"
         if [ "$ENABLE_SSL" = true ]; then
-            echo -e " ✨ Activating SSL automatically..."
+            echo -e " ${COLOR_YELLOW}✨ Activating SSL automatically${CoR}"
             host_enable_ssl "$DOMAIN_EXISTS"
-            echo -e " ✅ SSL has been enabled for host ID: $DOMAIN_EXISTS"
-            exit 0
         else
             echo -e " 💡 To enable SSL for this proxy host, use:"
             echo -e "    ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}\n"
@@ -2289,6 +2288,8 @@ generate_certificate() {
         echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
     fi
   else
+
+
     echo -e "\n ${COLOR_RED}❌ Certificate generation failed!${CoR}"
     ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
     echo -e " ${COLOR_RED}⛔${CoR} Error: ${COLOR_RED}$ERROR_MSG${CoR}"
@@ -2300,6 +2301,12 @@ generate_certificate() {
       echo -e "  • Verify DNS provider credentials"
       echo -e "  • Allow time for DNS propagation (up to 24 hours)"
     fi
+ 
+      echo -e " 📋 Debug Information:"
+      echo -e "  • HTTP Status: $HTTP_STATUS"
+      echo -e "  • Response: $HTTP_BODY"
+      echo -e "  • Request Data: $DATA"
+     
     exit 1
   fi
 }
@@ -2326,7 +2333,7 @@ host_enable_ssl() {
   fi
   
   check_token_notverbose
-  echo -e " ✅ Enabling 🔒 SSL, HTTP/2, and HSTS for proxy host ID: $HOST_ID..."
+  #echo -e " ✅ Enabling 🔒 SSL, HTTP/2, and HSTS for proxy host ID: $HOST_ID..."
 
   # Check host details
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
@@ -2357,10 +2364,30 @@ host_enable_ssl() {
   HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
   if [ "$HTTP_STATUS" -eq 200 ]; then
-    echo -e " ✅ ${COLOR_GREEN}SSL, HTTP/2, and HSTS enabled successfully!${CoR}"
+    echo -e " ✅ ${COLOR_GREEN}SSL Configuration Complete!${CoR} 🎉"
+    echo -e "\n 📋 Configuration Status for ${COLOR_YELLOW}$DOMAIN_NAMES${CoR} ID: ${COLOR_CYAN}$DOMAIN_EXISTS${CoR} Certificate ID: ${COLOR_ORANGE}$CERT_ID${CoR}"
+    echo -e " ├─ 🔒 SSL: ${COLOR_GREEN}Enabled${CoR}"
+    echo -e " ├─ 🚀 HTTP/2: ${COLOR_GREEN}Active${CoR}"
+    echo -e " ├─ 🛡️ HSTS: ${COLOR_RED}Disabled${CoR}"
+    echo -e " └─ 🌐 HSTS Subdomains: ${COLOR_RED}Disabled${CoR}"
+
+    # Get certificate details
+    #CERT_DETAILS=$(curl -s -X GET "$BASE_URL/nginx/certificates/$CERTIFICATE_ID" \
+    #  -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    #CERT_PROVIDER=$(echo "$CERT_DETAILS" | jq -r '.provider')
+    #CERT_EXPIRES=$(echo "$CERT_DETAILS" | jq -r '.expires_on')   
+    #echo -e "\n 📜 Certificate Information:"
+    #echo -e " ├─ ID: $CERTIFICATE_ID"
+    #echo -e " ├─ Provider: $CERT_PROVIDER"
+    #echo -e " └─ Expires: $CERT_EXPIRES"
+
   else
     echo -e " 👉Data sent: $DATA"
-    echo -e " ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}"
+    echo -e " ⛔ ${COLOR_RED}Failed to enable SSL, HTTP/2, and HSTS . HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}"
+    echo -e "\n 📋 Debug Information:"
+    echo -e " ├─ HTTP Status: $HTTP_STATUS"
+    echo -e " ├─ Response: $HTTP_BODY"
+    echo -e " └─ Request Data: $DATA"
   fi
 }
 
@@ -3221,7 +3248,7 @@ done
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -O)
-            echo "todo" # Sans output
+            echo "todo" # WITHOUT output
             shift
             ;;
         -J)
@@ -3273,6 +3300,7 @@ while [[ "$#" -gt 0 ]]; do
           shift
           ;;
         --clean-hosts)
+            exit 1 # not use !            
             CLEAN_HOSTS=true
             shift
             if [[ -n "$1" && "$1" != -* ]]; then

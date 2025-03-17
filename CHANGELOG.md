@@ -41,6 +41,23 @@ All notable changes to the npm-api.sh script will be documented in this file.
 
 
 ### ✨ New Features
+
+- **Smart certificate management in SSL configuration**:
+  - Automatic detection of existing certificates for domains
+  - Automatic selection of single existing certificates
+  - Selection system for multiple certificates:
+    * Auto-selects most recent with `-y` flag
+    * Interactive selection without `-y` flag
+  - Integration with certificate generation workflow
+- Enhanced SSL status display with detailed configuration state
+- Improved error handling and debug information
+- Configurable SSL parameters:
+  * SSL Forced
+  * HTTP/2 Support
+  * HSTS
+  * HSTS Subdomains
+
+
 - **Enhanced Host Creation**
   - Simplified command syntax with positional domain argument
   - Improved parameter validation
