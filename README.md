@@ -136,34 +136,34 @@ API_PASS="changeme"
 ## NEW dashboard
 
 ```bash
-📊 NGINX - Proxy Manager - Dashboard 🔧
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 📊 NGINX - Proxy Manager - Dashboard 🔧
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ┌─────────────────┬─────────┐
+ │  COMPONENT      │ STATUS  │
+ ├─────────────────┼─────────┤
+ │ 🌐 Proxy Hosts  │ 11      │
+ │ ├─ Enabled      │ 9       │
+ │ └─ Disabled     │ 2       │
+ ├─────────────────┼─────────┤
+ │ 🔄 Redirections │ 1       │
+ │ 🔌 Stream Hosts │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Certificates │ 1       │
+ │ ├─ Valid        │ 1       │
+ │ └─ Expired      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Access Lists │ 1       │
+ │ └─ Clients      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 👥 Users        │ 3       │
+ ├─────────────────┼─────────┤
+ │ ⏱️  Uptime       │ 2 days  │
+ │ 📦 NPM Version  │ 2.12.3  │
+ └─────────────────┴─────────┘
 
-🌐 Proxy Hosts:
-   • Total:    42
-   • Enabled:  38
-   • Disabled: 4
+ 💡 Use --help to see available commands
+    Check --examples for more help examples
 
-🔄 Redirections:
-   • Total: 5
-
-🔌 Stream Hosts:
-   • Total: 3
-
-🔒 SSL Certificates:
-   • Total:   15
-   • Valid:   12
-   • Expired: 3
-
-👥 Users:
-   • Total: 4
-
-🆙 Server Status:
-   • Uptime: 15 days
-   • Version: 2.4.0
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 Use --help to see available commands
 ```
 
 ## Options
@@ -399,7 +399,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  2.8.0
+ Script Info:  3.0.0
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -541,8 +541,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v2.8.0-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v2.8.0
+[release-shield]: https://img.shields.io/badge/version-v3.0.0-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.0.0
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg

@@ -2,7 +2,7 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
-## [2.8.0] - 2025-03-15
+## [3.0.0] - 2025-03-15
 
 ### 🔄 Breaking Changes
 - **Host Creation Command Simplified**
