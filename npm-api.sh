@@ -78,6 +78,7 @@ DEFAULT_DATA_DIR="$SCRIPT_DIR/data"
 ################################
 # Colors Custom
 COLOR_GREEN="\033[32m"
+COLOR_GREEN_b="\e[92m"
 COLOR_RED="\033[91m"
 COLOR_RED_FULL="\033[41;1m"
 COLOR_ORANGE="\033[38;5;202m"
@@ -689,12 +690,12 @@ display_info() {
   echo -e "${COLOR_YELLOW}\n Script Info:  ${COLOR_GREEN}${VERSION}${CoR}"
   echo -e " ${COLOR_YELLOW}Script Variables Information:${CoR}"
   #echo -e "\n ${COLOR_GREEN}DATA_DIR${CoR} ${DATA_DIR}"
-  echo -e " ${COLOR_GREEN}Config${CoR}      : ${DATA_DIR}/npm-api.conf"
+  echo -e " ${COLOR_GREEN}Config${CoR}      : ${SCRIPT_DIR}/npm-api.conf"
   echo -e " ${COLOR_GREEN}BASE  URL${CoR}   : ${BASE_URL}"
   echo -e " ${COLOR_GREEN}NGINX  IP${CoR}   : ${NGINX_IP}"
   echo -e " ${COLOR_GREEN}USER NPM${CoR}    : ${API_USER}"
   echo -e " ${COLOR_GREEN}BACKUP DIR ${CoR} : ${DATA_DIR_ID}"
-  echo -e " ${COLOR_GREEN}DOCKER Path${CoR} : ${NGINX_PATH_DOCKER}"
+  #echo -e " ${COLOR_GREEN}DOCKER Path${CoR} : ${NGINX_PATH_DOCKER}"
 
   DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
   BACKUP_PATH="$BACKUP_DIR"
@@ -1908,11 +1909,11 @@ host_show() {
     # Formater et afficher les détails
     echo -e "\n📋 ${COLOR_YELLOW}Host Details:${CoR}"
     echo -e "┌───────────────────────────────────"
-    echo -e "│ 🆔 ID: ${COLOR_GREEN}$(echo "$response" | jq -r '.id')${CoR}"
-    echo -e "│ 🌐 Domains: ${COLOR_GREEN}$(echo "$response" | jq -r '.domain_names[]' | tr '\n' ' ')${CoR}"
+    echo -e "│ 🆔 ID: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.id')${CoR}"
+    echo -e "│ 🌐 Domains: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.domain_names[]' | tr '\n' ' ')${CoR}"
     echo -e "│ 🔄 Forward Configuration:"
-    echo -e "│   • Host: ${COLOR_YELLOW}$(echo "$response" | jq -r '.forward_host')${CoR}"
-    echo -e "│   • Port: ${COLOR_YELLOW}$(echo "$response" | jq -r '.forward_port')${CoR}"
+    echo -e "│   • Host: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_host')${CoR}"
+    echo -e "│   • Port: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_port')${CoR}"
     echo -e "│   • Scheme: $(colorize_boolean $(echo "$response" | jq -r '.forward_scheme'))"
     echo -e "│ ✅ Status: $(colorize_boolean $(echo "$response" | jq -r '.enabled | if . then "Enabled" else "Disabled" end'))"
     echo -e "│ 🔒 SSL Configuration:"
