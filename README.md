@@ -389,16 +389,56 @@ Some info of settings in the script with `./npm-api.sh --info`
 ```bash
 ./npm-api.sh --info
 
-Script Info:  2.3.5
+ 🔍 Checking system dependencies and directories...
+ ✅ All dependencies and directories are properly set up
+    ├── System tools: OK
+    ├── Directories : OK
+    └── Permissions : OK
 
-Script Variables Information:
-  BASE_URL    http://127.0.0.1:81/api
-  NGINX_IP    127.0.0.1
-  API_USER    admin@example.com
-  BASE_DIR    /path/to/nginx_proxy
-  BACKUP_DIR  /path/to/nginx_proxy/backups
-  BACKUP HOST 40
-  Token NPM   /path/to/nginx_proxy/token/token_127.0.0.1.txt
+ 🔑 Checking token validity...
+ ✅ Token is valid
+ 📅 Expires: 2026-03-14T10:24:56.267Z
+
+ Script Info:  2.8.0
+ Script Variables Information:
+ Config      : /home/tools/Project/nginx_proxy/npm-api.conf
+ BASE  URL   : http://127.0.0.1:8099/api
+ NGINX  IP   : 127.0.0.1
+ USER NPM    : user@mail.com
+ BACKUP DIR  : /home/tools/Project/nginx_proxy/data/127_0_0_1_8099
+
+ 📂 Backup Locations:
+  • Backup: /home/tools/Project/nginx_proxy/data/127_0_0_1_8099/backups
+  • Token: /home/tools/Project/nginx_proxy/data/127_0_0_1_8099/backups/token/
+
+ 📊 NGINX - Proxy Manager - Dashboard 🔧
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ┌─────────────────┬─────────┐
+ │  COMPONENT      │ STATUS  │
+ ├─────────────────┼─────────┤
+ │ 🌐 Proxy Hosts  │ 11      │
+ │ ├─ Enabled      │ 9       │
+ │ └─ Disabled     │ 2       │
+ ├─────────────────┼─────────┤
+ │ 🔄 Redirections │ 1       │
+ │ 🔌 Stream Hosts │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Certificates │ 1       │
+ │ ├─ Valid        │ 1       │
+ │ └─ Expired      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Access Lists │ 1       │
+ │ └─ Clients      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 👥 Users        │ 3       │
+ ├─────────────────┼─────────┤
+ │ ⏱️  Uptime       │ 2 days  │
+ │ 📦 NPM Version  │ 2.12.3  │
+ └─────────────────┴─────────┘
+
+ 💡 Use --help to see available commands
+    Check --examples for more help examples
+
 
 ```
 
@@ -410,13 +450,17 @@ By following these steps, you can enable SSL for your proxy host for the first t
 #### --host-list
  List all Host in one command and show ´id´ , ´status´ and ´SSL´ status:
 
-    ./npm-api.sh --host-list
-    
+      ./npm-api.sh --host-list
+
       👉 List of proxy hosts (simple)
-      ID     Domain                               Status    SSL
-      1      toto.fun                              enabled  ✘
-      2      titi.fun                              disable  ✅
-      3      tutu.fun                              enabled  ✅
+        ID     Domain                               Status    SSL    Certificate Domain
+        14     example.com                           enabled  ✘
+        15     example.titi                          enabled  ✘
+        1      domain.com                            disable  8      domain.com
+        11     titi.eu                               enabled  ✘
+        12     toutou                                disable  ✘
+        13     toutoux                               enabled  ✘
+
 
 
 #### --host-ssl-enable
@@ -425,17 +469,6 @@ By following these steps, you can enable SSL for your proxy host for the first t
   Assuming the host ID is *1*, you would enable SSL for the host as follows:
 
     ./npm-api.sh --host-ssl-enable 1
-
- SSl is enable successfully, check again with --host-list
-
-     ./npm-api.sh --host-list
-    
-      👉 List of proxy hosts (simple)
-      ID     Domain                               Status    SSL
-      1      toto.fun                              enabled  ✅
-      2      titi.fun                              disable  ✅
-      3      tutu.fun                              enabled  ✅
-
 
 ##### **Other Exemple command:**
 
@@ -488,8 +521,8 @@ Host proxy info command `--host-show id`
 - [x] ADD: a configuration function for Custom Locations
 - [x] Backup all settings from NPM
 - [x] Add automatic confirmation with -y parameter
-- [ ] Clean/minimize output when using -y parameter for better script integration
-- [ ] Creation of ACCESS list through CLI
+- [X] Clean/minimize output when using -y parameter for better script integration
+- [X] Creation of ACCESS list through CLI
 - [ ] Restore Function not working properly, need to find FIX
 
 
