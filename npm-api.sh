@@ -84,6 +84,7 @@ COLOR_ORANGE="\033[38;5;202m"
 COLOR_YELLOW="\033[93m"
 COLOR_CYAN="\033[36m"
 COLOR_GREY="\e[90m"
+COLOR_GRAY=" \e[100m"
 WHITE_ON_GREEN="\033[30;48;5;83m"
 CoR="\033[0m"
 
@@ -484,10 +485,12 @@ pad() {
 # Colorize boolean values for display
 colorize_boolean() {
   local value=$1
-  if [ "$value" = true ]; then
-    echo -e "${COLOR_GREEN}true${CoR}"
+  if [ "$value" = "true" ] || [ "$value" = "Enabled" ] || [ "$value" = https ]; then
+    echo -e "${COLOR_GREEN}$value${CoR}"
+  elif [ "$value" = "false" ] || [ "$value" = "Disabled" ] || [ "$value" = http ]; then
+    echo -e "${COLOR_YELLOW}$value${CoR}"
   else
-    echo -e "${COLOR_YELLOW}false${CoR}"
+    echo -e "${COLOR_RED}$value${CoR}"
   fi
 }
 
@@ -1905,55 +1908,40 @@ host_show() {
     # Formater et afficher les détails
     echo -e "\n📋 ${COLOR_YELLOW}Host Details:${CoR}"
     echo -e "┌───────────────────────────────────"
-    # ID and Domains
-    echo -e "│ 🆔 ID: ${COLOR_YELLOW}$(echo "$response" | jq -r '.id')${CoR}"
-    echo -e "│ 🌐 Domains: ${COLOR_GREEN}$(echo "$response" | jq -r '.domain_names[]')${CoR}"
-    # Forward Configuration
+    echo -e "│ 🆔 ID: ${COLOR_GREEN}$(echo "$response" | jq -r '.id')${CoR}"
+    echo -e "│ 🌐 Domains: ${COLOR_GREEN}$(echo "$response" | jq -r '.domain_names[]' | tr '\n' ' ')${CoR}"
     echo -e "│ 🔄 Forward Configuration:"
     echo -e "│   • Host: ${COLOR_YELLOW}$(echo "$response" | jq -r '.forward_host')${CoR}"
     echo -e "│   • Port: ${COLOR_YELLOW}$(echo "$response" | jq -r '.forward_port')${CoR}"
-    echo -e "│   • Scheme: ${COLOR_YELLOW}$(echo "$response" | jq -r '.forward_scheme')${CoR}"
-
-    # Status
-    local enabled=$(echo "$response" | jq -r '.enabled')
-    if [ "$enabled" = "true" ]; then
-        echo -e "│ ✅ Status: ${COLOR_GREEN}Enabled${CoR}"
-    else
-        echo -e "│ ❌ Status: ${COLOR_RED}Disabled${CoR}"
-    fi
-    # SSL Configuration
-    local cert_id=$(echo "$response" | jq -r '.certificate_id')
-    if [ "$cert_id" != "null" ]; then
+    echo -e "│   • Scheme: $(colorize_boolean $(echo "$response" | jq -r '.forward_scheme'))"
+    echo -e "│ ✅ Status: $(colorize_boolean $(echo "$response" | jq -r '.enabled | if . then "Enabled" else "Disabled" end'))"
     echo -e "│ 🔒 SSL Configuration:"
-    echo -e "│    • Certificate ID: ${COLOR_YELLOW}$cert_id${CoR}"
-    echo -e "│    • SSL Forced: ${COLOR_YELLOW}$(echo "$response" | jq -r '.ssl_forced')${CoR}"
-    echo -e "│    • HTTP/2: ${COLOR_YELLOW}$(echo "$response" | jq -r '.http2_support')${CoR}"
-    echo -e "│    • HSTS: ${COLOR_YELLOW}$(echo "$response" | jq -r '.hsts_enabled')${CoR}"
-    else
-        echo -e "│ 🔓 SSL: ${COLOR_RED}Not configured${CoR}"
-    fi
-    # Features
+    echo -e "│    • Certificate ID: ${COLOR_ORANGE}$(echo "$response" | jq -r '.certificate_id')${CoR}"
+    echo -e "│    • SSL Forced: $(colorize_boolean $(echo "$response" | jq -r '.ssl_forced | if . then "true" else "false" end'))"
+    echo -e "│    • HTTP/2: $(colorize_boolean $(echo "$response" | jq -r '.http2_support | if . then "true" else "false" end'))"
+    echo -e "│    • HSTS: $(colorize_boolean $(echo "$response" | jq -r '.hsts_enabled | if . then "true" else "false" end'))"
     echo -e "│ 🛠️ Features:"
-    echo -e "│    • Block Exploits: ${COLOR_YELLOW}$(echo "$response" | jq -r '.block_exploits')${CoR}"
-    echo -e "│    • Caching: ${COLOR_YELLOW}$(echo "$response" | jq -r '.caching_enabled')${CoR}"
-    echo -e "│    • Websocket Upgrade: ${COLOR_YELLOW}$(echo "$response" | jq -r '.allow_websocket_upgrade')${CoR}"
-    # Access List
-    local access_list_id=$(echo "$response" | jq -r '.access_list_id')
-    if [ "$access_list_id" != "null" ]; then
-        echo -e "│ 🔑 Access List ID: ${COLOR_YELLOW}$access_list_id${CoR}"
+    echo -e "│    • Block Exploits: $(colorize_boolean $(echo "$response" | jq -r '.block_exploits | if . then "true" else "false" end'))"
+    echo -e "│    • Caching: $(colorize_boolean $(echo "$response" | jq -r '.caching_enabled | if . then "true" else "false" end'))"
+    echo -e "│    • Websocket Upgrade: $(colorize_boolean $(echo "$response" | jq -r '.websockets_enabled | if . then "true" else "false" end'))"
+    echo -e "│ 🔑 Access List ID: ${COLOR_ORANGE}$(echo "$response" | jq -r '.access_list_id')${CoR}"
+    
+    # Vérifier et afficher la configuration avancée
+    if [ "$(echo "$response" | jq -r '.advanced_config')" != "null" ]; then
+        echo -e "│ ⚙️ Advanced Config: ${COLOR_GREEN}Yes${CoR}"
+        echo -e "│"
+        echo "$response" | jq -r '.advanced_config' | while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                echo -e "│ ${COLOR_GRAY}$line${CoR}"
+            else
+                echo -e "│"
+            fi
+        done
+    else
+        echo -e "│ ⚙️ Advanced Config: ${COLOR_RED}No${CoR}"
     fi
-    # Custom Locations
-    local locations=$(echo "$response" | jq -r '.locations')
-    if [ "$locations" != "[]" ]; then
-        echo -e "│ 📍 Custom Locations:"
-        echo "$response" | jq -r '.locations[] | "│   • Path: \(.path)\n│     Handler: \(.handler)"'
-    fi
-    # Advanced Config
-    local advanced_config=$(echo "$response" | jq -r '.advanced_config')
-    if [ -n "$advanced_config" ] && [ "$advanced_config" != "null" ]; then
-        echo -e "│ ⚙️ Advanced Config: ${COLOR_YELLOW}Yes${CoR}"
-    fi
-    echo -e "└────────────────────────────────────\n"
+    
+    echo -e "└────────────────────────────────────"
     return 0
 }
 
