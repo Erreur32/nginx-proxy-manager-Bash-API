@@ -31,29 +31,27 @@
 > 
 > V2.6.0 introduced some issues. A fix has been tested and pushed,  but user feedback is required to ensure everything works as expected with V2.7.0.
 
-
-
 ## Description
+🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, user management, and configuration display, while also integrating a backup system (BACKUP) with a user-friendly interface.
 
-🛠️ This BASH script enables the management of ![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) through its **API**.
+It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
+⚠️ The RESTORE function is still under development. 🚧
 
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
-⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating **BACKUPS**, and more.
-
- 
-
 ### French description:
-Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
-La fonction RESTORE n'est pas encore terminée.
+Ce script permet de gérer Nginx Proxy Manager via son API de manière simple et efficace. Il offre des fonctionnalités avancées telles que la création de hosts proxy, la gestion des utilisateurs et l'affichage des configurations, tout en intégrant un système de sauvegarde (BACKUP) avec une interface conviviale.
 
-## Reference
-![https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
+Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la gestion des certificats SSL et l'administration complète de vos reverse proxies.
 
+⚠️ La fonction RESTORE est encore en développement. 🚧
 
-# 🚨 Important Notice: Repository History Rewritten 🚨
+## Reference API
+[https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
 
-## ⚠️ Action Required for All Contributors
+## 🚨 Important Notice: Repository History Rewritten
+
+### ⚠️ Action Required for All Contributors (or cloned repo.)
 
 We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
 
@@ -68,12 +66,7 @@ If you have local changes that you **don't want to lose**, consider making a bac
 
 ### ❓ Why Was This Done?
 This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
-
-### 💀 Need Help?
-If you encounter any issues or have questions, feel free to open an **issue** or contact the repository maintainers.
-Thank you for your understanding! 🙌  
 🚀 **Stay secure & happy coding!**
-
 
 ## Prerequisites
 
@@ -438,8 +431,6 @@ Some info of settings in the script with `./npm-api.sh --info`
 
  💡 Use --help to see available commands
     Check --examples for more help examples
-
-
 ```
 
 
@@ -474,8 +465,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
 
 Host proxy info command `--host-show id`
 
-
-```
+```json
  ./npm-api.sh --host-show 1
 
  👉 Full details for proxy host ID: 59...
@@ -512,8 +502,6 @@ Host proxy info command `--host-show id`
 }
 
 ```
-
- 
  
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
