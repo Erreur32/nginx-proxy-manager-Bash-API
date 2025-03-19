@@ -93,7 +93,7 @@ NGINX_PORT="81"
 API_USER="admin@example.com"
 API_PASS="changeme"
 
-# Optional (only if you want in other placer than script directory)
+# Optional (only if you want in other /path than script directory)
 # DATA_DIR="/path/nginx_backup/dir"
 
 ```
