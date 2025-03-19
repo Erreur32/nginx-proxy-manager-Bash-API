@@ -1213,30 +1213,37 @@ list_cert_all() {
         exit 1
     fi
 
-    echo -e "\n 📜 Liste de tous les certificats SSL:"
+    echo -e "\n 📜 SSL Certificates List:"
     
     # Check if there are any certificates
     if [ "$RESPONSE" = "[]" ]; then
-        echo -e " ℹ️ ${COLOR_YELLOW}Aucun certificat trouvé${CoR}"
+        echo -e " ℹ️ ${COLOR_YELLOW}No certificates found${CoR}"
         return 0
     fi
 
     # Process and display all certificates
-    echo "$RESPONSE" | jq -r '.[] | "🔒 ID: \(.id)\n   • Domain(s): \(.domain_names | join(", "))\n   • Provider: \(.provider)\n   • Valid from: \(.valid_from)\n   • Valid to: \(.valid_to)\n   • Status: \(if .expired then "❌ EXPIRED" else "✅ VALID" end)\n"'
-
+    echo "$RESPONSE" | jq -r '.[] | " 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"' | \
+    while IFS= read -r line; do
+        if [[ $line == *"❌ EXPIRED"* ]]; then
+            echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"
+        elif [[ $line == *"✅ VALID"* ]]; then
+            echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"
+        elif [[ $line == *"⚠️ PENDING"* ]]; then
+            echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"
+        else
+            echo -e "$line"
+        fi
+    done
     # Display statistics
     TOTAL_CERTS=$(echo "$RESPONSE" | jq '. | length')
     VALID_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired == false)] | length')
     EXPIRED_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired == true)] | length')
     
-    echo -e "\n📊 Statistiques:"
-    echo -e " • Total des certificats: ${COLOR_CYAN}$TOTAL_CERTS${CoR}"
-    echo -e " • Certificats valides: ${COLOR_GREEN}$VALID_CERTS${CoR}"
-    echo -e " • Certificats expirés: ${COLOR_RED}$EXPIRED_CERTS${CoR}\n"
+    echo -e "\n 📊 Statistics:"
+    echo -e "  • Total certificates: ${COLOR_CYAN}$TOTAL_CERTS${CoR}"
+    echo -e "  • Valid certificates: ${COLOR_GREEN}$VALID_CERTS${CoR}"
+    echo -e "  • Expired certificates: ${COLOR_RED}$EXPIRED_CERTS${CoR}\n"
 }
-
- 
-
 
 ################################
 # Create a new proxy host
@@ -1333,7 +1340,7 @@ create_or_update_proxy_host() {
         -H "Content-Type: application/json; charset=UTF-8" \
         --data-raw "$DATA")
 
-    # Check API response
+     # Check API response
     ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
     if [ -z "$ERROR_MSG" ]; then
         PROXY_ID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
@@ -1341,14 +1348,50 @@ create_or_update_proxy_host() {
         # Si on a demandé de générer un certificat
         if [ "$GENERATE_CERT" = true ]; then
             echo -e " 🔐 Generate SSL certificat ..."
-                DNS_PROVIDER=""
-                DNS_API_KEY=""
-                if [ "$AUTO_YES" = true ]; then
-                    export AUTO_YES=true
+            generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY"
+
+            # Vérifier que le certificat a été créé
+            CERT_CHECK=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+                -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+            
+            CERT_ID=$(echo "$CERT_CHECK" | jq -r --arg domain "$DOMAIN_NAMES" \
+                '.[] | select(.domain_names[] == $domain) | .id' | sort -n | tail -n1)
+
+            if [ -n "$CERT_ID" ]; then
+                echo -e " ✨ Automatic SSL Activation ..."
+                
+                # Mettre à jour le host avec le certificat
+                UPDATE_DATA=$(jq -n \
+                    --arg cert_id "$CERT_ID" \
+                    '{
+                        certificate_id: $cert_id,
+                        ssl_forced: true,
+                        http2_support: true,
+                        hsts_enabled: false,
+                        hsts_subdomains: false,
+                        enabled: true
+                    }')
+
+                UPDATE_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT \
+                    "$BASE_URL/nginx/proxy-hosts/$PROXY_ID" \
+                    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+                    -H "Content-Type: application/json" \
+                    --data "$UPDATE_DATA")
+
+                UPDATE_STATUS=${UPDATE_RESPONSE##*HTTPSTATUS:}
+
+                # Vérifier que la mise à jour a réussi
+                if [ "$UPDATE_STATUS" -eq 200 ]; then
+                    echo -e " ✅ ${COLOR_GREEN}SSL Configuration Complete${CoR}"
+                    echo -e " 📋 SSL Status for $DOMAIN_NAMES:"
+                    echo -e "    ├─ 🔒 SSL: ${COLOR_GREEN}Enabled${CoR}"
+                    echo -e "    ├─ 📜 Certificate ID: $CERT_ID"
+                    echo -e "    ├─ 🚀 HTTP/2: ${COLOR_GREEN}Active${CoR}"
+                    echo -e "    ├─ 🛡️ HSTS: ${COLOR_RED}Disabled${CoR}"
+                    echo -e "    └─ 🌐 HSTS Subdomains: ${COLOR_RED}Disabled${CoR}"
                 fi
-                # On passe ENABLE_SSL à la fonction
-                generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY" "$ENABLE_SSL"
             fi
+        fi
 
         if [ "$METHOD" = "PUT" ]; then
             echo -e "\n ✅ ${COLOR_GREEN}SUCCESS: Proxy host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$PROXY_ID${COLOR_GREEN}) updated successfully! 🎉${CoR}\n"
@@ -2303,6 +2346,7 @@ generate_certificate() {
 ################################
 # Enable SSL for a proxy host
 host_enable_ssl() {
+
       # Default values if not set
   SSL_FORCED=${SSL_FORCED:-true}
   HTTP2_SUPPORT=${HTTP2_SUPPORT:-true}
@@ -3624,6 +3668,20 @@ while [[ "$#" -gt 0 ]]; do
                     export AUTO_YES=true  # Pour que generate_certificate le voit
                 fi
                 generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY" "$ENABLE_SSL"
+                # Récupérer l'ID du host qui vient d'être créé
+                HOST_ID=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+                    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" | \
+                    jq -r --arg domain "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $domain) | .id')
+
+                # Récupérer l'ID du certificat qui vient d'être créé
+                CERT_ID=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+                    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" | \
+                    jq -r --arg domain "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $domain) | .id')
+
+                if [ -n "$HOST_ID" ] && [ -n "$CERT_ID" ]; then
+                    echo -e "\n ✨ Automatic SSL Activation ..."
+                    host_enable_ssl "$HOST_ID" "$CERT_ID"
+                fi                
                 GENERATE_CERT=false
             fi                 
         ;;
