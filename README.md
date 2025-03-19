@@ -30,7 +30,7 @@
 > [!WARNING]
 > The  --restore command is disabled  (a fix is in progress).
 > 
-> V2.6.0 introduced some issues. A fix has been tested and pushed,  but user feedback is required to ensure everything works as expected with V2.7.0.
+
 
 ## Description
 🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, user management, and configuration display, while also integrating a backup system (BACKUP) with a user-friendly interface.
@@ -104,13 +104,6 @@ API_PASS="changeme"
 ./npm-api.sh  --help
 ./npm-api.sh  --show-default 
 ```
-
-> [!NOTE]  
-> **New in version 2.6.0:**
-> - 📊 New dashboard (by default)
-> - 🔐 Improved token management
-> - 📋 Enhanced command display and options
-> - 🎨 More user-friendly interface with icons and colors
 
 ## NEW dashboard
 
@@ -248,7 +241,7 @@ API_PASS="changeme"
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
      -a 'proxy_set_header X-Real-IP $remote_addr;'
 
-   # Custom locations
+ 🛡️ Custom locations:
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
      -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 
@@ -256,17 +249,11 @@ API_PASS="changeme"
    ./npm-api.sh --update-host 42 forward_scheme=https
    ./npm-api.sh --update-host 42 forward_port=8443
 
- 🔧 Advanced Example:
-   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
-
  🛡️ Custom Certificate:
    ./npm-api.sh --generate-cert example.com user@example.com 
    # Note: This will generate a Let's Encrypt certificate only
 
- 🛡️  Custom locations:
-   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
-
-🔖 Full options:
+ 🔖 Full options:
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
 
@@ -510,8 +497,8 @@ Host proxy info command `--host-show id`
 
 We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
 
-### 🛠️ What You Need to Do?
-To avoid any issues, please follow these steps to update your local repository:
+ 🛠️ What You Need to Do?
+ To avoid any issues, please follow these steps to update your local repository:
 
 ```bash
 git fetch --all
@@ -520,9 +507,8 @@ git reset --hard origin/main  # Replace 'main' with your branch name if differen
 If you have local changes that you **don't want to lose**, consider making a backup before running these commands.
 
 ❓ Why Was This Done?
-This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
- 
- 
+ This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
+
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
 - [x] Add documentation on certain functions
