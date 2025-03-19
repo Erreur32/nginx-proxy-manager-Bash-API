@@ -11,7 +11,6 @@
 
 ## Table of Contents
 
-
 1. [Description](#description)
 2. [Reference API](#reference-api)
 3. [Prerequisites](#prerequisites)
@@ -20,11 +19,12 @@
 6. [Usage](#usage)
 7. [Options](#options)
 8. [Examples](#examples)
-   - [Info script](#info)
-   - [List HOST](#list)
-   - [Enable SSL](#ssl)
-   - [Update specific fields of an existing proxy host](#update)  
-9. [Important Notice](#-important-notice-repository-history-rewritten)
+   - [Backup](#backup)
+   - [Script Info](#script-info)
+   - [Host List](#host-list)
+   - [SSL Enable](#host-ssl-enable)
+   - [Host Update](#host-update)
+9. [Important Notice](#important-notice-repository-history-rewritten)
 10. [TODO](#todo)
 
 > [!WARNING]
@@ -57,12 +57,15 @@ Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la
 
 The excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
 
-Required basic dependencies. 
-  > The script will automatically check if they are installed and will download them if necessary:
+
+<details>
+<summary>Required basic dependencies.</summary>
+  The script will automatically check if they are installed and will download them if necessary:
 
 - `curl`
 - `jq`
 
+</details>
 
 ## Installation 
 ```bash
@@ -71,10 +74,6 @@ chmod +x npm-api.sh
 # Run the script.
 ./npm-api.sh
 ```
-
-
-> [!NOTE]
-> With the new `V2.0.0`, some command arguments have been changed to be simpler, and need to set `BASE_DIR` variable to store `Tokens` and `Backups`.
 
 
 ## Settings
@@ -195,17 +194,23 @@ API_PASS="changeme"
 ## Examples
 
 ```bash
-  📦 Backup First !
+ 📦 Backup First !
    ./npm-api.sh --backup
 
  🌐 Host Creation:
-   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 (check default values below)
-   ./npm-api.sh --info
-   ./npm-api.sh --show-default
-   ./npm-api.sh --create-user newuser password123 user@example.com
-   ./npm-api.sh --delete-user 'username'
-   ./npm-api.sh --host-list
-   ./npm-api.sh --host-ssl-enable 10
+   # Basic host creation
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080
+
+   # Create host with SSL certificate and enable SSL (all-in-one)
+   ./npm-api.sh --host-create sub.domain.com -i 192.168.0.1 -p 80 --generate-cert --host-ssl-enable -y
+
+   # Create host with custom options
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+     -f https \         # Forward scheme
+     -b true \          # Block exploits
+     -c true \          # Enable caching
+     -w true \          # Enable websocket
+     -y                 # Auto confirm
 
  🤖 Automatic operations (no prompts):
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -y
@@ -213,30 +218,43 @@ API_PASS="changeme"
    ./npm-api.sh --host-ssl-enable 10 -y   
 
  🔍 Information and Status:
-   ./npm-api.sh --info                   # Show script configuration and status
-   ./npm-api.sh --check-token            # Verify token validity
-   ./npm-api.sh --host-search domain.com # Search for a specific domain
+   ./npm-api.sh --info                      # Show configuration and dashboard
+   ./npm-api.sh --show-default              # Show default settings
+   ./npm-api.sh --check-token               # Verify token validity
+   ./npm-api.sh --host-search domain.com    # Search for a specific domain
+   ./npm-api.sh --host-list                 # List all hosts
+   ./npm-api.sh --host-list-full            # List hosts with details
+   ./npm-api.sh --host-show 42              # Show specific host details
 
- 🔄 Host Management:
-   # Enable/Disable hosts
-   ./npm-api.sh --host-enable 42
-   ./npm-api.sh --host-disable 42
+ 🔒 SSL Management:
+   ./npm-api.sh --list-ssl-cert                 # List all certificates
+   ./npm-api.sh --generate-cert domain.com      # Generate Let's Encrypt cert
+   ./npm-api.sh --delete-cert domain.com        # Delete certificate
+   ./npm-api.sh --host-ssl-enable 42            # Enable SSL for host
+   ./npm-api.sh --host-ssl-enable 42 33         # Enable SSL with specific cert ID
 
  🛡️ Access Control Lists:
    ./npm-api.sh --list-access                   # List all access lists
    ./npm-api.sh --host-acl-enable 42,5          # Enable ACL ID 5 for host 42
    ./npm-api.sh --host-acl-disable 42           # Disable ACL for host 42
 
- 🔒 SSL Management:
-   ./npm-api.sh --list-ssl-cert                 # List all SSL certificates
-   ./npm-api.sh --delete-cert domain.com        # Delete certificate for domain
+ 👥 User Management:
+   ./npm-api.sh --create-user newuser password123 user@example.com
+   ./npm-api.sh --delete-user 'username'
+   ./npm-api.sh --list-users
 
- 🔄 Update Specific Fields:
-   # Update individual fields without recreating the entire host
+ 🔧 Advanced Examples:
+   # Custom Nginx configuration
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+     -a 'proxy_set_header X-Real-IP $remote_addr;'
+
+   # Custom locations
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+     -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+
+   # Update specific fields
    ./npm-api.sh --update-host 42 forward_scheme=https
    ./npm-api.sh --update-host 42 forward_port=8443
-   ./npm-api.sh --update-host 42 block_exploits=true
-   ./npm-api.sh --update-host 42 allow_websocket_upgrade=true
 
  🔧 Advanced Example:
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
@@ -257,10 +275,6 @@ API_PASS="changeme"
 ```bash
 ./npm-api.sh --backup
 ```
-
-
-
- 
 
 ### 💾 Backup Operations
 
