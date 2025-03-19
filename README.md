@@ -84,8 +84,10 @@ To ensure the script is functional, edit these 4 variables (mandatory).
 ```bash
 # nginx_proxy_manager_cli.conf
 
-## Nginx proxy IP address (your Nginx IP)
+## Nginx proxy IP address (your Nginx IP/port)
 NGINX_IP="127.0.0.1"
+NGINX_PORT="81"
+
 ## Existing user (user and password) on NPM
 API_USER="admin@example.com"
 API_PASS="changeme"
