@@ -11,8 +11,9 @@
 
 ## Table of Contents
 
+
 1. [Description](#description)
-2. [Reference API](#reference)
+2. [Reference API](#reference-api)
 3. [Prerequisites](#prerequisites)
 4. [Installation](#installation)
 5. [Settings](#settings)
@@ -22,9 +23,9 @@
    - [Info script](#info)
    - [List HOST](#list)
    - [Enable SSL](#ssl)
-   - [update specific fields of an existing proxy host](#update)  
-12. [Screens](#screens)
-13. [TODO](#todo)
+   - [Update specific fields of an existing proxy host](#update)  
+9. [Important Notice](#-important-notice-repository-history-rewritten)
+10. [TODO](#todo)
 
 > [!WARNING]
 > The  --restore command is disabled  (a fix is in progress).
