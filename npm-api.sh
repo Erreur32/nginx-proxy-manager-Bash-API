@@ -485,14 +485,19 @@ pad() {
 ################################
 # Colorize boolean values for display
 colorize_boolean() {
-  local value=$1
-  if [ "$value" = "true" ] || [ "$value" = "Enabled" ] || [ "$value" = https ]; then
-    echo -e "${COLOR_GREEN}$value${CoR}"
-  elif [ "$value" = "false" ] || [ "$value" = "Disabled" ] || [ "$value" = http ]; then
-    echo -e "${COLOR_YELLOW}$value${CoR}"
-  else
-    echo -e "${COLOR_RED}$value${CoR}"
-  fi
+    local value="$1"
+    if [ "$value" = "true" ]; then
+        echo "${COLOR_GREEN}true${CoR}"
+    elif [ "$value" = "false" ]; then
+        echo "${COLOR_RED}false${CoR}"
+    else
+        # Si la valeur n'est ni true ni false, la convertir en booléen
+        if [ "$value" = "1" ] || [ "$value" = "yes" ] || [ "$value" = "on" ]; then
+            echo "${COLOR_GREEN}true${CoR}"
+        else
+            echo "${COLOR_RED}false${CoR}"
+        fi
+    fi
 }
 
 ################################
