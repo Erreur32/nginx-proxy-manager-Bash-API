@@ -491,7 +491,7 @@ colorize_boolean() {
     elif [ "$value" = "false" ]; then
         echo "${COLOR_RED}false${CoR}"
     else
-        # Si la valeur n'est ni true ni false, la convertir en booléen
+        # If value is neither true nor false, convert to boolean
         if [ "$value" = "1" ] || [ "$value" = "yes" ] || [ "$value" = "on" ]; then
             echo "${COLOR_GREEN}true${CoR}"
         else
