@@ -35,38 +35,22 @@
 🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, user management, and configuration display, while also integrating a backup system (BACKUP) with a user-friendly interface.
 
 It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
+
 ⚠️ The RESTORE function is still under development. 🚧
 
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
-### French description:
+<details>
+<summary>French description:</summary>
 Ce script permet de gérer Nginx Proxy Manager via son API de manière simple et efficace. Il offre des fonctionnalités avancées telles que la création de hosts proxy, la gestion des utilisateurs et l'affichage des configurations, tout en intégrant un système de sauvegarde (BACKUP) avec une interface conviviale.
 
 Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la gestion des certificats SSL et l'administration complète de vos reverse proxies.
 
 ⚠️ La fonction RESTORE est encore en développement. 🚧
+</details>
 
 ## Reference API
 [https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
-
-## 🚨 Important Notice: Repository History Rewritten
-
-### ⚠️ Action Required for All Contributors (or cloned repo.)
-
-We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
-
-### 🛠️ What You Need to Do?
-To avoid any issues, please follow these steps to update your local repository:
-
-```bash
-git fetch --all
-git reset --hard origin/main  # Replace 'main' with your branch name if different
-```
-If you have local changes that you **don't want to lose**, consider making a backup before running these commands.
-
-### ❓ Why Was This Done?
-This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
-🚀 **Stay secure & happy coding!**
 
 ## Prerequisites
 
@@ -101,8 +85,10 @@ To ensure the script is functional, edit these 4 variables (mandatory).
 ```bash
 # npm-api.conf
 
-## Nginx proxy IP address (your Nginx IP)
+## Nginx proxy IP address (your Nginx IP/port)
 NGINX_IP="127.0.0.1"
+NGINX_PORT="81"
+
 ## Existing user (user and password) on NPM
 API_USER="admin@example.com"
 API_PASS="changeme"
@@ -502,6 +488,25 @@ Host proxy info command `--host-show id`
 }
 
 ```
+
+### Important Notice: Repository History Rewritten
+
+ ⚠️ Action Required for All Contributors (or cloned repo.)
+
+We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
+
+### 🛠️ What You Need to Do?
+To avoid any issues, please follow these steps to update your local repository:
+
+```bash
+git fetch --all
+git reset --hard origin/main  # Replace 'main' with your branch name if different
+```
+If you have local changes that you **don't want to lose**, consider making a backup before running these commands.
+
+❓ Why Was This Done?
+This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
+ 
  
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
