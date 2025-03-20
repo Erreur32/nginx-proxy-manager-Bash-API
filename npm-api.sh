@@ -5,7 +5,7 @@
 #   By Erreur32 - July 2024
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 
-VERSION="2.8.0"
+VERSION="3.0.0"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -1353,6 +1353,9 @@ create_or_update_proxy_host() {
         # Si on a demandé de générer un certificat
         if [ "$GENERATE_CERT" = true ]; then
             echo -e " 🔐 Generate SSL certificat ..."
+            # Initialiser les variables DNS
+            DNS_PROVIDER=""
+            DNS_API_KEY=""
             generate_certificate "$DOMAIN_NAMES" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_API_KEY"
 
             # Vérifier que le certificat a été créé
@@ -2118,6 +2121,38 @@ generate_certificate() {
     echo -e "\n 📧 Using default email: ${COLOR_YELLOW}$EMAIL${CoR}"
   fi
   check_token_notverbose
+
+  echo -e "\n ${COLOR_CYAN}🔍${CoR} Verifying domain accessibility..."
+    if ! curl -s -I "http://$DOMAIN" > /dev/null 2>&1; then
+        echo -e " ${COLOR_RED}❌${CoR} Domain ${COLOR_YELLOW}$DOMAIN${CoR} is not accessible via HTTP."
+        echo -e " ${COLOR_CYAN}💡${CoR} Please ensure:"
+        echo -e "  • DNS records are properly configured"
+        echo -e "  • Domain is pointing to your server"
+        echo -e "  • Port 80 is open and accessible"
+        echo -e "  • Nginx Proxy Manager is properly configured"
+        echo -e "  • No firewall is blocking access"
+        
+        echo -e "\n ${COLOR_YELLOW}🔍${CoR} Checking DNS records..."
+        if command -v dig >/dev/null 2>&1; then
+            echo -e "  • A record:"
+            dig +short A "$DOMAIN" | while read -r ip; do
+                echo -e "    └─ $ip"
+            done
+            echo -e "  • CNAME record:"
+            dig +short CNAME "$DOMAIN" | while read -r cname; do
+                echo -e "    └─ $cname"
+            done
+        else
+            echo -e " ${COLOR_YELLOW}⚠️${CoR} dig command not found. Please install dnsutils package."
+        fi
+        
+        echo -e "\n ${COLOR_CYAN}💡${CoR} You can test domain accessibility with:"
+        echo -e " ${COLOR_GREEN}curl -I http://$DOMAIN${CoR}"
+        echo -e " ${COLOR_GREEN}dig $DOMAIN${CoR}"
+        exit 1
+    else
+        echo -e " ${COLOR_GREEN}✅${CoR} Domain ${COLOR_YELLOW}$DOMAIN${CoR} is accessible via HTTP"
+    fi
   # Check if domain exists in NPM proxy hosts
   echo -e "\n ${COLOR_CYAN}🔍${CoR} Checking if domain exists in NPM..."
   PROXY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
@@ -2167,12 +2202,15 @@ generate_certificate() {
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
   
+  # Check for existing certificates
+  BASE_DOMAIN="${DOMAIN#\*\.}"
+  
   # Check for exact match and wildcard matches
-  EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
+  EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg domain "$BASE_DOMAIN" \
     '.[] | select(
-      (.domain_names[] == $DOMAIN) or
-      (.domain_names[] | startswith("*.") and ($DOMAIN | endswith(.[2:]))) or
-      ($DOMAIN | startswith("*.") and (.domain_names[] | endswith(.[2:])))
+      (.domain_names[] == $domain) or
+      (.domain_names[] | startswith("*.") and ($domain | endswith(.[2:]))) or
+      ($domain | startswith("*.") and (.domain_names[] | endswith(.[2:])))
     )')
 
   if [ -n "$EXISTING_CERT" ]; then
@@ -2325,27 +2363,42 @@ generate_certificate() {
         echo -e " ${COLOR_CYAN}$0 --host-ssl-enable $DOMAIN_EXISTS${CoR}"
     fi
   else
-
-
     echo -e "\n ${COLOR_RED}❌ Certificate generation failed!${CoR}"
     ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
     echo -e " ${COLOR_RED}⛔${CoR} Error: ${COLOR_RED}$ERROR_MSG${CoR}"
-    echo -e "\n ${COLOR_CYAN}🔍 Troubleshooting suggestions:${CoR}"
+    
+    # Extraire les détails de débogage si disponibles
+    DEBUG_STACK=$(echo "$HTTP_BODY" | jq -r '.debug.stack[]? // empty')
+    if [ -n "$DEBUG_STACK" ]; then
+        echo -e "\n ${COLOR_YELLOW}🔍${CoR} Debug Stack:"
+        echo "$DEBUG_STACK" | while read -r line; do
+            echo -e "  • ${COLOR_YELLOW}$line${CoR}"
+        done
+    fi
+
+    echo -e "\n ${COLOR_CYAN}🔍${CoR} Troubleshooting suggestions:"
     echo -e "  • Verify domain DNS records are properly configured"
     echo -e "  • Ensure domain is accessible via HTTP/HTTPS"
     echo -e "  • Check if Let's Encrypt rate limits are not exceeded"
-    if [ -n "$DNS_PROVIDER" ]; then
-      echo -e "  • Verify DNS provider credentials"
-      echo -e "  • Allow time for DNS propagation (up to 24 hours)"
-    fi
- 
-      echo -e " 📋 Debug Information:"
-      echo -e "  • HTTP Status: $HTTP_STATUS"
-      echo -e "  • Response: $HTTP_BODY"
-      echo -e "  • Request Data: $DATA"
+    echo -e "  • Verify Nginx Proxy Manager is properly configured"
+    echo -e "  • Check if port 80 is open and accessible"
+    echo -e "  • Ensure no firewall is blocking access"
+    echo -e "  • Check Nginx Proxy Manager logs for more details"
+    
+    echo -e "\n ${COLOR_CYAN}💡${CoR} You can try:"
+    echo -e "  • Wait a few minutes and try again (DNS propagation)"
+    echo -e "  • Check Nginx Proxy Manager logs:"
+    echo -e "    ${COLOR_GREEN}docker logs nginx-proxy-manager${CoR}"
+    echo -e "  • Check Let's Encrypt logs:"
+    echo -e "    ${COLOR_GREEN}docker exec nginx-proxy-manager cat /tmp/letsencrypt-log/letsencrypt.log${CoR}"
+
+    echo -e "\n 📋 Debug Information:"
+    echo -e "  • HTTP Status: $HTTP_STATUS"
+    echo -e "  • Response: $HTTP_BODY"
+    echo -e "  • Request Data: $DATA"
      
     exit 1
-  fi
+fi
 }
 
 ################################
@@ -3356,7 +3409,7 @@ while [[ "$#" -gt 0 ]]; do
                 echo -e " Usage: ${COLOR_ORANGE}$0 --user-create <username> <password> <email>${CoR}"
                 echo -e " Example:"
                 echo -e "   ${COLOR_GREEN}$0 --user-create john secretpass john@domain.com${CoR}\n"
-                exit 1
+    exit 1
             fi
 
             USERNAME="$1"
@@ -3701,6 +3754,7 @@ while [[ "$#" -gt 0 ]]; do
                 echo -e "    Usage: $0 --host-ssl-enable <host_id>"                
                 exit 1
             fi
+            host_enable_ssl "$HOST_ID"
             ;;
         --host-ssl-disable)
             shift
@@ -3711,7 +3765,7 @@ while [[ "$#" -gt 0 ]]; do
                 echo -e "\n ⛔ ${COLOR_RED}The --host-ssl-disable option requires a host 🆔.${CoR}"
                 exit 1
             fi
-            DISABLE_SSL=true
+            host_disable_ssl "$HOST_ID"
             ;;
         --generate-cert)
             shift
