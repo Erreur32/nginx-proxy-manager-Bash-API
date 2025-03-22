@@ -174,7 +174,7 @@ API_PASS="changeme"
    --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
    --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
    --list-ssl-cert                       List All SSL certificates availables (JSON)
-   --generate-cert domain email          Generate certificate for the given domain and email
+   --cert-generate domain email          Generate certificate for the given domain and email
    --delete-cert domain                  Delete   certificate for the given domain
    --list-access                         List all available access lists (ID and name)
    --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
@@ -195,7 +195,7 @@ API_PASS="changeme"
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080
 
    # Create host with SSL certificate and enable SSL (all-in-one)
-   ./npm-api.sh --host-create sub.domain.com -i 192.168.0.1 -p 80 --generate-cert --host-ssl-enable -y
+   ./npm-api.sh --host-create sub.domain.com -i 192.168.0.1 -p 80 --cert-generate --host-ssl-enable -y
 
    # Create host with custom options
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
@@ -220,11 +220,51 @@ API_PASS="changeme"
    ./npm-api.sh --host-show 42              # Show specific host details
 
  🔒 SSL Management:
-   ./npm-api.sh --list-ssl-cert                 # List all certificates
-   ./npm-api.sh --generate-cert domain.com      # Generate Let's Encrypt cert
-   ./npm-api.sh --delete-cert domain.com        # Delete certificate
-   ./npm-api.sh --host-ssl-enable 42            # Enable SSL for host
-   ./npm-api.sh --host-ssl-enable 42 33         # Enable SSL with specific cert ID
+   # List all certificates
+   ./npm-api.sh --list-ssl-cert                 
+   
+   # Generate standard Let's Encrypt certificate
+   ./npm-api.sh --cert-generate example.com --cert-email admin@example.com
+   
+   # Generate wildcard certificate with Cloudflare
+   ./npm-api.sh --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider cloudflare \
+     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
+
+   # Delete certificate
+   ./npm-api.sh --delete-cert domain.com        
+   
+   # Enable SSL for host
+   ./npm-api.sh --host-ssl-enable 42            
+   
+   # Enable SSL with specific cert ID
+   ./npm-api.sh --host-ssl-enable 42 33         
+
+ 🌟 Complete Examples with Wildcard Certificates:
+   # Create host with wildcard certificate using Cloudflare DNS
+   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+     --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider cloudflare \
+     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}' \
+     --host-ssl-enable -y
+
+   # Same with DigitalOcean DNS
+   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+     --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider digitalocean \
+     --dns-credentials '{"dns_digitalocean_token":"your_token"}' \
+     --host-ssl-enable -y
+
+   # Same with GoDaddy DNS
+   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+     --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider godaddy \
+     --dns-credentials '{"dns_godaddy_key":"your_key","dns_godaddy_secret":"your_secret"}' \
+     --host-ssl-enable -y
 
  🛡️ Access Control Lists:
    ./npm-api.sh --list-access                   # List all access lists
@@ -249,10 +289,7 @@ API_PASS="changeme"
    ./npm-api.sh --update-host 42 forward_scheme=https
    ./npm-api.sh --update-host 42 forward_port=8443
 
- 🛡️ Custom Certificate:
-   ./npm-api.sh --generate-cert example.com user@example.com 
-   # Note: This will generate a Let's Encrypt certificate only
-
+ 
  🔖 Full options:
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```

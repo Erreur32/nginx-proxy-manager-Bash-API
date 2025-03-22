@@ -5,6 +5,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 ## [3.0.0] - 2025-03-15
 
 ### 🔄 Breaking Changes
+
 - **Host Creation Command Simplified**
   ```diff
   - OLD: ./npm-api.sh -d example.com -i 192.168.1.10 -p 8080
@@ -13,7 +14,9 @@ All notable changes to the npm-api.sh script will be documented in this file.
   The `-d` option has been removed in favor of a more intuitive positional argument after `--host-create`
 
 ### New Commands (2.8.0)
+
 - `--access-list`: List all available access lists
+- `--access-list-show <id>`: Show detailed information for a specific access list
 - `--access-list-create`: Create a new access list
 - `--access-list-update`: Update an existing access list
 - `--access-list-delete`: Delete an access list
@@ -22,6 +25,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 
 
 ### Renamed Commands
+
 - `--list-ssl-cert` → `--list-cert`
 - `--create-user` → `--user-create`
 - `--delete-user` → `--user-delete`
@@ -30,11 +34,13 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - `--update-host` → `--host-update`
 
 ### Enhanced Commands
+
 - `--generate-cert`: Added support for wildcard certificates and DNS challenges
   - New parameters: `dns-provider` and `dns-api-key`
   - Support for multiple DNS providers (Dynu, Cloudflare, DigitalOcean, etc.)
 
 ### Syntax Changes
+
 - Host-related commands now consistently use the `--host-` prefix
 - User-related commands now consistently use the `--user-` prefix
 - Certificate-related commands now consistently use the `--cert-` prefix
@@ -56,7 +62,6 @@ All notable changes to the npm-api.sh script will be documented in this file.
   * HTTP/2 Support
   * HSTS
   * HSTS Subdomains
-
 
 - **Enhanced Host Creation**
   - Simplified command syntax with positional domain argument
@@ -82,13 +87,20 @@ All notable changes to the npm-api.sh script will be documented in this file.
   - DNS challenge management for wildcard certificates
   - Support for multiple DNS providers (Cloudflare, DigitalOcean, etc.)
 
-- New Access List Management Interface:
-  - Interactive access list creation
-  - Basic authentication support
-  - IP whitelist management
-  - Rule satisfaction options (ANY/ALL)
+- **Enhanced Access List Management**:
+  - Detailed view for individual access lists
+  - Colored output for better readability
+  - Display of users and IP counts
+  - Clear visualization of allow/deny rules
+  - Authentication status indicators
+  - Satisfaction mode display (Any/All)
+  - Proxy host count integration
+  - Improved formatting and layout
+  - Better error handling for null values
+  - Comprehensive legend for status indicators
 
 ### 🛠️ Code Optimizations
+
 - Removed redundant parameter validations
 - Streamlined host creation logic
 - Unified error message format
@@ -103,28 +115,37 @@ All notable changes to the npm-api.sh script will be documented in this file.
   - Better error handling
   - Advanced configuration support
 
+- Improved access list display with:
+  - Dynamic column sizing
+  - Proper null value handling
+  - Efficient data processing
+  - Better color management
+  - Enhanced table formatting
+
 ### 📚 Documentation
-- Updated help messages with new command syntax
-- Added more detailed examples
-- Improved parameter descriptions
-- Better organization of command options
+
+- Updated access list command documentation:
+  - Added examples for detailed view
+  - Improved command descriptions
+  - Better parameter explanations
 
 ### 🔐 Security
+
 - Enhanced input validation
 - Better parameter sanitization
 - Improved error handling for invalid inputs
 
 ### 🛠️ Fixes and Optimizations
+
 - Fixed SSL certificate management bugs
 - Improved user input validation
 - Optimized API requests
 - Enhanced HTTP error handling
 
-
-
 ## [2.7.0] - 2025-03-08
 
 ### Added
+
 - DNS Challenge Support
   - Added support for multiple DNS providers (Dynu, Cloudflare, DigitalOcean, etc.)
   - Implemented automatic DNS challenge detection for wildcard certificates
@@ -142,6 +163,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
   - Enhanced certificate search to match wildcard patterns
 
 ### Changed
+
 - Command Structure
   - Modified --generate-cert command to accept DNS parameters after email:
     ```bash
@@ -159,6 +181,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
   - Added clarification for supported DNS providers
 
 ### Improved
+
 - Error Handling
   - Added validation for DNS challenge parameters
   - Enhanced error messages for certificate operations
