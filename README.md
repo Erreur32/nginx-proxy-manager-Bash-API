@@ -149,6 +149,7 @@ API_PASS="changeme"
    -c CACHING_ENABLED                    Enable caching (true/false, default: false)
    -b BLOCK_EXPLOITS                     Block exploits (true/false, default: true)
    -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
+   -h HTTP2_SUPPORT                      Enable HTTP/2 support (true/false, default: true)
    -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)
    -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
    -y                                    Automatic yes prompts, yes sir!
@@ -174,11 +175,14 @@ API_PASS="changeme"
    --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
    --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
    --list-ssl-cert                       List All SSL certificates availables (JSON)
-   --cert-generate domain email          Generate certificate for the given domain and email
-   --delete-cert domain                  Delete   certificate for the given domain
+   --cert-generate domain [email] [dns_provider] [dns_credentials] [-y]  Generate certificate for the given domain and email
+   --delete-cert domain                  Delete certificate for the given domain
    --list-access                         List all available access lists (ID and name)
    --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
    --host-acl-disable id                 Disable ACL for a proxy host by ID
+   --access-list-create                  Create a new access list with name and rules
+   --access-list-update id               Update an existing access list by ID
+   --access-list-delete id               Delete an access list by ID (requires confirmation unless -y is used)
    --update-host id field=value          Modify any field on existing entry host
    --help                                Display this help
 
@@ -192,10 +196,13 @@ API_PASS="changeme"
 
  🌐 Host Creation:
    # Basic host creation
-   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080
+   ./npm-api.sh --host-create domain.com -i IP -p PORT [-b true/false] [-c true/false] [-w true/false] [-h true/false]
 
    # Create host with SSL certificate and enable SSL (all-in-one)
-   ./npm-api.sh --host-create sub.domain.com -i 192.168.0.1 -p 80 --cert-generate --host-ssl-enable -y
+   ./npm-api.sh --host-create domain.com -i IP -p PORT [options] --cert-generate --host-ssl-enable -y
+
+   # Create host with SSL certificate and enable SSL (with specific domain)
+   ./npm-api.sh --host-create domain.com -i IP -p PORT [options] --cert-generate domain.com --host-ssl-enable -y
 
    # Create host with custom options
    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
@@ -203,6 +210,7 @@ API_PASS="changeme"
      -b true \          # Block exploits
      -c true \          # Enable caching
      -w true \          # Enable websocket
+     -h true \          # Enable HTTP/2
      -y                 # Auto confirm
 
  🤖 Automatic operations (no prompts):
@@ -222,10 +230,8 @@ API_PASS="changeme"
  🔒 SSL Management:
    # List all certificates
    ./npm-api.sh --list-ssl-cert                 
-   
    # Generate standard Let's Encrypt certificate
-   ./npm-api.sh --cert-generate example.com --cert-email admin@example.com
-   
+   ./npm-api.sh --cert-generate domain.com [email] [dns_provider] [dns_credentials] [-y]
    # Generate wildcard certificate with Cloudflare
    ./npm-api.sh --cert-generate "*.example.com" \
      --cert-email admin@example.com \
@@ -234,12 +240,10 @@ API_PASS="changeme"
 
    # Delete certificate
    ./npm-api.sh --delete-cert domain.com        
-   
    # Enable SSL for host
-   ./npm-api.sh --host-ssl-enable 42            
-   
-   # Enable SSL with specific cert ID
-   ./npm-api.sh --host-ssl-enable 42 33         
+   ./npm-api.sh --host-ssl-enable HOST_ID            
+   # Generate certificate and enable SSL for existing host
+   ./npm-api.sh --cert-generate domain.com --host-ssl-enable -y
 
  🌟 Complete Examples with Wildcard Certificates:
    # Create host with wildcard certificate using Cloudflare DNS
@@ -267,9 +271,36 @@ API_PASS="changeme"
      --host-ssl-enable -y
 
  🛡️ Access Control Lists:
-   ./npm-api.sh --list-access                   # List all access lists
-   ./npm-api.sh --host-acl-enable 42,5          # Enable ACL ID 5 for host 42
-   ./npm-api.sh --host-acl-disable 42           # Disable ACL for host 42
+   # List all access lists
+   ./npm-api.sh --list-access                   
+   # Show detailed information for specific access list
+   ./npm-api.sh --access-list-show 123  
+   # Create a basic access list
+   ./npm-api.sh --access-list-create "office" --satisfy any
+   # Create access list with authentication
+   ./npm-api.sh --access-list-create "secure_area" --satisfy all --pass-auth true
+   # Create access list with users
+   ./npm-api.sh --access-list-create "dev_team" --users "john,jane,bob" --pass-auth true
+   # Create access list with IP rules
+   ./npm-api.sh --access-list-create "internal" --allow "192.168.1.0/24" --deny "192.168.1.100"
+   # Create comprehensive access list
+   ./npm-api.sh --access-list-create "full_config" \
+     --satisfy all \
+     --pass-auth true \
+     --users "admin1,admin2" \
+     --allow "10.0.0.0/8,172.16.0.0/12" \
+     --deny "10.0.0.50,172.16.1.100"
+   
+   # Update an existing access list
+   ./npm-api.sh --access-list-update 42        
+   # Delete an access list (with confirmation)
+   ./npm-api.sh --access-list-delete 42        
+   # Delete an access list (skip confirmation)
+   ./npm-api.sh --access-list-delete 42 -y     
+   # Enable ACL for a host
+   ./npm-api.sh --host-acl-enable 42,5         # Enable ACL ID 5 for host 42
+   # Disable ACL for a host
+   ./npm-api.sh --host-acl-disable 42          # Disable ACL for host 42
 
  👥 User Management:
    ./npm-api.sh --create-user newuser password123 user@example.com
@@ -560,7 +591,10 @@ If you have local changes that you **don't want to lose**, consider making a bac
 ## Credits & Thanks
 
 Special thanks to:
+
 - [@ichbinder](https://github.com/ichbinder) for implementing the `-y` parameter for automatic confirmations
+
+- 🙏 **Special thanks to [zafar-2020](https://github.com/zafar-2020)** for his valuable help with testing and reporting issues during the development of version 3.0.0!
 
 ## License
 

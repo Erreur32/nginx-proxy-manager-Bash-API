@@ -23,6 +23,22 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - `--list-cert`: List certificates filtered by domain name
 - `--list-cert-all`: List all SSL certificates
 
+### New Long Options Format
+
+- Certificate Generation:
+  ```diff
+  - OLD: ./npm-api.sh --cert-generate example.com admin@example.com
+  + NEW: ./npm-api.sh --cert-generate example.com --cert-email admin@example.com
+  ```
+
+- Wildcard Certificate with DNS Challenge:
+  ```diff
+  - OLD: ./npm-api.sh --cert-generate "*.example.com" admin@example.com --dns-provider cloudflare --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
+  + NEW: ./npm-api.sh --cert-generate "*.example.com" \
+  +      --cert-email admin@example.com \
+  +      --dns-provider cloudflare \
+  +      --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
+  ```
 
 ### Renamed Commands
 
@@ -141,6 +157,11 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - Improved user input validation
 - Optimized API requests
 - Enhanced HTTP error handling
+
+### 🙏 Remerciements
+
+Thanks to [zafar-2020](https://github.com/zafar-2020) for the testing and helpful issue reports during the development of this release!
+
 
 ## [2.7.0] - 2025-03-08
 
