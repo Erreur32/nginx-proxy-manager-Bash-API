@@ -31,6 +31,8 @@
 > The  --restore command is disabled  (a fix is in progress).
 > 
 
+# V3.0.0 is out 🚀
+Check the latest release with major improvements and fixes.
 
 ## Description
 🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, user management, and configuration display, while also integrating a backup system (BACKUP) with a user-friendly interface.

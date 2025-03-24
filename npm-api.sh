@@ -28,11 +28,8 @@ VERSION="3.0.0"
 #
 ################################
 
-
-#############################################
 # Optional (for a future version, not use)
 # NGINX_PATH_DOCKER="/home/docker/nginx_proxy/nginx"
-
 
 #################################
 # Common Examples
