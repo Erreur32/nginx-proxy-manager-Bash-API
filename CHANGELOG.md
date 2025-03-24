@@ -36,7 +36,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 ### Enhanced Commands
 
 - `--generate-cert`: Added support for wildcard certificates and DNS challenges
-  - New parameters: `dns-provider` and `dns-api-key`
+  - Add Wildcard support.
   - Support for multiple DNS providers (Dynu, Cloudflare, DigitalOcean, etc.)
 
 ### Syntax Changes
