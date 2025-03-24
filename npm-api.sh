@@ -2507,10 +2507,9 @@ cert_generate() {
                 echo -e "\n ⛔ ${COLOR_RED}ERROR: Certificate not found after generation${CoR}"
                 exit 1
             fi
-            
-            host_ssl_enable
+
         fi
-        return 0
+        #return 0
     else
         echo -e "\n ❌ ${COLOR_RED}Certificate generation failed!${CoR}"
         ERROR_MSG=$(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')
@@ -2613,6 +2612,7 @@ host_ssl_enable() {
     if [ "$HTTP_STATUS" -eq 200 ]; then
         echo -e "\n ✅ ${COLOR_GREEN}SSL enabled successfully for${CoR} ${COLOR_YELLOW}$HOST_DOMAIN${CoR} (ID: ${COLOR_CYAN}$HOST_ID${CoR}) (Cert ID: ${COLOR_CYAN}$CERT_ID${CoR})\n"
         return 0 
+        #exit 0
     else
         echo -e "\n ⛔ ${COLOR_RED}Failed to enable SSL. HTTP status: $HTTP_STATUS${CoR}\n"
         echo -e " 📋 Error details: $HTTP_BODY \n"
@@ -3788,16 +3788,19 @@ while [[ "$#" -gt 0 ]]; do
                             --cert-generate)
                                 CERT_GENERATE=true
                                 shift
-                                if [ -n "$1" ] && [[ "$1" != --* ]]; then
+                                if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
                                     CERT_DOMAIN="$1"
                                     shift
+                                else
+                                    # Si pas d'argument spécifique pour --cert-generate, utiliser le domaine du host
+                                    CERT_DOMAIN="$DOMAIN_NAMES"
                                 fi
                                 ;;
                             --cert-email) shift; CERT_EMAIL="$1"; shift ;;
                             --dns-provider) shift; CERT_DNS_PROVIDER="$1"; shift ;;
                             --dns-credentials) shift; CERT_DNS_CREDENTIALS="$1"; shift ;;
-                            --host-ssl-enable) HOST_SSL_ENABLE=true ;;
-                            -y) AUTO_YES=true ;;
+                            --host-ssl-enable) HOST_SSL_ENABLE=true; shift  ;;
+                            -y) AUTO_YES=true; shift ;;
                         esac
                         ;;                                                      
                     *)
@@ -4116,20 +4119,28 @@ elif [ "$HOST_CREATE" = true ]; then
     if [ "$CERT_GENERATE" = true ]; then
         cert_generate "$DOMAIN_NAMES" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_CREDENTIALS"
         if [ "$HOST_SSL_ENABLE" = true ]; then
-            host_ssl_enable "$HOST_ID"
+            echo "DEBUG: HOST_ID=$HOST_ID"
+            echo "DEBUG: GENERATED_CERT_ID=$GENERATED_CERT_ID"
+            host_ssl_enable "$HOST_ID" "$GENERATED_CERT_ID" 
         fi
     fi
-    exit 0
-
+    exit 0 
 
 # Actions SSL
-elif [ "$CERT_GENERATE" = true ]; then
+elif [ "$CERT_GENERATE" = true ] && [ "$HOST_CREATE" != true ]; then  # ✅ Ajout de la condition
     cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_CREDENTIALS"
-    #  If --host-ssl-enable
     if [ "$HOST_SSL_ENABLE" = true ]; then
         host_ssl_enable "$HOST_ID"
         exit 0 
     fi
+
+#elif [ "$CERT_GENERATE" = true ]; then
+#    cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_CREDENTIALS"
+    #  If --host-ssl-enable
+#    if [ "$HOST_SSL_ENABLE" = true ]; then
+#        host_ssl_enable "$HOST_ID"
+#        exit 0 
+#    fi
 
 
 elif [ "$HOST_DELETE" = true ]; then
