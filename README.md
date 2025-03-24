@@ -12,77 +12,78 @@
 ## Table of Contents
 
 1. [Description](#description)
-2. [Reference API](#reference)
+2. [Reference API](#reference-api)
 3. [Prerequisites](#prerequisites)
 4. [Installation](#installation)
 5. [Settings](#settings)
 6. [Usage](#usage)
 7. [Options](#options)
 8. [Examples](#examples)
-   - [Info script](#info)
-   - [List HOST](#list)
-   - [Enable SSL](#ssl)
-   - [update specific fields of an existing proxy host](#update)  
-12. [Screens](#screens)
-13. [TODO](#todo)
+   - [Backup](#backup)
+   - [Script Info](#script-info)
+   - [Host List](#host-list)
+   - [SSL Enable](#host-ssl-enable)
+   - [Host Update](#host-update)
+9. [Important Notice](#important-notice-repository-history-rewritten)
+10. [TODO](#todo)
 
 > [!WARNING]
 > The  --restore command is disabled  (a fix is in progress).
 > 
-> V2.6.0 introduced some issues. A fix has been tested and pushed,  but user feedback is required to ensure everything works as expected with V2.7.0.
-
 
 
 ## Description
+🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, user management, and configuration display, while also integrating a backup system (BACKUP) with a user-friendly interface.
 
-🛠️ This BASH script enables the management of ![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) through its **API**.
+It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
+
+⚠️ The RESTORE function is still under development. 🚧
 
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
-⚙️ Provides functionalities such as creating and deleting proxy hosts, managing users, displaying configurations, creating **BACKUPS**, and more.
+<details>
+<summary>French description:</summary>
+Ce script permet de gérer Nginx Proxy Manager via son API de manière simple et efficace. Il offre des fonctionnalités avancées telles que la création de hosts proxy, la gestion des utilisateurs et l'affichage des configurations, tout en intégrant un système de sauvegarde (BACKUP) avec une interface conviviale.
 
- 
+Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la gestion des certificats SSL et l'administration complète de vos reverse proxies.
 
-### French description:
-Ce script permet de gérer Nginx Proxy Manager via l'API. Il fournit des fonctionnalités telles que la création de hosts proxy, la gestion des utilisateurs, et l'affichage des configurations avec creation de BACKUP !
-La fonction RESTORE n'est pas encore terminée.
+⚠️ La fonction RESTORE est encore en développement. 🚧
+</details>
 
-## Reference
-![https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
+## Reference API
+[https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema)
 
 ## Prerequisites
 
 The excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
 
-Required basic dependencies. 
-  > The script will automatically check if they are installed and will download them if necessary:
+
+<details>
+<summary>Required basic dependencies.</summary>
+  The script will automatically check if they are installed and will download them if necessary:
 
 - `curl`
 - `jq`
 
+</details>
 
 ## Installation 
 ```bash
-wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/nginx_proxy_manager_cli.sh
-chmod +x nginx_proxy_manager_cli.sh
-# Create a config file nginx_proxy_manager_cli.conf in same directory (to keep your config safe) check below.
-echo -e "## Nginx proxy IP address (your Nginx IP)\nNGINX_IP=\"127.0.0.1\"\nAPI_USER=\"existingUser@mail.com\"\nAPI_PASS=\"password\"\nBASE_DIR=\"$(pwd)\"" > nginx_proxy_manager_cli.conf
-./nginx_proxy_manager_cli.sh --info
+wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/npm-api.sh
+chmod +x npm-api.sh
+# Run the script.
+./npm-api.sh
 ```
-
-
-> [!NOTE]
-> With the new `V2.0.0`, some command arguments have been changed to be simpler, and need to set `BASE_DIR` variable to store `Tokens` and `Backups`.
 
 
 ## Settings
 > [!IMPORTANT]
-> (Optional) You can create a configuration file named `nginx_proxy_manager_cli.conf` with these 4 required variables.
+> (Optional) You can create a configuration file named `npm-api.conf` with these 4 required variables.
 
 To ensure the script is functional, edit these 4 variables (mandatory).
 
 ```bash
-# nginx_proxy_manager_cli.conf
+# npm-api.conf
 
 ## Nginx proxy IP address (your Nginx IP/port)
 NGINX_IP="127.0.0.1"
@@ -91,57 +92,50 @@ NGINX_PORT="81"
 ## Existing user (user and password) on NPM
 API_USER="admin@example.com"
 API_PASS="changeme"
-# Path to store .txt files and Backups
-BASE_DIR="/path/nginx_proxy_script/data"
+
+# Optional (only if you want in other /path than script directory)
+# DATA_DIR="/path/nginx_backup/dir"
 
 ```
 
 ## Usage
 ```bash
-./nginx_proxy_manager_cli.sh [OPTIONS]
-./nginx_proxy_manager_cli.sh  --help
-./nginx_proxy_manager_cli.sh  --show-default 
+./npm-api.sh [OPTIONS]
+./npm-api.sh  --help
+./npm-api.sh  --show-default 
 ```
-
-
-> [!NOTE]  
-> **New in version 2.6.0:**
-> - 📊 New dashboard (by default)
-> - 🔐 Improved token management
-> - 📋 Enhanced command display and options
-> - 🎨 More user-friendly interface with icons and colors
 
 ## NEW dashboard
 
 ```bash
-📊 NGINX - Proxy Manager - Dashboard 🔧
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 📊 NGINX - Proxy Manager - Dashboard 🔧
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ┌─────────────────┬─────────┐
+ │  COMPONENT      │ STATUS  │
+ ├─────────────────┼─────────┤
+ │ 🌐 Proxy Hosts  │ 11      │
+ │ ├─ Enabled      │ 9       │
+ │ └─ Disabled     │ 2       │
+ ├─────────────────┼─────────┤
+ │ 🔄 Redirections │ 1       │
+ │ 🔌 Stream Hosts │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Certificates │ 1       │
+ │ ├─ Valid        │ 1       │
+ │ └─ Expired      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Access Lists │ 1       │
+ │ └─ Clients      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 👥 Users        │ 3       │
+ ├─────────────────┼─────────┤
+ │ ⏱️  Uptime       │ 2 days  │
+ │ 📦 NPM Version  │ 2.12.3  │
+ └─────────────────┴─────────┘
 
-🌐 Proxy Hosts:
-   • Total:    42
-   • Enabled:  38
-   • Disabled: 4
+ 💡 Use --help to see available commands
+    Check --examples for more help examples
 
-🔄 Redirections:
-   • Total: 5
-
-🔌 Stream Hosts:
-   • Total: 3
-
-🔒 SSL Certificates:
-   • Total:   15
-   • Valid:   12
-   • Expired: 3
-
-👥 Users:
-   • Total: 4
-
-🆙 Server Status:
-   • Uptime: 15 days
-   • Version: 2.4.0
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 Use --help to see available commands
 ```
 
 ## Options
@@ -180,7 +174,7 @@ BASE_DIR="/path/nginx_proxy_script/data"
    --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
    --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
    --list-ssl-cert                       List All SSL certificates availables (JSON)
-   --generate-cert domain email          Generate certificate for the given domain and email
+   --cert-generate domain email          Generate certificate for the given domain and email
    --delete-cert domain                  Delete   certificate for the given domain
    --list-access                         List all available access lists (ID and name)
    --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
@@ -193,108 +187,196 @@ BASE_DIR="/path/nginx_proxy_script/data"
 ## Examples
 
 ```bash
-  📦 Backup First !
-   ./nginx_proxy_manager_cli.sh --backup
+ 📦 Backup First !
+   ./npm-api.sh --backup
 
  🌐 Host Creation:
-   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 (check default values below)
-   ./nginx_proxy_manager_cli.sh --info
-   ./nginx_proxy_manager_cli.sh --show-default
-   ./nginx_proxy_manager_cli.sh --create-user newuser password123 user@example.com
-   ./nginx_proxy_manager_cli.sh --delete-user 'username'
-   ./nginx_proxy_manager_cli.sh --host-list
-   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10
+   # Basic host creation
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080
+
+   # Create host with SSL certificate and enable SSL (all-in-one)
+   ./npm-api.sh --host-create sub.domain.com -i 192.168.0.1 -p 80 --cert-generate --host-ssl-enable -y
+
+   # Create host with custom options
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+     -f https \         # Forward scheme
+     -b true \          # Block exploits
+     -c true \          # Enable caching
+     -w true \          # Enable websocket
+     -y                 # Auto confirm
 
  🤖 Automatic operations (no prompts):
-   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -y
-   ./nginx_proxy_manager_cli.sh --host-delete 42 -y
-   ./nginx_proxy_manager_cli.sh --host-ssl-enable 10 -y   
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -y
+   ./npm-api.sh --host-delete 42 -y
+   ./npm-api.sh --host-ssl-enable 10 -y   
 
  🔍 Information and Status:
-   ./nginx_proxy_manager_cli.sh --info                   # Show script configuration and status
-   ./nginx_proxy_manager_cli.sh --check-token            # Verify token validity
-   ./nginx_proxy_manager_cli.sh --host-search domain.com # Search for a specific domain
-
- 🔄 Host Management:
-   # Enable/Disable hosts
-   ./nginx_proxy_manager_cli.sh --host-enable 42
-   ./nginx_proxy_manager_cli.sh --host-disable 42
-
- 🛡️ Access Control Lists:
-   ./nginx_proxy_manager_cli.sh --list-access                   # List all access lists
-   ./nginx_proxy_manager_cli.sh --host-acl-enable 42,5          # Enable ACL ID 5 for host 42
-   ./nginx_proxy_manager_cli.sh --host-acl-disable 42           # Disable ACL for host 42
+   ./npm-api.sh --info                      # Show configuration and dashboard
+   ./npm-api.sh --show-default              # Show default settings
+   ./npm-api.sh --check-token               # Verify token validity
+   ./npm-api.sh --host-search domain.com    # Search for a specific domain
+   ./npm-api.sh --host-list                 # List all hosts
+   ./npm-api.sh --host-list-full            # List hosts with details
+   ./npm-api.sh --host-show 42              # Show specific host details
 
  🔒 SSL Management:
-   ./nginx_proxy_manager_cli.sh --list-ssl-cert                 # List all SSL certificates
-   ./nginx_proxy_manager_cli.sh --delete-cert domain.com        # Delete certificate for domain
+   # List all certificates
+   ./npm-api.sh --list-ssl-cert                 
+   
+   # Generate standard Let's Encrypt certificate
+   ./npm-api.sh --cert-generate example.com --cert-email admin@example.com
+   
+   # Generate wildcard certificate with Cloudflare
+   ./npm-api.sh --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider cloudflare \
+     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
 
- 🔄 Update Specific Fields:
-   # Update individual fields without recreating the entire host
-   ./nginx_proxy_manager_cli.sh --update-host 42 forward_scheme=https
-   ./nginx_proxy_manager_cli.sh --update-host 42 forward_port=8443
-   ./nginx_proxy_manager_cli.sh --update-host 42 block_exploits=true
-   ./nginx_proxy_manager_cli.sh --update-host 42 allow_websocket_upgrade=true
+   # Delete certificate
+   ./npm-api.sh --delete-cert domain.com        
+   
+   # Enable SSL for host
+   ./npm-api.sh --host-ssl-enable 42            
+   
+   # Enable SSL with specific cert ID
+   ./npm-api.sh --host-ssl-enable 42 33         
 
- 🔧 Advanced Example:
-   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
+ 🌟 Complete Examples with Wildcard Certificates:
+   # Create host with wildcard certificate using Cloudflare DNS
+   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+     --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider cloudflare \
+     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}' \
+     --host-ssl-enable -y
 
- 🛡️ Custom Certificate:
-   ./nginx_proxy_manager_cli.sh --generate-cert example.com user@example.com 
-   # Note: This will generate a Let's Encrypt certificate only
+   # Same with DigitalOcean DNS
+   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+     --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider digitalocean \
+     --dns-credentials '{"dns_digitalocean_token":"your_token"}' \
+     --host-ssl-enable -y
 
- 🛡️  Custom locations:
-   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+   # Same with GoDaddy DNS
+   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+     --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider godaddy \
+     --dns-credentials '{"dns_godaddy_key":"your_key","dns_godaddy_secret":"your_secret"}' \
+     --host-ssl-enable -y
 
-🔖 Full options:
-   ./nginx_proxy_manager_cli.sh -d example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+ 🛡️ Access Control Lists:
+   ./npm-api.sh --list-access                   # List all access lists
+   ./npm-api.sh --host-acl-enable 42,5          # Enable ACL ID 5 for host 42
+   ./npm-api.sh --host-acl-disable 42           # Disable ACL for host 42
+
+ 👥 User Management:
+   ./npm-api.sh --create-user newuser password123 user@example.com
+   ./npm-api.sh --delete-user 'username'
+   ./npm-api.sh --list-users
+
+ 🔧 Advanced Examples:
+   # Custom Nginx configuration
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+     -a 'proxy_set_header X-Real-IP $remote_addr;'
+
+ 🛡️ Custom locations:
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+     -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+
+   # Update specific fields
+   ./npm-api.sh --update-host 42 forward_scheme=https
+   ./npm-api.sh --update-host 42 forward_port=8443
+
+ 
+ 🔖 Full options:
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
 
 ### --backup
 
 ```bash
-./nginx_proxy_manager_cli.sh --backup
+./npm-api.sh --backup
 ```
 
+### 💾 Backup Operations
 
-### Schema of the backup directory:
-```
-📁 data/                                         # Root directory
-├── 📁 backups/                                  # Backup directories
-│   └── 📁 [IP]_[PORT]/                          # NPM Instance (IP:PORT)
-│       ├── 📁 .access_lists/                    # Access Lists configurations
-│       ├── 📁 .Proxy_Hosts/                     # Host configurations
-│       │   ├── 📁 [DOMAIN]/                     # Directory for each domain
-│       │   │   ├── 📁 logs/                     # Log directory
-│       │   │   ├── 📁 ssl/                      # SSL directory
-│       │   │   │   ├── 📄 certificate_meta.json # Certificate metadata
-│       │   │   │   ├── 📄 certificate.pem       # Certificate
-│       │   │   │   ├── 📄 chain.pem             # Chain of certificates
-│       │   │   │   └── 📄 private.key           # Private key
-│       │   │   ├── 📄 nginx.conf                # Nginx configuration
-│       │   │   └── 📄 proxy_config.json         # Proxy configuration
-│       │   ├── 📄 all_hosts_[DATE].json         # List of all hosts
-│       │   └── 📄 all_hosts_latest.json         # Symlink to latest backup
-│       ├── 📁 .settings/                        # NPM settings
-│       ├── 📁 .ssl/                             # SSL certificates
-│       ├── 📁 .user/                            # User configurations
-│       ├── 📄 full_config_[DATE].json           # Full backup
-│       └── 🔗 full_config_latest.json           # Symlink to latest backup
-│
-└── 📁 token/                                    # Token directory
-    ├── 📄 token_[IP]_[PORT].txt                 # Authentication token
-    └── 📄 expiry_[IP]_[PORT].txt                # Token expiry date
+#### Schema of the backup directory:
+
+```bash
+# Full backup of all configurations
+./npm-api.sh --backup
+
+# This will create a backup in the following structure:
+📁 data/
+└── 📁 backups/
+    └── 📁 [IP]_[PORT]/
+        ├── 📁 .access_lists/                    # Access list configurations
+        ├── 📁 .Proxy_Hosts/                     # All proxy host configurations
+        │   ├── 📁 [DOMAIN]/                     # Directory for each domain
+        │   │   ├── 📁 logs/                     # Log directory
+        │   │   ├── 📁 ssl/                      # SSL directory
+        │   │   │   ├── 📄 certificate_meta.json # Certificate metadata
+        │   │   │   ├── 📄 certificate.pem       # Certificate
+        │   │   │   ├── 📄 chain.pem             # Chain of certificates
+        │   │   │   └── 📄 private.key           # Private key
+        │   │   ├── 📄 nginx.conf                # Nginx configuration
+        │   │   └── 📄 proxy_config.json         # Proxy configuration
+        │   ├── 📄 all_hosts_[DATE].json         # List of all hosts
+        │   └── 📄 all_hosts_latest.json         # Symlink to latest backup        
+        ├── 📁 .settings/                        # NPM settings
+        ├── 📁 .ssl/                             # SSL certificates
+        ├── 📁 .user/                            # User configurations
+        └── 📄 full_config.json                  # Complete backup file
+        └── 📁 token/  
+            ├── 📄 token.txt                     # Authentication token
+            └── 📄 expiry.txt                    # Token expiry date        
 ```
 
-#### --update-host      
+#### 🔄 Backup Contents
+
+1. **Proxy Hosts** (`/.Proxy_Hosts/`)
+   - Individual host configurations
+   - Nginx configurations
+   - Complete host list with timestamps
+
+2. **SSL Certificates** (`/.ssl/`)
+   - Certificates and private keys
+   - Certificate metadata
+   - Chain certificates
+
+3. **Access Lists** (`/.access_lists/`)
+   - Access list configurations
+   - Client authorizations
+   - Access rules
+
+4. **Users** (`/.user/`)
+   - User accounts
+   - Permissions
+   - Authentication settings
+
+5. **Settings** (`/.settings/`)
+   - Global NPM settings
+   - System configurations
+   - Default parameters
+
+#### 🔐 Token Management
+
+The `token/` directory contains:
+- Authentication tokens
+- Token expiry information
+- One file per NPM instance
+
+#### --host-update      
 ##### update specific fields of an existing proxy host
 
-The `--update-host` command allows you to **update specific fields** of an existing proxy host in Nginx Proxy Manager **without recreating it**.  
+The `--host-update` command allows you to **update specific fields** of an existing proxy host in Nginx Proxy Manager **without recreating it**.  
 
 Simply specify the **proxy host ID** and the **field you want to update**, like this:
 
 ```bash
-./nginx_proxy_manager_cli.sh --update-host 42 forward_host=new.backend.local
+./npm-api.sh --update-host 42 forward_host=new.backend.local
 ```
  
 | Field Name               | Type      | Description                                                                 |
@@ -319,23 +401,61 @@ Simply specify the **proxy host ID** and the **field you want to update**, like 
 
 #### Verifying the Configuration
 
-Some info of settings in the script with `./nginx_proxy_manager_cli_.sh --info`
+Some info of settings in the script with `./npm-api.sh --info`
 
 #### info
 ```bash
-./nginx_proxy_manager_cli_.sh --info
+./npm-api.sh --info
 
-Script Info:  2.3.5
+ 🔍 Checking system dependencies and directories...
+ ✅ All dependencies and directories are properly set up
+    ├── System tools: OK
+    ├── Directories : OK
+    └── Permissions : OK
 
-Script Variables Information:
-  BASE_URL    http://127.0.0.1:81/api
-  NGINX_IP    127.0.0.1
-  API_USER    admin@example.com
-  BASE_DIR    /path/to/nginx_proxy
-  BACKUP_DIR  /path/to/nginx_proxy/backups
-  BACKUP HOST 40
-  Token NPM   /path/to/nginx_proxy/token/token_127.0.0.1.txt
+ 🔑 Checking token validity...
+ ✅ Token is valid
+ 📅 Expires: 2026-03-14T10:24:56.267Z
 
+ Script Info:  3.0.0
+ Script Variables Information:
+ Config      : /home/tools/Project/nginx_proxy/npm-api.conf
+ BASE  URL   : http://127.0.0.1:8099/api
+ NGINX  IP   : 127.0.0.1
+ USER NPM    : user@mail.com
+ BACKUP DIR  : /home/tools/Project/nginx_proxy/data/127_0_0_1_8099
+
+ 📂 Backup Locations:
+  • Backup: /home/tools/Project/nginx_proxy/data/127_0_0_1_8099/backups
+  • Token: /home/tools/Project/nginx_proxy/data/127_0_0_1_8099/backups/token/
+
+ 📊 NGINX - Proxy Manager - Dashboard 🔧
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ┌─────────────────┬─────────┐
+ │  COMPONENT      │ STATUS  │
+ ├─────────────────┼─────────┤
+ │ 🌐 Proxy Hosts  │ 11      │
+ │ ├─ Enabled      │ 9       │
+ │ └─ Disabled     │ 2       │
+ ├─────────────────┼─────────┤
+ │ 🔄 Redirections │ 1       │
+ │ 🔌 Stream Hosts │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Certificates │ 1       │
+ │ ├─ Valid        │ 1       │
+ │ └─ Expired      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 🔒 Access Lists │ 1       │
+ │ └─ Clients      │ 0       │
+ ├─────────────────┼─────────┤
+ │ 👥 Users        │ 3       │
+ ├─────────────────┼─────────┤
+ │ ⏱️  Uptime       │ 2 days  │
+ │ 📦 NPM Version  │ 2.12.3  │
+ └─────────────────┴─────────┘
+
+ 💡 Use --help to see available commands
+    Check --examples for more help examples
 ```
 
 
@@ -346,13 +466,17 @@ By following these steps, you can enable SSL for your proxy host for the first t
 #### --host-list
  List all Host in one command and show ´id´ , ´status´ and ´SSL´ status:
 
-    ./nginx_proxy_manager_cli.sh --host-list
-    
+      ./npm-api.sh --host-list
+
       👉 List of proxy hosts (simple)
-      ID     Domain                               Status    SSL
-      1      toto.fun                              enabled  ✘
-      2      titi.fun                              disable  ✅
-      3      tutu.fun                              enabled  ✅
+        ID     Domain                               Status    SSL    Certificate Domain
+        14     example.com                           enabled  ✘
+        15     example.titi                          enabled  ✘
+        1      domain.com                            disable  8      domain.com
+        11     titi.eu                               enabled  ✘
+        12     toutou                                disable  ✘
+        13     toutoux                               enabled  ✘
+
 
 
 #### --host-ssl-enable
@@ -360,26 +484,14 @@ By following these steps, you can enable SSL for your proxy host for the first t
 
   Assuming the host ID is *1*, you would enable SSL for the host as follows:
 
-    ./nginx_proxy_manager_cli.sh --host-ssl-enable 1
-
- SSl is enable successfully, check again with --host-list
-
-     ./nginx_proxy_manager_cli.sh --host-list
-    
-      👉 List of proxy hosts (simple)
-      ID     Domain                               Status    SSL
-      1      toto.fun                              enabled  ✅
-      2      titi.fun                              disable  ✅
-      3      tutu.fun                              enabled  ✅
-
+    ./npm-api.sh --host-ssl-enable 1
 
 ##### **Other Exemple command:**
 
 Host proxy info command `--host-show id`
 
-
-```
- ./nginx_proxy_manager_cli_.sh --host-show 1
+```json
+ ./npm-api.sh --host-show 1
 
  👉 Full details for proxy host ID: 59...
 
@@ -416,19 +528,32 @@ Host proxy info command `--host-show id`
 
 ```
 
- 
-## Screens:
-![screen-nginx-proxy-default](https://github.com/user-attachments/assets/5a87bb64-c8aa-4b67-b118-9fa10423d396)
+### Important Notice: Repository History Rewritten
 
- 
+ ⚠️ Action Required for All Contributors (or cloned repo.)
+
+We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
+
+ 🛠️ What You Need to Do?
+ To avoid any issues, please follow these steps to update your local repository:
+
+```bash
+git fetch --all
+git reset --hard origin/main  # Replace 'main' with your branch name if different
+```
+If you have local changes that you **don't want to lose**, consider making a backup before running these commands.
+
+❓ Why Was This Done?
+ This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
+
 ## TODO:
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
 - [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
 - [x] Backup all settings from NPM
 - [x] Add automatic confirmation with -y parameter
-- [ ] Clean/minimize output when using -y parameter for better script integration
-- [ ] Creation of ACCESS list through CLI
+- [X] Clean/minimize output when using -y parameter for better script integration
+- [X] Creation of ACCESS list through CLI
 - [ ] Restore Function not working properly, need to find FIX
 
 
@@ -447,8 +572,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v2.7.0-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v2.7.0
+[release-shield]: https://img.shields.io/badge/version-v3.0.0-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.0.0
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
