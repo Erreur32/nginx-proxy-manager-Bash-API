@@ -2,7 +2,7 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
-## [3.0.0] - 2025-03-15
+## [3.0.0] - 2025-03-24
 
 ### 🔄 Breaking Changes
 
