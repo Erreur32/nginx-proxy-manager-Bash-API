@@ -1,26 +1,18 @@
 name: Gitleaks Security Scan
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+on: [push, pull_request]
 
 jobs:
   gitleaks:
-    name: Run Gitleaks Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Install Gitleaks
-        run: |
-          wget https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -O gitleaks
-          chmod +x gitleaks
-          sudo mv gitleaks /usr/local/bin/
+    - name: Download Gitleaks binary
+      run: |
+        wget https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks-linux-amd64 -O gitleaks
+        chmod +x gitleaks
 
-      - name: Run Gitleaks
-        run: gitleaks detect --source . --verbose --exit-code 1
+    - name: Run Gitleaks
+      run: ./gitleaks detect --source . --verbose --report-path gitleaks-report.json
