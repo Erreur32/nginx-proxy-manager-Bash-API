@@ -542,7 +542,7 @@ validate_json() {
 ################################
 # Display help
 show_help() {
-  echo -e "\n Options available:                     ${COLOR_GREY}(see --examples for more details)${CoR}" 
+  echo -e "\n Options available:                       ${COLOR_GREY}(see --examples for more details)${CoR}" 
   echo -e "   -y                                     Automatic ${COLOR_YELLOW}yes${CoR} prompts!"
   echo -e "  --info                                  Display ${COLOR_GREY}Script Variables Information${CoR}"
   echo -e "  --show-default                          Show  ${COLOR_GREY}Default settings for host creation${CoR}"
