@@ -143,50 +143,80 @@ API_PASS="changeme"
 ## Options
 ```tcl
 
- 🌐 Host proxy creation:
-   -d DOMAIN_NAMES                       Domain name (required for creating/updating hosts)
-   -i FORWARD_HOST                       IP address or domain name of the target server (required for creating/updating hosts)
-   -p FORWARD_PORT                       Port of the target server (required for creating/updating hosts)
-   -f FORWARD_SCHEME                     Scheme for forwarding (http/https, default: http)
-   -c CACHING_ENABLED                    Enable caching (true/false, default: false)
-   -b BLOCK_EXPLOITS                     Block exploits (true/false, default: true)
-   -w ALLOW_WEBSOCKET_UPGRADE            Allow WebSocket upgrade (true/false, default: true)
-   -h HTTP2_SUPPORT                      Enable HTTP/2 support (true/false, default: true)
-   -l CUSTOM_LOCATIONS                   Custom locations (JSON array of location objects)
-   -a ADVANCED_CONFIG                    Advanced configuration (block of configuration settings)
-   -y                                    Automatic yes prompts, yes sir!
+ Options available:
+ (see --examples for more details)
+   -y                                     Automatic yes prompts!
+  --info                                  Display Script Variables Information
+  --show-default                          Show  Default settings for host creation
+  --check-token                           Check Check current token info
+  --backup                                💾 Backup All configurations to a different files in $DATA_DIR
 
-📦 Backup and Restore:
-   --backup                             Backup all configurations to a file
-   --backup-host id                     Backup a single host configuration and its certificate (if exists)
+ Proxy Host Management:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  --host-search domain                    Search Proxy host by domain name
+  --host-list                             List All Proxy hosts (to find ID)
+  --host-show 🆔                          Show Full details for a specific host by ID
 
- 🔧 Miscellaneous:
-   --check-token                         Check if the current token is valid
-   --create-user user pass email         Create a user with a username, password and email
-   --delete-user username                Delete a user by username
-   --host-delete id                      Delete a proxy host by ID
-   --host-show id                        Show full details for a specific host by ID
-   --show-default                        Show default settings for creating hosts
-   --host-list                           List the names of all proxy hosts
-   --host-list-full                      List all proxy hosts with full details
-   --list-users                          List all users
+  --host-create domain -i forward_host -p forward_port [options]
 
-   --host-search hostname                Search for a proxy host by domain name
-   --host-enable id                      Enable a proxy host by ID
-   --host-disable id                     Disable a proxy host by ID
-   --host-ssl-enable id                  Enable SSL, HTTP/2, and HSTS for a proxy host
-   --host-ssl-disable id                 Disable SSL, HTTP/2, and HSTS for a proxy host
-   --list-ssl-cert                       List All SSL certificates availables (JSON)
-   --cert-generate domain [email] [dns_provider] [dns_credentials] [-y]  Generate certificate for the given domain and email
-   --delete-cert domain                  Delete certificate for the given domain
-   --list-access                         List all available access lists (ID and name)
-   --host-acl-enable id,access_list_id   Enable ACL for a proxy host by ID with an access list ID       
-   --host-acl-disable id                 Disable ACL for a proxy host by ID
-   --access-list-create                  Create a new access list with name and rules
-   --access-list-update id               Update an existing access list by ID
-   --access-list-delete id               Delete an access list by ID (requires confirmation unless -y is used)
-   --update-host id field=value          Modify any field on existing entry host
-   --help                                Display this help
+     Required:
+            domain                        Domain name (required)
+       -i   forward-host                  IP address or domain name of the target server (required)
+       -p   forward-port                  Port of the target server (required)
+
+     optional: (Check default settings,no argument needed if already set!)
+       -f FORWARD_SCHEME                  Scheme for forwarding (http/https, default: http)
+       -c CACHING_ENABLED                 Enable caching (true/false, default: false)
+       -b BLOCK_EXPLOITS                  Block exploits (true/false, default: true)
+       -w ALLOW_WEBSOCKET_UPGRADE         Allow WebSocket upgrade (true/false, default: true)
+       -l CUSTOM_LOCATIONS                Custom locations (JSON array of location objects)
+       -a ADVANCED_CONFIG                 Advanced configuration (string)
+
+  --host-enable  🆔                       Enable Proxy host by ID
+  --host-disable 🆔                       Disable Proxy host by ID
+  --host-delete  🆔                       Delete Proxy host by ID
+  --host-update  🆔 [field]=value         Update One specific field of an existing proxy host by ID
+                                          (eg., --host-update 42 forward_host=foobar.local)
+
+  --host-acl-enable  🆔 access_list_id    Enable ACL for Proxy host by ID with Access List ID
+  --host-acl-disable 🆔                   Disable ACL for Proxy host by ID
+  --host-ssl-enable  🆔 [cert_id]         Enable SSL for host ID optionally using specific certificate ID
+  --host-ssl-disable 🆔                   Disable SSL, HTTP/2, and HSTS for a proxy host
+
+  --cert-list                             List ALL SSL certificates
+  --cert-show     domain Or 🆔            List SSL certificates filtered by [domain name] (JSON)
+  --cert-delete   domain Or 🆔            Delete Certificate for the given 'domain'
+  --cert-generate domain [email]          Generate Let's Encrypt Certificate or others Providers.
+                                           • Standard domains: example.com, sub.example.com
+                                           • Wildcard domains: *.example.com (requires DNS challenge)
+                                           • DNS Challenge: Required for wildcard certificates
+                                             - Format: dns-provider PROVIDER dns-api-key KEY
+                                             - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, ...
+
+  --user-list                             List All Users
+  --user-create username password email   Create User with a username, password and email
+  --user-delete 🆔                       Delete User by username
+
+  --access-list                           List All available Access Lists (ID and Name)
+  --access-list-show 🆔                   Show detailed information for specific access list
+  --access-list-create                    Create Access Lists with options:
+                                           • --satisfy [any|all]          Set access list satisfaction mode
+                                           • --pass-auth [true|false]     Enable/disable password authentication
+                                           • --users "user1,user2"        List of users (comma-separated)
+                                           • --allow "ip1,ip2"            List of allowed IPs/ranges
+                                           • --deny "ip1,ip2"             List of denied IPs/ranges
+  --access-list-delete 🆔                 Delete Access List by access ID
+  --access-list-update 🆔                 Update Access List by access ID with options:
+                                           • --name "new_name"            New name for the access list
+                                           • --satisfy [any|all]          Update satisfaction mode
+                                           • --pass-auth [true|false]     Update password authentication
+                                           • --users "user1,user2"        Update list of users
+                                           • --allow "ip1,ip2"            Update allowed IPs/ranges
+                                           • --deny "ip1,ip2"             Update denied IPs/ranges
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  --examples                             🔖 Examples commands, more explicits
+  --help                                     👉 It's me
 
 ```
 
