@@ -114,7 +114,7 @@ API_PASS="changeme"
  Options available:                       (see --examples for more details)
    -y                                     Automatic yes prompts!
   --info                                  Display Script Variables Information
-  --show-default                          Show  Default settings for host creation
+  --show-default                         Show  Default settings for host creation
   --check-token                           Check Check current token info
   --backup                                💾 Backup All configurations to a different files in $DATA_DIR
 
@@ -162,7 +162,7 @@ API_PASS="changeme"
 
   --user-list                             List All Users
   --user-create username password email   Create User with a username, password and email
-  --user-delete 🆔                       Delete User by username
+  --user-delete 🆔                        Delete User by username
 
   --access-list                           List All available Access Lists (ID and Name)
   --access-list-show 🆔                   Show detailed information for specific access list
@@ -321,7 +321,10 @@ API_PASS="changeme"
 
  
  🔖 Full options:
-   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -f https -c true -b true -w true -a 'proxy_set_header X-Real-IP $remote_addr;' -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+   ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 \
+    -f https -c true -b true -w true \
+    -a 'proxy_set_header X-Real-IP $remote_addr;' \
+    -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
 
 ### --backup
