@@ -111,8 +111,7 @@ API_PASS="changeme"
 ## Options
 ```tcl
 
- Options available:
- (see --examples for more details)
+ Options available:                       (see --examples for more details)
    -y                                     Automatic yes prompts!
   --info                                  Display Script Variables Information
   --show-default                          Show  Default settings for host creation
