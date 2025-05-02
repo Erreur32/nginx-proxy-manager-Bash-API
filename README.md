@@ -1,6 +1,5 @@
 [![Release][release-shield]][release]
 ![Project Stage][project-stage-shield]
-![Project Maintenance][maintenance-shield]
 [![License][license-shield]][license]
 [![Contributors][contributors-shield]][contributors]
 [![Issues][issues-shield]][issue]
