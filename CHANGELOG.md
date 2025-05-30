@@ -2,6 +2,83 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.1.0] - 2025-06-01
+
+### 🔧 DNS Provider Improvements
+
+#### Cloudflare Credentials Format Enhancement
+- **Fixed Cloudflare credentials parsing issue** (#17)
+  - ❌ **BREAKING CHANGE**: Removed JSON format support for Cloudflare credentials
+  - ✅ **NEW**: Support for multiple credential formats:
+    ```diff
+    - OLD (JSON format - no longer supported):
+    --dns-credentials '{"dns_cloudflare_email":"user@email.com","dns_cloudflare_api_key":"key"}'
+    
+    + NEW (Key-value formats - recommended):
+    --dns-credentials "dns_cloudflare_email = user@email.com; dns_cloudflare_api_key = key"
+    --dns-credentials "dns_cloudflare_email = user@email.com, dns_cloudflare_api_key = key"
+    --dns-credentials "dns_cloudflare_email = user@email.com
+    dns_cloudflare_api_key = key"
+    ```
+
+#### Enhanced Credential Validation
+- **Improved credential parsing**: Added support for single-line and multi-line formats
+- **Better error messages**: Clear format examples when credentials are invalid
+- **Enhanced API validation**: Real-time Cloudflare API key verification before certificate generation
+- **Flexible separators**: Support for semicolon (`;`), comma (`,`), and newline separators
+
+#### Fixed Examples and Documentation
+- 🛠️ **Updated all help examples** to use the new credential format
+- 🛠️ **Fixed error messages** with correct format examples
+- 🛠️ **Updated README.md** with multiple format examples
+
+### 📝 Technical Details
+
+#### Files Modified
+- `npm-api.sh`: Updated credential parsing logic in `verify_cloudflare_api_key()` function
+- `npm-api.sh`: Fixed all example commands throughout the script
+- `README.md`: Updated documentation with new format examples
+
+#### Backward Compatibility
+- ⚠️ **JSON format is no longer supported** for Cloudflare credentials
+- ✅ **Migration path**: Replace JSON format with key-value format using any supported separator
+
+### 🎯 Usage Examples
+
+#### Single-line with semicolon (recommended)
+```bash
+./npm-api.sh --cert-generate "*.example.com" \
+  --cert-email admin@example.com \
+  --dns-provider cloudflare \
+  --dns-credentials "dns_cloudflare_email = user@cloudflare.com; dns_cloudflare_api_key = your_api_key"
+```
+
+#### Single-line with comma
+```bash
+./npm-api.sh --cert-generate "*.example.com" \
+  --cert-email admin@example.com \
+  --dns-provider cloudflare \
+  --dns-credentials "dns_cloudflare_email = user@cloudflare.com, dns_cloudflare_api_key = your_api_key"
+```
+
+#### Multi-line format
+```bash
+./npm-api.sh --cert-generate "*.example.com" \
+  --cert-email admin@example.com \
+  --dns-provider cloudflare \
+  --dns-credentials "dns_cloudflare_email = user@cloudflare.com
+dns_cloudflare_api_key = your_api_key"
+```
+
+## [3.0.1] - 2025-06-01
+
+### 🔧 FIX wrong API endpoint
+
+  **Issue**: Script used wrong API endpoint - only updated UI, not actual nginx config.
+
+  **Fix**: Now uses NPM's native POST /api/nginx-proxy-hosts/{id}/{enable|disable} endpoints. 🔗[issue #18](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/18)
+ 
+
 ## [3.0.0] - 2025-03-24
 
 ### 🔄 Breaking Changes

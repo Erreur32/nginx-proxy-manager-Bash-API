@@ -676,7 +676,7 @@ examples_cli() {
     echo -e "${COLOR_GREY}  # Generate wildcard certificate with ${COLOR_CYAN}Cloudflare${CoR}"
     echo -e "  $0 --cert-generate \"*.example.com\" --cert-email admin@example.com \\"
     echo -e "    --dns-provider cloudflare \\"
-    echo -e "    --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your_api_key\"}'${CoR}"
+    echo -e "    --dns-credentials \"dns_cloudflare_email = your@email.com; dns_cloudflare_api_key = your_api_key\"${CoR}"
     
     echo -e "\n${COLOR_GREY}  # Generate wildcard certificate with ${COLOR_CYAN}DigitalOcean${CoR}"
     echo -e "  $0 --cert-generate \"*.example.com\" --cert-email admin@example.com \\"
@@ -1395,10 +1395,42 @@ list_cert_all() {
 
 # Verify Cloudflare API Key validity
 verify_cloudflare_api_key() {
-    local api_key="$1"
-    local email="$2"
+    local credentials="$1"
+    local email=""
+    local api_key=""
     
     echo -e " 🔍 Verifying Cloudflare API Key..."
+    
+    # Handle different credential formats
+    # Format 1: Single line with semicolon separator
+    # Format 2: Single line with comma separator  
+    # Format 3: Multi-line format
+    if [[ "$credentials" == *";"* ]]; then
+        # Single line with semicolon separator
+        email=$(echo "$credentials" | sed 's/;/\n/g' | grep "dns_cloudflare_email" | cut -d'=' -f2 | tr -d ' ')
+        api_key=$(echo "$credentials" | sed 's/;/\n/g' | grep "dns_cloudflare_api_key" | cut -d'=' -f2 | tr -d ' ')
+    elif [[ "$credentials" == *","* ]]; then
+        # Single line with comma separator
+        email=$(echo "$credentials" | sed 's/,/\n/g' | grep "dns_cloudflare_email" | cut -d'=' -f2 | tr -d ' ')
+        api_key=$(echo "$credentials" | sed 's/,/\n/g' | grep "dns_cloudflare_api_key" | cut -d'=' -f2 | tr -d ' ')
+    else
+        # Multi-line format (original)
+        email=$(echo "$credentials" | grep "dns_cloudflare_email" | cut -d'=' -f2 | tr -d ' ')
+        api_key=$(echo "$credentials" | grep "dns_cloudflare_api_key" | cut -d'=' -f2 | tr -d ' ')
+    fi
+    
+    if [ -z "$email" ] || [ -z "$api_key" ]; then
+        echo -e " ❌ ${COLOR_RED}Invalid Cloudflare credentials format${CoR}"
+        echo -e " ⛔ Expected formats:"
+        echo -e "    ${COLOR_GREEN}Multi-line:${CoR}"
+        echo -e "      dns_cloudflare_email = your@email.com"
+        echo -e "      dns_cloudflare_api_key = your_api_key"
+        echo -e "    ${COLOR_GREEN}Single line with semicolon:${CoR}"
+        echo -e "      dns_cloudflare_email = your@email.com; dns_cloudflare_api_key = your_api_key"
+        echo -e "    ${COLOR_GREEN}Single line with comma:${CoR}"
+        echo -e "      dns_cloudflare_email = your@email.com, dns_cloudflare_api_key = your_api_key"
+        return 1
+    fi
     
     # Test API call to Cloudflare
     local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user" \
@@ -2482,6 +2514,18 @@ cert_generate() {
 
     if [ "$IS_WILDCARD" = true ]; then
         echo -e " 🔑 Using DNS challenge with provider: $DNS_PROVIDER"
+        
+        # Convert credentials format for Cloudflare
+        if [[ "${DNS_PROVIDER,,}" == "cloudflare" ]]; then
+            # Create a temporary file for credentials
+            TEMP_CRED_FILE=$(mktemp)
+            echo "$DNS_CREDENTIALS_JSON" > "$TEMP_CRED_FILE"
+            
+            # Read credentials from file
+            DNS_CREDENTIALS_JSON=$(cat "$TEMP_CRED_FILE")
+            rm "$TEMP_CRED_FILE"
+        fi
+        
         REQUEST_DATA=$(jq -n \
             --arg domain "$DOMAIN" \
             --arg email "$EMAIL" \
@@ -3957,7 +4001,7 @@ while [[ "$#" -gt 0 ]]; do
                 echo -e "   Examples:"
                 echo -e "     ${COLOR_GREEN}$0 --cert-generate example.com${CoR}"
                 echo -e "     ${COLOR_GREEN}$0 --cert-generate example.com admin@example.com${CoR}"
-                echo -e "     ${COLOR_GREEN}$0 --cert-generate *.example.com --dns-provider cloudflare --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your-api-key\"}'${CoR}\n"
+                echo -e "     ${COLOR_GREEN}$0 --cert-generate *.example.com --dns-provider cloudflare --dns-credentials \"dns_cloudflare_email = your@email.com; dns_cloudflare_api_key = your_api_key\"${CoR}\n"
                 exit 1
             fi
             # Store domain
@@ -4012,7 +4056,7 @@ while [[ "$#" -gt 0 ]]; do
             if [[ "$CERT_DOMAIN" == \** ]]; then
                 if [ -z "$CERT_DNS_PROVIDER" ] || [ -z "$CERT_DNS_CREDENTIALS" ]; then
                     echo -e "\n ⛔ ${COLOR_RED}Wildcard certificates require DNS challenge. Please provide --dns-provider and --dns-credentials.${CoR}"
-                    echo -e " Example: ${COLOR_GREEN}$0 --cert-generate *.example.com --dns-provider cloudflare --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your-api-key\"}'${CoR}\n"
+                    echo -e " Example: ${COLOR_GREEN}$0 --cert-generate *.example.com --dns-provider cloudflare --dns-credentials \"dns_cloudflare_email = your@email.com; dns_cloudflare_api_key = your-api-key\"${CoR}\n"
                 exit 1
                 fi
             fi

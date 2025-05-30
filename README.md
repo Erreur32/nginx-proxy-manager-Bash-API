@@ -230,11 +230,18 @@ API_PASS="changeme"
    ./npm-api.sh --list-ssl-cert                 
    # Generate standard Let's Encrypt certificate
    ./npm-api.sh --cert-generate domain.com [email] [dns_provider] [dns_credentials] [-y]
-   # Generate wildcard certificate with Cloudflare
+   
+   # Generate wildcard certificate with Cloudflare - Single line with semicolon
    ./npm-api.sh --cert-generate "*.example.com" \
      --cert-email admin@example.com \
      --dns-provider cloudflare \
-     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
+     --dns-credentials "dns_cloudflare_email = your@email.com; dns_cloudflare_api_key = your_api_key"
+
+   # Generate wildcard certificate with Cloudflare - Single line with comma
+   ./npm-api.sh --cert-generate "*.example.com" \
+     --cert-email admin@example.com \
+     --dns-provider cloudflare \
+     --dns-credentials "dns_cloudflare_email = your@email.com, dns_cloudflare_api_key = your_api_key"
 
    # Delete certificate
    ./npm-api.sh --delete-cert domain.com        
