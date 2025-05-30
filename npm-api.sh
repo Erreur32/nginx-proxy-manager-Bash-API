@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.0"
+VERSION="3.0.1"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
