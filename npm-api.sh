@@ -1340,7 +1340,7 @@ cert_show() {
     if [ -z "$DOMAIN_CERTS" ]; then
         echo -e " ℹ️ ${COLOR_YELLOW}No certificates found for domain: $search_term${CoR}"
     else
-        echo "$DOMAIN_CERTS" | jq -r '" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider : \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"' | while IFS= read -r line; do if [[ $line == *"❌ EXPIRED"* ]]; then echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"; elif [[ $line == *"✅ VALID"* ]]; then echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"; elif [[ $line == *"⚠️ PENDING"* ]]; then echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"; else echo -e "$line"; fi; done
+        echo "$DOMAIN_CERTS" | jq -r '" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"' | while IFS= read -r line; do if [[ $line == *"❌ EXPIRED"* ]]; then echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"; elif [[ $line == *"✅ VALID"* ]]; then echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"; elif [[ $line == *"⚠️ PENDING"* ]]; then echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"; else echo -e "$line"; fi; done
         echo ""
     fi
 }
@@ -1934,6 +1934,21 @@ host_search() {
 }
 
 ################################
+################################
+# Enable a proxy host by ID
+# 
+# 💡 NPM-specific endpoint discovery (2025-05-30):
+# ================================================
+# Like host_disable(), this function uses NPM's dedicated endpoint:
+# 
+# ✅ CORRECT approach:
+#    POST /api/nginx/proxy-hosts/{id}/enable with empty body
+#    → Actually enables the site and makes it accessible
+# 
+# ❌ The generic PUT approach with JSON modification doesn't work reliably.
+# Reference: Same discovery as host_disable() function above.
+################################
+
 # Enable a proxy host by ID
 host_enable() {
     local host_id="$1"
@@ -1946,34 +1961,31 @@ host_enable() {
     fi
 
     check_token_notverbose
-
     
-    # Check if the proxy host exists and get its current configuration
+    # Check if the proxy host exists first
     CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
     
     if [ $? -eq 0 ] && [ -n "$CHECK_RESPONSE" ]; then
+        # Check if the host was found (not a 404 error)
+        if echo "$CHECK_RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            echo -e " ⛔ ${COLOR_RED}Proxy host with ID $host_id does not exist${CoR}"
+            return 1
+        fi
+        
         # Get domain name for display
         DOMAIN_NAME=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[0]')
         
-        # Create minimal payload with only the enabled property
-        PAYLOAD='{"enabled":true}'
+        echo -e "\n ${COLOR_YELLOW}🔄 Enabling proxy host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
         
-        # Send PUT request with minimal payload
-        RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$host_id" \
+        # Use the CORRECT NPM endpoint: POST to /enable (like the web interface does)
+        RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts/$host_id/enable" \
             -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
+            -H "Content-Type: application/json; charset=UTF-8")
         
         if [ $? -eq 0 ] && ! echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
-            if [ "$DOMAIN_NAME" != "null" ] && [ -n "$DOMAIN_NAME" ]; then
-
-                echo -e "\n ${COLOR_YELLOW}🔄 Enabling proxy host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
-                echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}\n"
-                           
-            else
-                echo -e " ℹ️ ${COLOR_YELLOW}No domain name associated with this host${CoR}"
-            fi
+            echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+        #    echo -e " 🎯 ${COLOR_GREEN}Using NPM's native enable endpoint${CoR}\n"
         else
             ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
             echo -e " ⛔ ${COLOR_RED}Failed to enable proxy host: $ERROR_MSG${CoR}"
@@ -1985,49 +1997,65 @@ host_enable() {
 
 ################################
 # Disable a proxy host by ID
+# 
+# 🐛 IMPORTANT BUG DISCOVERY (2025-05-30):
+# ==========================================
+# The NPM web interface uses a DIFFERENT endpoint than expected!
+# 
+# ❌ WRONG approach (what we tried before):
+#    PUT /api/nginx/proxy-hosts/{id} with modified JSON (enabled: false)
+#    → Shows "disabled" in interface but site remains ACCESSIBLE!
+# 
+# ✅ CORRECT approach (what NPM web interface actually uses):
+#    POST /api/nginx/proxy-hosts/{id}/disable with empty body
+#    → Actually disables the site and makes it INACCESSIBLE!
+# 
+# This was discovered by inspecting NPM web interface network traffic.
+# NPM has dedicated /enable and /disable endpoints that work properly.
+# Reference: GitHub issue #3 (nginx-proxy-manager-Bash-API)
+################################
 host_disable() {
     local host_id="$1"
     
     if [ -z "$host_id" ]; then
         echo -e "\n ⛔ ${COLOR_RED}ERROR: The --host-disable option requires a host 🆔.${CoR}"
-        echo -e " Usage  : ${COLOR_ORANGE}$0 --host-disable <host_id>${CoR}"
-        echo -e " Example: ${COLOR_GREEN}$0 --host-disable 42${CoR}"
+        echo -e "     Usage  : ${COLOR_ORANGE}$0 --host-disable <host_id>${CoR}"
+        echo -e "     Example: ${COLOR_GREEN}$0 --host-disable 42${CoR}"
         return 1
     fi
 
     check_token_notverbose
 
-    # Check if the proxy host exists and get its current configuration
+    # Check if the proxy host exists first
     CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
     
     if [ $? -eq 0 ] && [ -n "$CHECK_RESPONSE" ]; then
+        # Check if the host was found (not a 404 error)
+        if echo "$CHECK_RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            echo -e " ⛔ ${COLOR_RED}Proxy host with ID $host_id does not exist${CoR}"
+            return 1
+        fi
+        
         # Get domain name for display
         DOMAIN_NAME=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[0]')
         
-        # Create minimal payload with only the enabled property
-        PAYLOAD='{"enabled":false}'
+        echo -e "\n ${COLOR_YELLOW}🔄 Disabling proxy host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
         
-        # Send PUT request with minimal payload
-        RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$host_id" \
+        # Use the CORRECT NPM endpoint: POST to /disable (like the web interface does)
+        RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts/$host_id/disable" \
             -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
+            -H "Content-Type: application/json; charset=UTF-8")
         
         if [ $? -eq 0 ] && ! echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
-            
-            if [ "$DOMAIN_NAME" != "null" ] && [ -n "$DOMAIN_NAME" ]; then
-                echo -e "\n ${COLOR_YELLOW}🔄 Disabling proxy host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
-                echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}\n"
-            else
-                echo -e " ℹ️ ${COLOR_YELLOW}No domain name associated with this host${CoR}\n"
-            fi
+            echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+        #    echo -e " 🎯 ${COLOR_GREEN}Using NPM's native disable endpoint${CoR}\n"
         else
             ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
-            echo -e " ⛔ ${COLOR_RED}Failed to disable proxy host: $ERROR_MSG${CoR}\n"
+            echo -e " ⛔ ${COLOR_RED}Failed to disable proxy host: $ERROR_MSG${CoR}"
         fi
     else
-        echo -e " ⛔ ${COLOR_RED}Proxy host with ID $host_id does not exist${CoR}\n"
+        echo -e " ⛔ ${COLOR_RED}Proxy host with ID $host_id does not exist${CoR}"
     fi
 }
 
@@ -2150,7 +2178,7 @@ host_acl_enable() {
 host_acl_disable() {
   if [ -z "$HOST_ID" ]; then
     echo -e "\n ⛔ ${COLOR_RED}Error: HOST_ID is required to disable the ACL.${CoR}"
-    echo -e "    Usage: $0 --host-acl-disable <host_id>"
+    echo -e "    Usage: $0 --host-acl-disable <host_id>\n"
     exit 1
   fi
   check_token_notverbose  
