@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.1"
+VERSION="3.0.2"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -3388,52 +3388,80 @@ full_backup() {
                 if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
                     echo "$CERT_META" | jq '.' > "$PROXY_DIR/ssl/certificate_meta.json"
                     
-                    # Get certificate content
-                    local CERT_CONTENT
-                    CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
-                    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
-                    -H "Accept: application/json")
-                    
-                    if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
-                        # Save certificate files in proxy host directory
-                        echo "$CERT_CONTENT" | jq -r '.certificate' > "$PROXY_DIR/ssl/certificate.pem"
-                        echo "$CERT_CONTENT" | jq -r '.private' > "$PROXY_DIR/ssl/private.key"
-                        chmod 600 "$PROXY_DIR/ssl/private.key"
-                        
-                        if echo "$CERT_CONTENT" | jq -r '.intermediate' > /dev/null 2>&1; then
-                            echo "$CERT_CONTENT" | jq -r '.intermediate' > "$PROXY_DIR/ssl/chain.pem"
-                        fi
+                    # Get certificate ZIP archive
+                    local TMP_ZIP
+                    TMP_ZIP=$(mktemp)
+                    curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/download" \
+                        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+                        -o "$TMP_ZIP"
 
-                        # Create centralized SSL directory structure
-                        local CERT_NAME
-                        CERT_NAME=$(echo "$CERT_META" | jq -r '.nice_name // .domain_names[0]' | sed 's/[^a-zA-Z0-9.]/_/g')
-                        local CENTRAL_SSL_DIR="$BACKUP_PATH/.ssl/$CERT_NAME"
-                        mkdir -p "$CENTRAL_SSL_DIR"
+                    if [ $? -eq 0 ] && [ -s "$TMP_ZIP" ]; then
+                        # Unzip to tmp file and extract it to folder
+                        local TMP_UNZIP_DIR
+                        TMP_UNZIP_DIR=$(mktemp -d)
+                        #trap 'rm -rf "$TMP_UNZIP_DIR"' EXIT
+                        trap '[ -n "${TMP_UNZIP_DIR-}" ] && rm -rf "$TMP_UNZIP_DIR"' EXIT
+                        unzip -o "$TMP_ZIP" -d "$TMP_UNZIP_DIR" >/dev/null 2>&1
+                        rm -f "$TMP_ZIP"
 
-                        # Save metadata and create symbolic links
-                        echo "$CERT_META" | jq '.' > "$CENTRAL_SSL_DIR/certificate_meta.json"
-                        ln -sf "$PROXY_DIR/ssl/certificate.pem" "$CENTRAL_SSL_DIR/certificate.pem"
-                        ln -sf "$PROXY_DIR/ssl/private.key" "$CENTRAL_SSL_DIR/private.key"
-                        [ -f "$PROXY_DIR/ssl/chain.pem" ] && ln -sf "$PROXY_DIR/ssl/chain.pem" "$CENTRAL_SSL_DIR/chain.pem"
+                        CERT_FILE=$(ls "$TMP_UNZIP_DIR"/cert8.pem 2>/dev/null)
+                        CHAIN_FILE=$(ls "$TMP_UNZIP_DIR"/chain8.pem 2>/dev/null)
+                        FULLCHAIN_FILE=$(ls "$TMP_UNZIP_DIR"/fullchain8.pem 2>/dev/null)
+                        PRIVKEY_FILE=$(ls "$TMP_UNZIP_DIR"/privkey8.pem 2>/dev/null)
 
-                        # Add symlink to latest version
-                        ln -sf "$CENTRAL_SSL_DIR" "$BACKUP_PATH/.ssl/${CERT_NAME}_latest"
-                        
-                        echo -e "   ✅ ${COLOR_GREEN}SSL certificate backed up successfully${CoR}"
-                        ((success_count++))
-                        
-                        # Count certificate type - maintenant les compteurs fonctionneront
-                        if echo "$CERT_META" | jq -e '.provider // empty | contains("letsencrypt")' >/dev/null 2>&1; then
-                            letsencrypt_certs_count=$((letsencrypt_certs_count + 1))
+                        # Check and save certificate files
+                        if [ -f "$CERT_FILE" ] && [ -f "$PRIVKEY_FILE" ]; then
+                            mkdir -p "$PROXY_DIR/ssl"
+                            cp "$CERT_FILE" "$PROXY_DIR/ssl/certificate.pem"
+                            cp "$PRIVKEY_FILE" "$PROXY_DIR/ssl/private.key"
+                            chmod 600 "$PRIVKEY_FILE"
+
+                            if [ -f "$CHAIN_FILE" ]; then
+                                cp "$CHAIN_FILE" "$PROXY_DIR/ssl/chain.pem"
+                            fi
+
+                            if [ -f "$FULLCHAIN_FILE" ]; then
+                                cp "$FULLCHAIN_FILE" "$PROXY_DIR/ssl/fullchain.pem"
+                            fi
+
+                            # Create centralized SSL directory structure
+                            local CERT_NAME
+                            CERT_NAME=$(echo "$CERT_META" | jq -r '.nice_name // .domain_names[0]' | sed 's/[^a-zA-Z0-9.]/_/g')
+                            local CENTRAL_SSL_DIR="$BACKUP_PATH/.ssl/$CERT_NAME"
+                            mkdir -p "$CENTRAL_SSL_DIR"
+
+                            # Save metadata and create symbolic links
+                            echo "$CERT_META" | jq '.' > "$CENTRAL_SSL_DIR/certificate_meta.json"
+                            ln -sf "$PROXY_DIR/ssl/certificate.pem" "$CENTRAL_SSL_DIR/certificate.pem"
+                            ln -sf "$PROXY_DIR/ssl/private.key" "$CENTRAL_SSL_DIR/private.key"
+                            [ -f "$PROXY_DIR/ssl/chain.pem" ] && ln -sf "$PROXY_DIR/ssl/chain.pem" "$CENTRAL_SSL_DIR/chain.pem"
+                            [ -f "$PROXY_DIR/ssl/fullchain.pem" ] && ln -sf "$PROXY_DIR/ssl/fullchain.pem" "$CENTRAL_SSL_DIR/fullchain.pem"
+
+                            # Add symlink to latest version
+                            ln -sf "$CENTRAL_SSL_DIR" "$BACKUP_PATH/.ssl/${CERT_NAME}_latest"
+
+                            echo -e "   ✅ ${COLOR_GREEN}SSL certificate backed up successfully${CoR}"
+                            ((success_count++))
+
+                            # Count certificate type
+                            if echo "$CERT_META" | jq -e '.provider // empty | contains("letsencrypt")' >/dev/null 2>&1; then
+                                letsencrypt_certs_count=$((letsencrypt_certs_count + 1))
+                            else
+                                custom_certs_count=$((custom_certs_count + 1))
+                            fi
+                            certs_count=$((certs_count + 1))
                         else
-                            custom_certs_count=$((custom_certs_count + 1))
+                            echo -e "   ⚠️ ${COLOR_YELLOW}Certificate files not found inside ZIP${CoR}"
+                            ((error_count++))
                         fi
-                        certs_count=$((certs_count + 1))
-                        success_count=$((success_count + 1))
+
+                        # Cleanup
+                        rm -rf "$TMP_UNZIP_DIR"
                     else
-                        echo -e "   ⚠️ ${COLOR_YELLOW}Failed to download certificate content${CoR}"
+                        echo -e "   ⚠️ ${COLOR_YELLOW}Failed to download certificate ZIP archive${CoR}"
                         ((error_count++))
                     fi
+
                 else
                     echo -e "   ⚠️ ${COLOR_YELLOW}Failed to get certificate metadata${CoR}"
                     ((error_count++))
