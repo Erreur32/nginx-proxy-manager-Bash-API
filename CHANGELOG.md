@@ -2,6 +2,47 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.0.2] - 2025-01-20
+
+### 🐛 Bug Fixes
+
+- **Fixed `--access-list-update` command not working with arguments**
+  - **Issue**: The command `./npm-api.sh --access-list-update 123 --name "new_name"` was failing with "Unknown option: 123" error
+  - **Root Cause**: The argument parsing for `--access-list-update` was not properly capturing the access list ID and subsequent arguments
+  - **Solution**: 
+    - Fixed argument parsing to properly capture the access list ID
+    - Implemented proper argument storage and passing to the function
+    - Corrected JSON payload structure to match API schema expectations
+  - **Technical Details**:
+    - Changed from interactive `read` prompts to command-line argument processing
+    - Updated payload structure to use `satisfy_any` (boolean) instead of `satisfy` (string)
+    - Removed unsupported fields (`auth_type`, `whitelist`) from API payload
+    - Added support for `--name`, `--satisfy`, and `--pass-auth` options
+  - **Usage Examples**:
+    ```bash
+    # Update access list name
+    ./npm-api.sh --access-list-update 4 --name "new_name"
+    
+    # Update satisfaction mode
+    ./npm-api.sh --access-list-update 4 --satisfy any
+    
+    # Update multiple properties
+    ./npm-api.sh --access-list-update 4 --name "test_script" --satisfy any
+    ```
+
+### 🔧 Technical Improvements
+
+- **Enhanced Argument Processing**: Improved command-line argument parsing for access list operations
+- **API Schema Compliance**: Updated JSON payload structure to match official NPM API schema
+- **Error Handling**: Better error messages and validation for access list operations
+- **Code Consistency**: Aligned `access_list_update` function structure with `access_list_create`
+
+### 📝 Documentation Updates
+
+- Updated help messages and examples for `--access-list-update` command
+- Added proper usage examples in error messages
+- Improved command-line argument validation feedback
+
 ## [3.0.0] - 2025-03-24
 
 ### 🔄 Breaking Changes

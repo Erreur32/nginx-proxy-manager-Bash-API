@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.1"
+VERSION="3.0.2"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -220,6 +220,7 @@ ACCESS_LIST_UPDATE=false
 ACCESS_LIST_DELETE=false
 ACCESS_LIST_SHOW=false
 ACCESS_LIST_ID=""
+ACCESS_LIST_UPDATE_ARGS=()
 AUTO_YES=false
 
 BACKUP=false
@@ -2852,10 +2853,15 @@ access_list_create() {
 
 access_list_update() {
     check_token_notverbose
-    echo -e "\n🔑 ${COLOR_CYAN}Updating access list...${CoR}"
-    echo -e "Enter the ID of the access list to update:"
-    read -r access_list_id
+    
+    if [ -z "$ACCESS_LIST_ID" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}Error: ACCESS_LIST_ID is required.${CoR}"
+        echo -e "    Usage: $0 --access-list-update <access_list_id> [options]"
+        return 1
+    fi
 
+    local access_list_id="$ACCESS_LIST_ID"
+    
     # Get the current access list details
     local current_list=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$access_list_id" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
@@ -2865,159 +2871,102 @@ access_list_update() {
         return 1
     fi
 
-    # Extract current values
-    local current_name=$(echo "$current_list" | jq -r '.name')
-    local current_auth_type=$(echo "$current_list" | jq -r '.auth_type')
-    local current_satisfy=$(echo "$current_list" | jq -r '.satisfy')
-    local current_pass_auth=$(echo "$current_list" | jq -r '.pass_auth')
+    # Extract current values with proper null handling
+    local current_name=$(echo "$current_list" | jq -r '.name // "unnamed"')
+    local current_satisfy_any=$(echo "$current_list" | jq -r '.satisfy_any // false')
+    local current_pass_auth=$(echo "$current_list" | jq -r '.pass_auth // false')
+    local current_items=$(echo "$current_list" | jq '.items // []')
+    local current_clients=$(echo "$current_list" | jq '.clients // []')
     
+    echo -e "\n🔑 ${COLOR_CYAN}Updating access list ID: ${COLOR_YELLOW}$access_list_id${CoR}"
     echo -e "\n${COLOR_CYAN}Current Access List Details:${CoR}"
     echo -e "Name: $current_name"
-    echo -e "Auth Type: $current_auth_type"
-    echo -e "Satisfy Rule: $current_satisfy"
+    echo -e "Satisfy Any: $current_satisfy_any"
     echo -e "Pass Auth: $current_pass_auth"
     
-    # Update name
-    echo -e "\nCurrent name is: ${COLOR_GREEN}$current_name${CoR}"
-    echo -e "Enter new name (or press Enter to keep current):"
-    read -r new_name
-    new_name=${new_name:-$current_name}
-    
-    # Update auth type
-    echo -e "\nCurrent auth type is: ${COLOR_GREEN}$current_auth_type${CoR}"
-    echo -e "Select new authorization type:"
-    echo "1) Basic Authentication"
-    echo "2) None (Allow All)"
-    echo "3) Keep current"
-    read -r auth_type_choice
-    
-    local auth_type="$current_auth_type"
-    local pass_auth=$current_pass_auth
-    local satisfy="$current_satisfy"
-    local clients=$(echo "$current_list" | jq '.clients')
-    local whitelist=$(echo "$current_list" | jq '.whitelist')
-    
-    case $auth_type_choice in
-        1)
-            auth_type="basic"
-            pass_auth=true
-            ;;
-        2)
-            auth_type="none"
-            pass_auth=false
-            clients="[]"
-            whitelist="[]"
-            ;;
-    esac
-    
-    if [ "$auth_type" = "basic" ]; then
-        # Update satisfy rule
-        echo -e "\nCurrent satisfy rule is: ${COLOR_GREEN}$current_satisfy${CoR}"
-        echo -e "Select new satisfy rule:"
-        echo "1) Any (OR) - Client needs to match any of the rules"
-        echo "2) All (AND) - Client needs to match all rules"
-        echo "3) Keep current"
-        read -r satisfy_choice
+    # Initialize variables with current values
+    local new_name="$current_name"
+    local satisfy_any="$current_satisfy_any"
+    local pass_auth="$current_pass_auth"
+    local items="$current_items"
+    local clients="$current_clients"
+
+    # Process command line arguments if provided
+    if [ $# -gt 0 ]; then
+        echo -e "\n${COLOR_CYAN}Processing command line arguments...${CoR}"
         
-        case $satisfy_choice in
-            1)
-                satisfy="any"
-                ;;
-            2)
-                satisfy="all"
-                ;;
-        esac
-        
-        # Update basic auth users
-        echo -e "\nDo you want to modify basic auth users? (y/n)"
-        read -r modify_users
-        
-        if [ "$modify_users" = "y" ]; then
-            echo -e "\nCurrent users:"
-            echo "$current_list" | jq -r '.clients[] | "Username: \(.username)"'
-            
-            echo -e "\nDo you want to:"
-            echo "1) Add new users to existing ones"
-            echo "2) Replace all users"
-            echo "3) Keep current users"
-            read -r users_action
-            
-            case $users_action in
-                1|2)
-                    [ "$users_action" = "2" ] && clients="["
-                    while true; do
-                        echo -e "\nEnter username:"
-                        read -r username
-                        echo -e "Enter password:"
-                        read -r -s password
-                        
-                        if [ "$users_action" = "1" ]; then
-                            clients=$(echo "$clients" | jq '. += [{"username":"'"$username"'","password":"'"$password"'"}]')
-                        else
-                            if [ "$clients" != "[" ]; then
-                                clients="$clients,"
-                            fi
-                            clients="$clients{\"username\":\"$username\",\"password\":\"$password\"}"
-                        fi
-                        
-                        echo -e "\nAdd another user? (y/n)"
-                        read -r more_users
-                        [ "$more_users" != "y" ] && break
-                    done
-                    [ "$users_action" = "2" ] && clients="$clients]"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --name)
+                    if [ $# -lt 2 ]; then
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: --name requires a value${CoR}"
+                        return 1
+                    fi
+                    new_name="$2"
+                    echo -e "  📝 Setting name to: ${COLOR_GREEN}$new_name${CoR}"
+                    shift 2
+                    ;;
+                --satisfy)
+                    if [ $# -lt 2 ]; then
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: --satisfy requires any/all${CoR}"
+                        return 1
+                    fi
+                    if [ "$2" = "any" ]; then
+                        satisfy_any="true"
+                        echo -e "  🔄 Setting satisfy to: ${COLOR_GREEN}any${CoR}"
+                    elif [ "$2" = "all" ]; then
+                        satisfy_any="false"
+                        echo -e "  🔄 Setting satisfy to: ${COLOR_GREEN}all${CoR}"
+                    else
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: Invalid satisfy value. Must be 'any' or 'all'${CoR}"
+                        return 1
+                    fi
+                    shift 2
+                    ;;
+                --pass-auth)
+                    if [ $# -lt 2 ]; then
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: --pass-auth requires true/false${CoR}"
+                        return 1
+                    fi
+                    if [ "$2" = "true" ] || [ "$2" = "false" ]; then
+                        pass_auth="$2"
+                        echo -e "  🔓 Setting pass auth to: ${COLOR_GREEN}$pass_auth${CoR}"
+                    else
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: Invalid pass auth value. Must be 'true' or 'false'${CoR}"
+                        return 1
+                    fi
+                    shift 2
+                    ;;
+                *)
+                    echo -e "\n ⛔ ${COLOR_RED}ERROR: Unknown option $1${CoR}"
+                    echo -e "   ${COLOR_CYAN}Available options:${CoR}"
+                    echo -e "     ${COLOR_GREEN}--name <new_name>${CoR}           Update access list name"
+                    echo -e "     ${COLOR_GREEN}--satisfy any|all${CoR}          Update satisfaction mode"
+                    echo -e "     ${COLOR_GREEN}--pass-auth true|false${CoR}     Update pass auth setting"
+                    return 1
                     ;;
             esac
-        fi
-        
-        # Update IP whitelist
-        echo -e "\nDo you want to modify IP whitelist? (y/n)"
-        read -r modify_ips
-        
-        if [ "$modify_ips" = "y" ]; then
-            echo -e "\nCurrent whitelisted IPs:"
-            echo "$current_list" | jq -r '.whitelist[] | "IP: \(.address)"'
-            
-            echo -e "\nDo you want to:"
-            echo "1) Add new IPs to existing ones"
-            echo "2) Replace all IPs"
-            echo "3) Keep current IPs"
-            read -r ips_action
-            
-            case $ips_action in
-                1|2)
-                    [ "$ips_action" = "2" ] && whitelist="["
-                    while true; do
-                        echo -e "\nEnter IP address (with optional CIDR, e.g., 192.168.1.0/24):"
-                        read -r ip
-                        
-                        if [ "$ips_action" = "1" ]; then
-                            whitelist=$(echo "$whitelist" | jq '. += [{"address":"'"$ip"'","owner":"User"}]')
-                        else
-                            if [ "$whitelist" != "[" ]; then
-                                whitelist="$whitelist,"
-                            fi
-                            whitelist="$whitelist{\"address\":\"$ip\",\"owner\":\"User\"}"
-                        fi
-                        
-                        echo -e "Add another IP address? (y/n)"
-                        read -r more_ips
-                        [ "$more_ips" != "y" ] && break
-                    done
-                    [ "$ips_action" = "2" ] && whitelist="$whitelist]"
-                    ;;
-            esac
-        fi
+        done
+    else
+        # Interactive mode if no arguments provided
+        echo -e "\n${COLOR_CYAN}No arguments provided, using current values.${CoR}"
+        echo -e "💡 ${COLOR_YELLOW}Tip: Use --name, --satisfy, --auth-type, or --pass-auth options for non-interactive updates${CoR}"
     fi
     
-    # Prepare the JSON payload
-    local payload="{
-        \"name\": \"$new_name\",
-        \"satisfy\": \"$satisfy\",
-        \"pass_auth\": $pass_auth,
-        \"auth_type\": \"$auth_type\",
-        \"clients\": $clients,
-        \"whitelist\": $whitelist
-    }"
+    # Prepare the JSON payload using jq for proper formatting (same structure as create)
+    local payload=$(jq -n \
+        --arg name "$new_name" \
+        --argjson satisfy_any "$satisfy_any" \
+        --argjson pass_auth "$pass_auth" \
+        --argjson items "$items" \
+        --argjson clients "$clients" \
+        '{
+            name: $name,
+            satisfy_any: $satisfy_any,
+            pass_auth: $pass_auth,
+            items: $items,
+            clients: $clients
+        }')
     
     # Update the access list
     local response=$(curl -s -X PUT "$BASE_URL/nginx/access-lists/$access_list_id" \
@@ -3030,10 +2979,11 @@ access_list_update() {
         echo -e "\n${COLOR_CYAN}Updated Access List Details:${CoR}"
         echo -e "ID: $access_list_id"
         echo -e "Name: $new_name"
-        echo -e "Auth Type: $auth_type"
-        echo -e "Satisfy: $satisfy"
+        echo -e "Satisfy: $([ "$satisfy_any" = "true" ] && echo "any" || echo "all")"
+        echo -e "Pass Auth: $pass_auth"
     else
         echo -e "\n ⛔ ${COLOR_RED}Failed to update access list. Error: $(echo "$response" | jq -r '.error')${CoR}"
+        return 1
     fi
 } 
 
@@ -4061,7 +4011,40 @@ while [[ "$#" -gt 0 ]]; do
                 exit 1
             fi
             ;;
-        --access-list-update) ACCESS_LIST_UPDATE=true; shift ;;      
+        --access-list-update)        
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}The --access-list-update option requires an access list ID.${CoR}"
+                echo -e "   ${COLOR_CYAN}Usage:${CoR}"
+                echo -e "    ${COLOR_ORANGE}$0 --access-list-update <access_list_id> [options]${CoR}"
+                echo -e "   ${COLOR_CYAN}Examples:${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --access-list-update 123 --name \"new_name\"${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --access-list-update 123 --name \"new_name\" --satisfy any${CoR}"
+                echo -e "   ${COLOR_YELLOW}💡 Tip: Use --access-list to see all available access lists${CoR}"
+                exit 1
+            fi
+
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                ACCESS_LIST_ID="$1"
+                ACCESS_LIST_UPDATE=true
+                shift
+            else
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: Invalid access list ID '$1' - must be a number${CoR}"
+                echo -e "  ${COLOR_CYAN}Examples:${CoR}"
+                echo -e "   ${COLOR_GREEN}$0 --access-list-update 123 --name \"new_name\"${CoR}"
+                echo -e "   ${COLOR_GREEN}$0 --access-list-update 123 --name \"new_name\" --satisfy any${CoR}"
+                echo -e "  ${COLOR_YELLOW}💡 Tip: Use --access-list to see all available access lists${CoR}"
+                exit 1
+            fi
+            
+            # Process remaining arguments for access list update
+            # Store them to pass to the function later
+            ACCESS_LIST_UPDATE_ARGS=()
+            while [ $# -gt 0 ]; do
+                ACCESS_LIST_UPDATE_ARGS+=("$1")
+                shift
+            done
+            ;;      
         --access-list-delete)        
             shift
             if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
@@ -4133,7 +4116,7 @@ elif [ "$ACCESS_LIST" = true ]; then
 elif [ "$ACCESS_LIST_CREATE" = true ]; then
    access_list_create   
 elif [ "$ACCESS_LIST_UPDATE" = true ]; then
-   access_list_update
+   access_list_update "${ACCESS_LIST_UPDATE_ARGS[@]}"
 elif [ "$ACCESS_LIST_DELETE" = true ]; then
    access_list_delete      
 elif [ "$ACCESS_LIST_SHOW" = true ]; then
