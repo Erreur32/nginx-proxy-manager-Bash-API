@@ -1,4 +1,42 @@
-## [3.0.5] - 2025-01-20e changes to the npm-api.sh script will be documented in this file.
+# Changelog
+
+All notable changes to the npm-api.sh script will be documented in this file.
+
+## [3.0.6] - 2025-01-20
+
+### 🆕 New Features
+
+- **Added certificate download functionality with fallback support** ([PR #20](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/20))
+  - **Issue**: Certificate download failed on newer NPM installations due to API changes
+  - **Solution**: 
+    - Added `--cert-download` command to download certificates as ZIP files
+    - Implemented automatic fallback from new API (JSON) to legacy API (ZIP)
+    - Added support for wildcard file matching (cert*.pem, privkey*.pem, etc.)
+    - Created standardized output format with .crt, .key, .chain.crt files
+  - **Technical Details**:
+    - New API: Uses `/nginx/certificates/{id}/certificates` endpoint with JSON response
+    - Legacy API: Uses `/nginx/certificates/{id}/download` endpoint with ZIP response
+    - Automatic detection of certificate files with wildcards (supports cert8.pem, cert9.pem, etc.)
+    - Creates both individual files and ZIP archive for easy distribution
+    - Proper error handling and cleanup of temporary files
+  - **Usage Examples**:
+    ```bash
+    # Download certificate with default settings
+    ./npm-api.sh --cert-download 123
+    
+    # Download to specific directory
+    ./npm-api.sh --cert-download 123 ./certs
+    
+    # Download with custom name
+    ./npm-api.sh --cert-download 123 ./certs mydomain
+    ```
+  - **Output Files**:
+    - `{cert_name}.crt` - Certificate file
+    - `{cert_name}.key` - Private key file
+    - `{cert_name}.chain.crt` - Intermediate certificate (if available)
+    - `{cert_name}.fullchain.crt` - Full chain certificate (if available)
+    - `{cert_name}_metadata.json` - Certificate metadata
+    - `{cert_name}_certificate.zip` - ZIP archive containing all files
 
 ## [3.0.5] - 2025-01-20
 

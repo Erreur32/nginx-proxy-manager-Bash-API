@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.5"
+VERSION="3.0.6"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -205,6 +205,7 @@ LIST_CERT_ALL=false
 CERT_SHOW=false
 CERT_GENERATE=false
 CERT_DELETE=false
+CERT_DOWNLOAD=false
 CERT_DOMAIN=""
 CERT_EMAIL=""
 DNS_PROVIDER=""
@@ -595,6 +596,7 @@ show_help() {
   echo -e "  --cert-list                             List ALL SSL certificates" 
   echo -e "  --cert-show     ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}            List SSL certificates filtered by [domain name] (${COLOR_YELLOW}JSON${CoR})${CoR}" 
   echo -e "  --cert-delete   ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}            Delete Certificate for the given '${COLOR_YELLOW}domain${CoR}'"
+  echo -e "  --cert-download ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[output_dir]${CoR} ${COLOR_CYAN}[cert_name]${CoR}  Download certificate as ZIP with fallback support"
  
   echo -e "  --cert-generate ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}          Generate Let's Encrypt Certificate or others Providers.${CoR}"
   echo -e "                                           • ${COLOR_YELLOW}Standard domains:${CoR} example.com, sub.example.com"
@@ -670,6 +672,8 @@ examples_cli() {
 
     echo -e "${COLOR_GREY}  # List all certificates${CoR}"
     echo -e "  $0 --cert-list"
+    echo -e "${COLOR_GREY}  # Download certificate as ZIP${CoR}"
+    echo -e "  $0 --cert-download 123"
     echo -e "${COLOR_GREY}  # Generate SSL certificate${CoR}"
     echo -e "  $0 --cert-generate example.com --cert-email admin@example.com"
     
@@ -1396,6 +1400,185 @@ list_cert_all() {
     echo -e "    Total certs: ${COLOR_YELLOW}$TOTAL_CERTS${CoR}"
     echo -e "    • ${COLOR_GREEN}Valid${CoR}    : ${COLOR_GREEN}$VALID_CERTS${CoR}"
     echo -e "    • ${COLOR_RED}Expired${CoR}  : ${COLOR_RED}$EXPIRED_CERTS${CoR}\n"
+}
+
+################################
+# Function to download certificate as ZIP with fallback support
+cert_download() {
+    local cert_id="$1"
+    local output_dir="${2:-./certificates}"
+    local cert_name="${3:-certificate_$cert_id}"
+    
+    check_token_notverbose
+    
+    if [ -z "$cert_id" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: Certificate ID is required${CoR}"
+        echo -e "    Usage: "
+        echo -e "      ${COLOR_ORANGE}$0 --cert-download <cert_id> [output_dir] [cert_name]${CoR}"
+        echo -e "      ${COLOR_ORANGE}$0 --cert-download 123 ./certs mydomain${CoR}\n"
+        exit 1
+    fi
+    
+    # Create output directory
+    mkdir -p "$output_dir"
+    
+    echo -e "\n 🔒 Downloading certificate (ID: ${COLOR_YELLOW}$cert_id${CoR})"
+    echo -e "    Output directory: ${COLOR_CYAN}$output_dir${CoR}"
+    echo -e "    Certificate name: ${COLOR_CYAN}$cert_name${CoR}"
+    
+    # Get certificate metadata first
+    local CERT_META
+    CERT_META=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    
+    if [ -z "$CERT_META" ] || ! echo "$CERT_META" | jq empty 2>/dev/null; then
+        echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve certificate metadata${CoR}"
+        exit 1
+    fi
+    
+    # Check if certificate exists
+    if echo "$CERT_META" | jq -e '.error' >/dev/null; then
+        echo -e " ⛔ ${COLOR_RED}Certificate not found with ID: $cert_id${CoR}"
+        exit 1
+    fi
+    
+    # Extract certificate information
+    local domain_names=$(echo "$CERT_META" | jq -r '.domain_names | join(", ")')
+    local provider=$(echo "$CERT_META" | jq -r '.provider // "Unknown"')
+    local expires_on=$(echo "$CERT_META" | jq -r '.expires_on // "N/A"')
+    
+    echo -e "    Domain(s): ${COLOR_YELLOW}$domain_names${CoR}"
+    echo -e "    Provider: ${COLOR_YELLOW}$provider${CoR}"
+    echo -e "    Expires: ${COLOR_YELLOW}$expires_on${CoR}"
+    
+    # Try new API first (JSON format)
+    echo -e "\n 🔄 Trying new API format..."
+    local CERT_CONTENT
+    CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+        -H "Accept: application/json")
+    
+    if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
+        # Check if we got valid certificate data
+        local cert_data=$(echo "$CERT_CONTENT" | jq -r '.certificate // empty')
+        local private_data=$(echo "$CERT_CONTENT" | jq -r '.private // empty')
+        
+        if [ -n "$cert_data" ] && [ -n "$private_data" ]; then
+            echo -e " ✅ ${COLOR_GREEN}New API format successful${CoR}"
+            
+            # Save certificate files
+            echo "$cert_data" > "$output_dir/${cert_name}.crt"
+            echo "$private_data" > "$output_dir/${cert_name}.key"
+            chmod 600 "$output_dir/${cert_name}.key"
+            
+            # Save intermediate certificate if available
+            local intermediate_data=$(echo "$CERT_CONTENT" | jq -r '.intermediate // empty')
+            if [ -n "$intermediate_data" ]; then
+                echo "$intermediate_data" > "$output_dir/${cert_name}.chain.crt"
+            fi
+            
+            # Save metadata
+            echo "$CERT_META" | jq '.' > "$output_dir/${cert_name}_metadata.json"
+            
+            # Create ZIP file
+            local zip_file="$output_dir/${cert_name}_certificate.zip"
+            cd "$output_dir" || exit 1
+            zip -q "$zip_file" "${cert_name}.crt" "${cert_name}.key" "${cert_name}_metadata.json"
+            [ -f "${cert_name}.chain.crt" ] && zip -q "$zip_file" "${cert_name}.chain.crt"
+            cd - > /dev/null || exit 1
+            
+            echo -e " ✅ ${COLOR_GREEN}Certificate downloaded successfully${CoR}"
+            echo -e "    Files created:"
+            echo -e "      • ${COLOR_CYAN}${cert_name}.crt${CoR} (Certificate)"
+            echo -e "      • ${COLOR_CYAN}${cert_name}.key${CoR} (Private Key)"
+            [ -f "$output_dir/${cert_name}.chain.crt" ] && echo -e "      • ${COLOR_CYAN}${cert_name}.chain.crt${CoR} (Chain)"
+            echo -e "      • ${COLOR_CYAN}${cert_name}_metadata.json${CoR} (Metadata)"
+            echo -e "      • ${COLOR_CYAN}${cert_name}_certificate.zip${CoR} (ZIP Archive)"
+            
+            return 0
+        fi
+    fi
+    
+    # Fallback to old API (ZIP download)
+    echo -e " ⚠️ ${COLOR_YELLOW}New API failed, trying legacy ZIP download...${CoR}"
+    
+    local TMP_DIR=$(mktemp -d)
+    local zip_file="$TMP_DIR/certificate.zip"
+    
+    # Download ZIP file
+    local download_response
+    download_response=$(curl -s -w "%{http_code}" -X GET "$BASE_URL/nginx/certificates/$cert_id/download" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+        -o "$zip_file")
+    
+    local http_code="${download_response: -3}"
+    
+    if [ "$http_code" = "200" ] && [ -f "$zip_file" ] && [ -s "$zip_file" ]; then
+        echo -e " ✅ ${COLOR_GREEN}Legacy ZIP download successful${CoR}"
+        
+        # Extract ZIP file
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$zip_file" -d "$TMP_DIR"
+            
+            # Find certificate files with wildcards (supporting cert8.pem, cert9.pem, etc.)
+            local cert_file=$(find "$TMP_DIR" -name "cert*.pem" | head -1)
+            local key_file=$(find "$TMP_DIR" -name "privkey*.pem" | head -1)
+            local chain_file=$(find "$TMP_DIR" -name "chain*.pem" | head -1)
+            local fullchain_file=$(find "$TMP_DIR" -name "fullchain*.pem" | head -1)
+            
+            if [ -n "$cert_file" ] && [ -n "$key_file" ]; then
+                # Copy files to output directory
+                cp "$cert_file" "$output_dir/${cert_name}.crt"
+                cp "$key_file" "$output_dir/${cert_name}.key"
+                chmod 600 "$output_dir/${cert_name}.key"
+                
+                # Copy chain file if available
+                if [ -n "$chain_file" ]; then
+                    cp "$chain_file" "$output_dir/${cert_name}.chain.crt"
+                fi
+                
+                # Copy fullchain if available
+                if [ -n "$fullchain_file" ]; then
+                    cp "$fullchain_file" "$output_dir/${cert_name}.fullchain.crt"
+                fi
+                
+                # Save metadata
+                echo "$CERT_META" | jq '.' > "$output_dir/${cert_name}_metadata.json"
+                
+                # Create new ZIP file with standardized names
+                local final_zip="$output_dir/${cert_name}_certificate.zip"
+                cd "$output_dir" || exit 1
+                zip -q "$final_zip" "${cert_name}.crt" "${cert_name}.key" "${cert_name}_metadata.json"
+                [ -f "${cert_name}.chain.crt" ] && zip -q "$final_zip" "${cert_name}.chain.crt"
+                [ -f "${cert_name}.fullchain.crt" ] && zip -q "$final_zip" "${cert_name}.fullchain.crt"
+                cd - > /dev/null || exit 1
+                
+                echo -e " ✅ ${COLOR_GREEN}Certificate downloaded successfully (legacy method)${CoR}"
+                echo -e "    Files created:"
+                echo -e "      • ${COLOR_CYAN}${cert_name}.crt${CoR} (Certificate)"
+                echo -e "      • ${COLOR_CYAN}${cert_name}.key${CoR} (Private Key)"
+                [ -f "$output_dir/${cert_name}.chain.crt" ] && echo -e "      • ${COLOR_CYAN}${cert_name}.chain.crt${CoR} (Chain)"
+                [ -f "$output_dir/${cert_name}.fullchain.crt" ] && echo -e "      • ${COLOR_CYAN}${cert_name}.fullchain.crt${CoR} (Full Chain)"
+                echo -e "      • ${COLOR_CYAN}${cert_name}_metadata.json${CoR} (Metadata)"
+                echo -e "      • ${COLOR_CYAN}${cert_name}_certificate.zip${CoR} (ZIP Archive)"
+                
+                # Cleanup
+                rm -rf "$TMP_DIR"
+                return 0
+            else
+                echo -e " ⛔ ${COLOR_RED}Error: Could not find certificate files in ZIP${CoR}"
+            fi
+        else
+            echo -e " ⛔ ${COLOR_RED}Error: unzip command not found${CoR}"
+        fi
+    else
+        echo -e " ⛔ ${COLOR_RED}Error: Failed to download certificate ZIP (HTTP $http_code)${CoR}"
+    fi
+    
+    # Cleanup on failure
+    rm -rf "$TMP_DIR"
+    echo -e " ⛔ ${COLOR_RED}Certificate download failed${CoR}"
+    exit 1
 }
 
 # Verify Cloudflare API Key validity
@@ -4153,6 +4336,36 @@ while [[ "$#" -gt 0 ]]; do
             fi
             ;;
         --cert-list) LIST_CERT_ALL=true; shift;;
+        --cert-download)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}The --cert-download option requires a certificate ID.${CoR}"
+                echo -e "\n   ${COLOR_CYAN}Usage:${CoR}"
+                echo -e "    ${COLOR_ORANGE}$0 --cert-download <cert_id> [output_dir] [cert_name]${CoR}"
+                echo -e "\n   ${COLOR_CYAN}Examples:${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --cert-download 240${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --cert-download 240 ./certs${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --cert-download 240 ./certs mydomain${CoR}"
+                echo -e "\n   ${COLOR_YELLOW}💡 Tips:${CoR}"
+                echo -e "    • Use ${COLOR_GREEN}--cert-list${CoR} to see all certificates and their IDs"
+                echo -e "    • Supports both new API (JSON) and legacy API (ZIP) with automatic fallback"
+                echo -e "    • Creates standardized certificate files (.crt, .key, .chain.crt) and ZIP archive\n"
+                exit 1
+            fi
+            CERT_DOWNLOAD=true
+            CERT_ID="$1"
+            shift
+            # Optional output directory
+            if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+                CERT_OUTPUT_DIR="$1"
+                shift
+            fi
+            # Optional certificate name
+            if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+                CERT_NAME="$1"
+                shift
+            fi
+            ;;
         --access-list) ACCESS_LIST=true; shift;;
         --access-list-show)
             ACCESS_LIST_SHOW=true
@@ -4267,6 +4480,8 @@ elif [ "$CERT_SHOW" = true ]; then
     cert_show "$search_term"
 elif [ "$LIST_CERT_ALL" = true ]; then
     list_cert_all
+elif [ "$CERT_DOWNLOAD" = true ]; then
+    cert_download "$CERT_ID" "${CERT_OUTPUT_DIR:-./certificates}" "${CERT_NAME:-certificate_$CERT_ID}"
 
 elif [ "$ACCESS_LIST" = true ]; then
    access_list

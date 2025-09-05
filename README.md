@@ -6,7 +6,7 @@
 [![Stargazers][stars-shield]][stars]
 
 
-# Nginx Proxy Manager CLI Script V3.0.5 🚀
+# Nginx Proxy Manager CLI Script V3.0.6 🚀
 
 ## Table of Contents
 
@@ -152,6 +152,7 @@ API_PASS="changeme"
   --cert-list                             List ALL SSL certificates
   --cert-show     domain Or 🆔            List SSL certificates filtered by [domain name] (JSON)
   --cert-delete   domain Or 🆔            Delete Certificate for the given 'domain'
+  --cert-download 🆔 [output_dir] [cert_name]  Download certificate as ZIP with fallback support
   --cert-generate domain [email]          Generate Let's Encrypt Certificate or others Providers.
                                            • Standard domains: example.com, sub.example.com
                                            • Wildcard domains: *.example.com (requires DNS challenge)
@@ -227,7 +228,10 @@ API_PASS="changeme"
 
  🔒 SSL Management:
    # List all certificates
-   ./npm-api.sh --list-ssl-cert                 
+   ./npm-api.sh --list-ssl-cert
+   # Download certificate as ZIP
+   ./npm-api.sh --cert-download 123
+   ./npm-api.sh --cert-download 123 ./certs mydomain
    # Generate standard Let's Encrypt certificate
    ./npm-api.sh --cert-generate domain.com [email] [dns_provider] [dns_credentials] [-y]
    # Generate wildcard certificate with Cloudflare
@@ -614,4 +618,10 @@ MIT License - see the [LICENSE.md][license] file for details
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
 [stars-shield]: https://img.shields.io/github/stars/Erreur32/nginx-proxy-manager-Bash-API.svg
 [stars]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/stargazers
+
+---
+
+## 🙏 Acknowledgments
+
+Special thanks to [@popy2k14](https://github.com/popy2k14) for identifying and reporting the certificate download issue in [PR #20](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/20). Their contribution helped improve the script's compatibility with newer NPM installations by highlighting the API changes and the need for fallback support.
 
