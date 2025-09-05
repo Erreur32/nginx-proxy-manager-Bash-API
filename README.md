@@ -56,7 +56,9 @@ Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la
 
 ## Prerequisites
 
-The excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager))
+The excellent Ngins Proxy Manager [NPM](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager)
+
+[![Nginx Proxy Manager](https://nginxproxymanager.com/github.png)](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager)
 
 
 <details>
