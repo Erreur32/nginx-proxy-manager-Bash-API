@@ -20,11 +20,8 @@
 8. [Examples](#examples)
    - [Backup](#backup)
    - [Script Info](#script-info)
-   - [Host List](#host-list)
    - [SSL Enable](#host-ssl-enable)
-   - [Host Update](#host-update)
-9. [Important Notice](#important-notice-repository-history-rewritten)
-10. [TODO](#todo)
+9. [TODO](#todo)
 
 > [!WARNING]
 > The  --restore command is disabled  (a fix is in progress).
@@ -108,7 +105,9 @@ API_PASS="changeme"
 ./npm-api.sh  --show-default 
 ```
 
-
+<details><a id="Options"></a> 
+<summary> Options</summary>
+   
 ## Options
 ```tcl
 
@@ -188,8 +187,10 @@ API_PASS="changeme"
   --help                                     👉 It's me
 
 ```
+</details>
 
-## Examples
+<details><a id="examples"></a>
+<summary>Examples commands</summary>
 
 ```bash
  📦 Backup First !
@@ -331,14 +332,15 @@ API_PASS="changeme"
     -a 'proxy_set_header X-Real-IP $remote_addr;' \
     -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
+</details>
 
-### --backup
+<a id="backup"></a>
+<details>
+<summary> 💾 Backup</summary>
 
 ```bash
 ./npm-api.sh --backup
 ```
-
-### 💾 Backup Operations
 
 #### Schema of the backup directory:
 
@@ -372,7 +374,6 @@ API_PASS="changeme"
             └── 📄 expiry.txt                    # Token expiry date        
 ```
 
-#### 🔄 Backup Contents
 
 1. **Proxy Hosts** (`/.Proxy_Hosts/`)
    - Individual host configurations
@@ -399,7 +400,6 @@ API_PASS="changeme"
    - System configurations
    - Default parameters
 
-#### 🔐 Token Management
 
 The `token/` directory contains:
 - Authentication tokens
@@ -436,12 +436,16 @@ Simply specify the **proxy host ID** and the **field you want to update**, like 
 | `locations`              | `array`   | Custom location blocks (advanced use).                                      |
 
 
+</details>
+
+
+<details><a id="script-info"></a>
+<summary>🔍 Info</summary>
 
 #### Verifying the Configuration
 
 Some info of settings in the script with `./npm-api.sh --info`
-
-#### info
+   
 ```bash
 ./npm-api.sh --info
 
@@ -495,14 +499,14 @@ Some info of settings in the script with `./npm-api.sh --info`
  💡 Use --help to see available commands
     Check --examples for more help examples
 ```
+</details>
 
-
-#### **How to activate SSL ?** 
+<details><a id="host-ssl-enable"></a>
+<summary> 🔐 **How to activate SSL ?**</summary>
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
-#### --host-list
- List all Host in one command and show ´id´ , ´status´ and ´SSL´ status:
+ List all Host in one command and show ´id´ , ´status´ and ´SSL´ status to know ID :
 
       ./npm-api.sh --host-list
 
@@ -515,18 +519,13 @@ By following these steps, you can enable SSL for your proxy host for the first t
         12     toutou                                disable  ✘
         13     toutoux                               enabled  ✘
 
-
-
-#### --host-ssl-enable
 ##### Enable SSL for the Host
 
   Assuming the host ID is *1*, you would enable SSL for the host as follows:
 
     ./npm-api.sh --host-ssl-enable 1
 
-##### **Other Exemple command:**
-
-Host proxy info command `--host-show id`
+##### Host proxy info command `--host-show id`
 
 ```json
  ./npm-api.sh --host-show 1
@@ -565,26 +564,12 @@ Host proxy info command `--host-show id`
 }
 
 ```
+</details>
 
-### Important Notice: Repository History Rewritten
+<details><a id="todo"></a>
+<summary>TODO:</summary>
 
- ⚠️ Action Required for All Contributors (or cloned repo.)
-
-We have performed a **force push (`git push --force`)** on this repository to remove sensitive data from the history. As a result, the commit history has been rewritten, and your local copy may be out of sync.
-
- 🛠️ What You Need to Do?
- To avoid any issues, please follow these steps to update your local repository:
-
-```bash
-git fetch --all
-git reset --hard origin/main  # Replace 'main' with your branch name if different
-```
-If you have local changes that you **don't want to lose**, consider making a backup before running these commands.
-
-❓ Why Was This Done?
- This action was necessary to **remove sensitive data** from the repository's history and ensure better security.
-
-## TODO:
+ 
 - [x] add setting for ADVANCED configuration in npm `location / { ... }`
 - [x] Add documentation on certain functions
 - [x] ADD: a configuration function for Custom Locations
@@ -593,7 +578,7 @@ If you have local changes that you **don't want to lose**, consider making a bac
 - [X] Clean/minimize output when using -y parameter for better script integration
 - [X] Creation of ACCESS list through CLI
 - [ ] Restore Function not working properly, need to find FIX
-
+</details>
 
 ## Credits & Thanks
 
