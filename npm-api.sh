@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.2"
+VERSION="3.0.5"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -146,9 +146,10 @@ BASE_URL="http://$NGINX_IP:$NGINX_PORT/api"
 TOKEN_EXPIRY="1y"
 
 # Default variables for creating a new proxy host (adapt to your needs)
+# Note: These variables must match the names used in argument parsing and JSON payload generation
 CACHING_ENABLED=false
 BLOCK_EXPLOITS=true
-ALLOW_WEBSOCKET_UPGRADE=1
+ALLOW_WEBSOCKET_UPGRADE=false  # Fixed: was '1' instead of 'false' (Issue #23)
 HTTP2_SUPPORT=0
 ADVANCED_CONFIG=""
 LETS_ENCRYPT_AGREE=false
@@ -737,6 +738,9 @@ examples_cli() {
     echo
     echo -e "${COLOR_GREY}  # Update existing access list${CoR}"
     echo -e "  $0 --access-list-update 123 --name \"new_name\" --satisfy any"
+    echo
+    echo -e "${COLOR_GREY}  # Update access list with new allow rules${CoR}"
+    echo -e "  $0 --access-list-update 123 --allow \"172.0.0.0/8,10.0.0.0/8\""
     echo
     echo -e "${COLOR_GREY}  # Delete access list${CoR}"
     echo -e "  $0 --access-list-delete 123"
@@ -2708,25 +2712,31 @@ host_ssl_disable() {
 #   access_list_create <name> [options]
 # Options:
 #   --auth <username> <password>  Add basic authentication
-#   --access allow|deny <ip>      Add IP access rule
+#   --access allow|deny <ip>      Add IP access rule (legacy syntax)
+#   --allow "ip1,ip2"            Add allowed IPs/ranges (comma-separated)
+#   --deny "ip1,ip2"             Add denied IPs/ranges (comma-separated)
+#   --users "user1,user2"        Add users with password prompts (comma-separated)
 #   --satisfy any|all            Set satisfy condition (default: all)
 #   --pass-auth                  Enable pass auth
 access_list_create() {
     check_token_notverbose
 
-    if [ $# -lt 3 ]; then
-        echo -e "\n ⛔ ${COLOR_RED}ERROR: Arguments insuffisants${CoR}"
+    if [ $# -lt 2 ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: Insufficient arguments${CoR}"
         echo -e "   ${COLOR_CYAN}Usage:${CoR}"
-        echo -e "    1. ${COLOR_GREEN}Basic Authentication:${CoR}"
-        echo -e "       ${COLOR_ORANGE}$0 --access-list-create <name> --auth <username> <password> [--pass-auth] [--satisfy any|all]${CoR}"
-        echo -e "    2. ${COLOR_GREEN}IP Access Rules:${CoR}"
-        echo -e "       ${COLOR_ORANGE}$0 --access-list-create <name> --access allow|deny <ip> [--satisfy any|all]${CoR}"
-        echo -e "    3. ${COLOR_GREEN}Combined Rules:${CoR}"
-        echo -e "       ${COLOR_ORANGE}$0 --access-list-create <name> --auth <user> <pass> --access allow <ip> --satisfy any --pass-auth${CoR}"
+        echo -e "    ${COLOR_ORANGE}$0 --access-list-create <name> [options]${CoR}"
+        echo -e "\n   ${COLOR_CYAN}Available options:${CoR}"
+        echo -e "     ${COLOR_GREEN}--satisfy [any|all]${CoR}          Set access list satisfaction mode"
+        echo -e "     ${COLOR_GREEN}--pass-auth [true|false]${CoR}     Enable/disable password authentication"
+        echo -e "     ${COLOR_GREEN}--users \"user1,user2\"${CoR}        List of users (comma-separated)"
+        echo -e "     ${COLOR_GREEN}--allow \"ip1,ip2\"${CoR}            List of allowed IPs/ranges"
+        echo -e "     ${COLOR_GREEN}--deny \"ip1,ip2\"${CoR}             List of denied IPs/ranges"
+        echo -e "     ${COLOR_GREEN}--auth <username> <password>${CoR}  Add authentication user"
+        echo -e "     ${COLOR_GREEN}--access allow|deny <ip>${CoR}      Add single IP rule"
         echo -e "\n   ${COLOR_CYAN}Examples:${CoR}"
         echo -e "    ${COLOR_GREEN}$0 --access-list-create secure_area --auth admin secret123${CoR}"
-        echo -e "    ${COLOR_GREEN}$0 --access-list-create office --access allow 192.168.1.0/24${CoR}"
-        echo -e "    ${COLOR_GREEN}$0 --access-list-create full_options --auth user1 pass1 --access allow 127.0.0.1 --satisfy any --pass-auth${CoR}\n"
+        echo -e "    ${COLOR_GREEN}$0 --access-list-create office --allow \"192.168.1.0/24\"${CoR}"
+        echo -e "    ${COLOR_GREEN}$0 --access-list-create full_options --users \"user1,user2\" --allow \"10.0.0.0/8\" --satisfy any --pass-auth true${CoR}\n"
         return 1
     fi
 
@@ -2769,6 +2779,57 @@ access_list_create() {
                     directive: $dir
                 }]')
                 shift 3
+                ;;
+            --allow)
+                if [ $# -lt 2 ]; then
+                    echo -e "\n ⛔ ${COLOR_RED}ERROR: --allow requires IP addresses/ranges${CoR}"
+                    return 1
+                fi
+                # Split comma-separated IPs and add each one
+                IFS=',' read -ra IPS <<< "$2"
+                for ip in "${IPS[@]}"; do
+                    ip=$(echo "$ip" | xargs) # trim whitespace
+                    IP_CLIENTS=$(echo "$IP_CLIENTS" | jq --arg ip "$ip" '. + [{
+                        address: $ip,
+                        directive: "allow"
+                    }]')
+                done
+                shift 2
+                ;;
+            --deny)
+                if [ $# -lt 2 ]; then
+                    echo -e "\n ⛔ ${COLOR_RED}ERROR: --deny requires IP addresses/ranges${CoR}"
+                    return 1
+                fi
+                # Split comma-separated IPs and add each one
+                IFS=',' read -ra IPS <<< "$2"
+                for ip in "${IPS[@]}"; do
+                    ip=$(echo "$ip" | xargs) # trim whitespace
+                    IP_CLIENTS=$(echo "$IP_CLIENTS" | jq --arg ip "$ip" '. + [{
+                        address: $ip,
+                        directive: "deny"
+                    }]')
+                done
+                shift 2
+                ;;
+            --users)
+                if [ $# -lt 2 ]; then
+                    echo -e "\n ⛔ ${COLOR_RED}ERROR: --users requires user list${CoR}"
+                    return 1
+                fi
+                # Split comma-separated users and add each one (will need password prompt or default)
+                IFS=',' read -ra USERS <<< "$2"
+                for user in "${USERS[@]}"; do
+                    user=$(echo "$user" | xargs) # trim whitespace
+                    echo -e "  🔐 Enter password for user ${COLOR_CYAN}$user${CoR}:"
+                    read -s password
+                    echo
+                    AUTH_ITEMS=$(echo "$AUTH_ITEMS" | jq --arg user "$user" --arg pass "$password" '. + [{
+                        username: $user,
+                        password: $pass
+                    }]')
+                done
+                shift 2
                 ;;
             --satisfy)
                 if [ $# -lt 2 ]; then
@@ -2851,6 +2912,16 @@ access_list_create() {
     echo -e " └───────────────────────────────────────────"
 }
 
+# Update an existing access list with various options
+# Usage:
+#   access_list_update <access_list_id> [options]
+# Options:
+#   --name "new_name"            Update access list name
+#   --satisfy any|all           Update satisfaction mode
+#   --pass-auth true|false      Update password authentication
+#   --allow "ip1,ip2"           Add allowed IPs/ranges (comma-separated)
+#   --deny "ip1,ip2"            Add denied IPs/ranges (comma-separated)
+#   --users "user1,user2"       Add users with password prompts (comma-separated)
 access_list_update() {
     check_token_notverbose
     
@@ -2937,12 +3008,69 @@ access_list_update() {
                     fi
                     shift 2
                     ;;
+                --allow)
+                    if [ $# -lt 2 ]; then
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: --allow requires IP addresses/ranges${CoR}"
+                        return 1
+                    fi
+                    # Split comma-separated IPs and add each one
+                    IFS=',' read -ra IPS <<< "$2"
+                    for ip in "${IPS[@]}"; do
+                        ip=$(echo "$ip" | xargs) # trim whitespace
+                        clients=$(echo "$clients" | jq --arg ip "$ip" '. + [{
+                            address: $ip,
+                            directive: "allow"
+                        }]')
+                    done
+                    echo -e "  ✅ Added allow rules for: ${COLOR_GREEN}$2${CoR}"
+                    shift 2
+                    ;;
+                --deny)
+                    if [ $# -lt 2 ]; then
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: --deny requires IP addresses/ranges${CoR}"
+                        return 1
+                    fi
+                    # Split comma-separated IPs and add each one
+                    IFS=',' read -ra IPS <<< "$2"
+                    for ip in "${IPS[@]}"; do
+                        ip=$(echo "$ip" | xargs) # trim whitespace
+                        clients=$(echo "$clients" | jq --arg ip "$ip" '. + [{
+                            address: $ip,
+                            directive: "deny"
+                        }]')
+                    done
+                    echo -e "  ✅ Added deny rules for: ${COLOR_GREEN}$2${CoR}"
+                    shift 2
+                    ;;
+                --users)
+                    if [ $# -lt 2 ]; then
+                        echo -e "\n ⛔ ${COLOR_RED}ERROR: --users requires user list${CoR}"
+                        return 1
+                    fi
+                    # Split comma-separated users and add each one (will need password prompt or default)
+                    IFS=',' read -ra USERS <<< "$2"
+                    for user in "${USERS[@]}"; do
+                        user=$(echo "$user" | xargs) # trim whitespace
+                        echo -e "  🔐 Enter password for user ${COLOR_CYAN}$user${CoR}:"
+                        read -s password
+                        echo
+                        items=$(echo "$items" | jq --arg user "$user" --arg pass "$password" '. + [{
+                            username: $user,
+                            password: $pass
+                        }]')
+                    done
+                    echo -e "  ✅ Added users: ${COLOR_GREEN}$2${CoR}"
+                    shift 2
+                    ;;
                 *)
                     echo -e "\n ⛔ ${COLOR_RED}ERROR: Unknown option $1${CoR}"
                     echo -e "   ${COLOR_CYAN}Available options:${CoR}"
                     echo -e "     ${COLOR_GREEN}--name <new_name>${CoR}           Update access list name"
                     echo -e "     ${COLOR_GREEN}--satisfy any|all${CoR}          Update satisfaction mode"
                     echo -e "     ${COLOR_GREEN}--pass-auth true|false${CoR}     Update pass auth setting"
+                    echo -e "     ${COLOR_GREEN}--allow \"ip1,ip2\"${CoR}         Update allowed IPs/ranges"
+                    echo -e "     ${COLOR_GREEN}--deny \"ip1,ip2\"${CoR}          Update denied IPs/ranges"
+                    echo -e "     ${COLOR_GREEN}--users \"user1,user2\"${CoR}     Update list of users"
                     return 1
                     ;;
             esac
@@ -3684,6 +3812,8 @@ while [[ "$#" -gt 0 ]]; do
                 echo -e "  • -w, --websocket        ${COLOR_GREY}Allow websocket upgrade (true/false)${CoR}"
                 echo -e "  • -h, --http2            ${COLOR_GREY}Enable HTTP/2 support (true/false)${CoR}"
                 echo -e "  • -s, --ssl-force        ${COLOR_GREY}Force SSL (true/false)${CoR}"
+                echo -e "  • -l, --custom-locations ${COLOR_GREY}Custom location rules (JSON array)${CoR}"
+                echo -e "  • -a, --advanced-config  ${COLOR_GREY}Advanced Nginx configuration (string)${CoR}"
                 echo -e "\n Can be combined with:"
                 echo -e "  • --cert-generate        ${COLOR_GREY}Generate SSL certificate${CoR}"
                 echo -e "  • --host-ssl-enable      ${COLOR_GREY}Enable SSL after creation${CoR}"
@@ -3723,6 +3853,8 @@ while [[ "$#" -gt 0 ]]; do
                             echo -e "  • -w, --websocket        ${COLOR_GREY}Allow websocket upgrade (true/false, default: false)${CoR}"
                             echo -e "  • -h, --http2            ${COLOR_GREY}Enable HTTP/2 support (true/false, default: false)${CoR}"
                             echo -e "  • -s, --ssl-force        ${COLOR_GREY}Force SSL (true/false, default: false)${CoR}"
+                            echo -e "  • -l, --custom-locations ${COLOR_GREY}Custom location rules (JSON array)${CoR}"
+                            echo -e "  • -a, --advanced-config  ${COLOR_GREY}Advanced Nginx configuration (string)${CoR}"
                             exit 1
                         fi
                         ;;
@@ -3750,19 +3882,44 @@ while [[ "$#" -gt 0 ]]; do
                         ;;
                     -b|--block-exploits|-c|--cache|-w|--websocket|-h|--http2|-s|--ssl-force)
                         # Process boolean options
+                        # Note: Variable names must match those used in create_or_update_proxy_host() function
                         opt_name=${1#-?}
                         opt_name=${opt_name#--}
                         if [[ "$2" =~ ^(true|false)$ ]]; then
                             case "$opt_name" in
                                 block-exploits) BLOCK_EXPLOITS="$2" ;;
-                                cache) CACHE_ENABLED="$2" ;;
-                                websocket) WEBSOCKET_SUPPORT="$2" ;;
+                                cache) CACHING_ENABLED="$2" ;;  # Fixed: was CACHE_ENABLED (Issue #23)
+                                websocket) ALLOW_WEBSOCKET_UPGRADE="$2" ;;  # Fixed: was WEBSOCKET_SUPPORT (Issue #23)
                                 http2) HTTP2_SUPPORT="$2" ;;
                                 ssl-force) SSL_FORCED="$2" ;;
                             esac
                             shift 2
                         else
                             echo -e "\n ⛔ ${COLOR_RED}INVALID: The $1 option must be 'true' or 'false'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -l|--custom-locations)
+                        # Fixed: Added support for custom locations option (Issue #22)
+                        if [[ -n "$2" && "$2" != -* ]]; then
+                            CUSTOM_LOCATIONS="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --custom-locations option requires a JSON value${CoR}"
+                            echo -e "   ${COLOR_CYAN}Example:${CoR}"
+                            echo -e "   ${COLOR_GREEN}$0 --host-create example.com -i 192.168.1.10 -p 8080 -l '[{\"path\":\"/api\",\"forward_host\":\"192.168.1.11\",\"forward_port\":8081}]'${CoR}"
+                            exit 1
+                        fi
+                        ;;
+                    -a|--advanced-config)
+                        # Fixed: Added support for advanced config option (Issue #22)
+                        if [[ -n "$2" && "$2" != -* ]]; then
+                            ADVANCED_CONFIG="$2"
+                            shift 2
+                        else
+                            echo -e "\n ⛔ ${COLOR_RED}INVALID: The --advanced-config option requires a configuration string${CoR}"
+                            echo -e "   ${COLOR_CYAN}Example:${CoR}"
+                            echo -e "   ${COLOR_GREEN}$0 --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP \\\$remote_addr;'${CoR}"
                             exit 1
                         fi
                         ;;
@@ -3813,8 +3970,8 @@ while [[ "$#" -gt 0 ]]; do
 
             # Create proxy host
             create_or_update_proxy_host "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT" \
-                       "${FORWARD_SCHEME:-http}" "${BLOCK_EXPLOITS:-false}" "${CACHE_ENABLED:-false}" \
-                       "${WEBSOCKET_SUPPORT:-false}" "${HTTP2_SUPPORT:-false}" "${SSL_FORCED:-false}"
+                       "${FORWARD_SCHEME:-http}" "${BLOCK_EXPLOITS:-false}" "${CACHING_ENABLED:-false}" \
+                       "${ALLOW_WEBSOCKET_UPGRADE:-false}" "${HTTP2_SUPPORT:-false}" "${SSL_FORCED:-false}"
         ;;
         --host-ssl-enable)
             shift

@@ -1,10 +1,88 @@
-# Changelog
+## [3.0.5] - 2025-01-20e changes to the npm-api.sh script will be documented in this file.
 
-All notable changes to the npm-api.sh script will be documented in this file.
-
-## [3.0.2] - 2025-01-20
+## [3.0.5] - 2025-01-20
 
 ### 🐛 Bug Fixes
+
+- **Fixed `-l` and `-a` options being ignored in host creation** ([Issue #22](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/22))
+  - **Issue**: The commands `./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr;'` and `./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'` were showing "Unknown option ignored" warnings
+  - **Root Cause**: The options `-l` (custom_locations) and `-a` (advanced_config) were documented in help text but not implemented in the argument parsing for `--host-create`
+  - **Solution**: 
+    - Added support for `-l|--custom-locations` option in argument parsing
+    - Added support for `-a|--advanced-config` option in argument parsing
+    - Updated help messages to include these options in the optional parameters list
+    - Added proper error handling and validation for both options
+  - **Technical Details**:
+    - Added `-l|--custom-locations` case in argument parsing with JSON validation
+    - Added `-a|--advanced-config` case in argument parsing with string validation
+    - Updated all help message sections to include the new options
+    - Added example usage in error messages for better user guidance
+  - **Usage Examples**:
+    ```bash
+    # Create host with custom locations
+    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
+    
+    # Create host with advanced configuration
+    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr;'
+    
+    # Create host with both custom locations and advanced config
+    ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]' -a 'proxy_set_header X-Real-IP $remote_addr;'
+    ```
+
+- **Fixed `--websocket` and `--cache` options not being respected in host creation** ([Issue #23](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/23))
+  - **Issue**: The commands `./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --cache true --websocket true` were not enabling caching and websocket support in NPM
+  - **Root Cause**: 
+    - Variable naming mismatch in argument parsing (`CACHE_ENABLED` vs `CACHING_ENABLED`, `WEBSOCKET_SUPPORT` vs `ALLOW_WEBSOCKET_UPGRADE`)
+    - Incorrect default value for `ALLOW_WEBSOCKET_UPGRADE` (was `1` instead of `false`)
+  - **Solution**: 
+    - Fixed variable names in argument parsing to match the variables used in the JSON payload
+    - Corrected default value for `ALLOW_WEBSOCKET_UPGRADE` to `false`
+    - Updated function call to use correct variable names
+  - **Technical Details**:
+    - Changed `cache) CACHE_ENABLED="$2"` to `cache) CACHING_ENABLED="$2"`
+    - Changed `websocket) WEBSOCKET_SUPPORT="$2"` to `websocket) ALLOW_WEBSOCKET_UPGRADE="$2"`
+    - Updated function call parameters to use correct variable names
+    - Fixed default value: `ALLOW_WEBSOCKET_UPGRADE=1` → `ALLOW_WEBSOCKET_UPGRADE=false`
+  - **Usage Examples**:
+    ```bash
+    # Create host with caching enabled
+    ./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --cache true
+    
+    # Create host with websocket support enabled
+    ./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --websocket true
+    
+    # Create host with both caching and websocket support
+    ./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --cache true --websocket true
+    ```
+
+- **Fixed `--allow` and `--deny` options not working in access-list commands** ([Issue #24](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/24))
+  - **Issue**: The commands `./npm-api.sh --access-list-create "test" --allow "172.0.0.0/8"` and `./npm-api.sh --access-list-update 6 --allow "172.0.0.0/8"` were failing with "Unknown option --allow" error
+  - **Root Cause**: The `--allow` and `--deny` options were documented in help text but not implemented in the actual functions
+  - **Solution**: 
+    - Added full support for `--allow` and `--deny` options in `access_list_create()` function
+    - Added full support for `--allow`, `--deny`, and `--users` options in `access_list_update()` function
+    - Implemented comma-separated value parsing for multiple IPs/users
+    - Added proper error handling and validation for all new options
+  - **Technical Details**:
+    - Added `--allow` option processing with comma-separated IP support
+    - Added `--deny` option processing with comma-separated IP support  
+    - Added `--users` option processing with password prompts for each user
+    - Updated help messages to include all available options
+    - Maintained backward compatibility with existing `--access allow|deny <ip>` syntax
+  - **Usage Examples**:
+    ```bash
+    # Create access list with allow rules
+    ./npm-api.sh --access-list-create "office" --allow "192.168.1.0/24,10.0.0.0/8"
+    
+    # Create access list with deny rules
+    ./npm-api.sh --access-list-create "secure" --deny "192.168.1.100,10.0.0.50"
+    
+    # Update access list with new allow rules
+    ./npm-api.sh --access-list-update 6 --allow "172.0.0.0/8"
+    
+    # Create access list with users and IP rules
+    ./npm-api.sh --access-list-create "full_config" --users "admin1,admin2" --allow "10.0.0.0/8" --deny "10.0.0.50"
+    ```
 
 - **Fixed `--access-list-update` command not working with arguments**
   - **Issue**: The command `./npm-api.sh --access-list-update 123 --name "new_name"` was failing with "Unknown option: 123" error

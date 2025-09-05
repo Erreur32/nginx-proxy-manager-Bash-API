@@ -6,7 +6,7 @@
 [![Stargazers][stars-shield]][stars]
 
 
-# Nginx Proxy Manager CLI Script V3.0.2 🚀
+# Nginx Proxy Manager CLI Script V3.0.5 🚀
 
 ## Table of Contents
 
