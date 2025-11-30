@@ -2,6 +2,60 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.0.7] - 2025-01-27
+
+### 🐛 Bug Fixes
+
+- **IP whitelist not showing in `--access-list-show` command** ([Issue #26](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/26))
+  - **The problem**: When you ran `./npm-api.sh --access-list-show 5`, it showed "No IPs whitelisted" even though IPs were actually configured. Classic! 😅
+  - **Why it broke**: NPM's API changed (thanks evolving schemas...) and now you need to pass the `expand=items,clients` parameter to get all the details. Without it, the API just returns basic info without items and clients.
+  - **What we did**: 
+    - Added `?expand=items%2Cclients` to API calls in `access_list_show()` and `access_list_update()`
+    - Improved the backup function to fetch each access list individually with the expand parameter (so we get a complete backup with all details)
+  - **Technical details** (for the curious):
+    - URL encoding: `items%2Cclients` = `items,clients` URL-encoded
+    - Modified GET requests in `access_list_show()` and `access_list_update()`
+    - Backup now fetches each access list one by one with expand to make sure we get everything
+  - **Examples**:
+    ```bash
+    # Now it works correctly! 🎉
+    ./npm-api.sh --access-list-show 5
+    
+    # Update also retrieves complete data
+    ./npm-api.sh --access-list-update 5 --name "new_name"
+    ```
+
+- **"Unbound variable" error when you forget the ID** 
+  - **The problem**: If you ran `./npm-api.sh --access-list-show` without an ID, it crashed with a nice "unbound variable" error (thanks `set -eu` doing its job a bit too well 😄)
+  - **Why it broke**: We were directly assigning `$1` to a variable without checking if it existed. With `set -eu`, bash doesn't like that at all!
+  - **What we did**: 
+    - Added a check before assigning the variable (we check if `$# -eq 0` or if `$1` starts with `-`)
+    - Added a friendly error message with examples and tips
+    - Aligned with other commands (`--access-list-update`, `--access-list-delete`) for consistency
+  - **Technical details**:
+    - Added check: `if [ $# -eq 0 ] || [[ "$1" == -* ]]` before assignment
+    - Exit with code 1 to prevent the script from continuing
+  - **Examples**:
+    ```bash
+    # Now it shows a helpful message instead of crashing
+    ./npm-api.sh --access-list-show
+    
+    # Correct usage
+    ./npm-api.sh --access-list-show 5
+    ```
+
+### 🔧 Technical Improvements
+
+- **API schema alignment**: Updated all access list API calls to be compatible with NPM's new schema requirements
+- **Enhanced backup**: Backup now fetches each access list individually with expand, so we're sure to have all details (items and clients) in the backup
+- **Better error handling**: Added validations and clearer error messages when arguments are missing
+
+### 📝 Documentation
+
+- More descriptive and helpful error messages
+- Added examples in error messages to guide users
+- Improved consistency in error handling across all access-list commands
+
 ## [3.0.6] - 2025-01-20
 
 ### 🆕 New Features

@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.6"
+VERSION="3.0.7"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -3116,8 +3116,9 @@ access_list_update() {
 
     local access_list_id="$ACCESS_LIST_ID"
     
-    # Get the current access list details
-    local current_list=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$access_list_id" \
+    # Get the current access list details with expanded items and clients
+    # Note: The expand parameter is required to get full details of items and clients
+    local current_list=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$access_list_id?expand=items%2Cclients" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
 
     if [ "$(echo "$current_list" | jq -r '.error | length')" -ne 0 ]; then
@@ -3415,8 +3416,9 @@ access_list_show() {
 
     echo -e "\n📋 ${COLOR_CYAN}Access List Details${CoR}"
     
-    # Get specific access list
-    local response=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$id" \
+    # Get specific access list with expanded items and clients
+    # Note: The expand parameter is required to get full details of items and clients
+    local response=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$id?expand=items%2Cclients" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
 
     # Check if response is valid JSON
@@ -3579,20 +3581,46 @@ full_backup() {
 
     # 3. Backup access lists
     echo -e "\n🔑 ${COLOR_CYAN}Backing up access lists...${CoR}"
-    ACCESS_LISTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-    if [ -n "$ACCESS_LISTS_RESPONSE" ] && echo "$ACCESS_LISTS_RESPONSE" | jq empty 2>/dev/null; then
-        access_lists_count=$(echo "$ACCESS_LISTS_RESPONSE" | jq '. | length')
-        # Save access lists to dedicated file
-        echo "$ACCESS_LISTS_RESPONSE" | jq '.' > "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
-        # Add access lists to full configuration
-        jq --argjson lists "$ACCESS_LISTS_RESPONSE" '. + {access_lists: $lists}' \
-            "$BACKUP_PATH/full_config${DATE}.json" > "$BACKUP_PATH/full_config${DATE}.json.tmp"
-        mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
-        echo -e " ✅ ${COLOR_GREEN}Backed up $access_lists_count access lists${CoR}"
-        ((success_count++))
+    # Get list of access list IDs first
+    ACCESS_LISTS_IDS=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" | jq -r '.[].id' 2>/dev/null)
+    
+    if [ -n "$ACCESS_LISTS_IDS" ]; then
+        access_lists_count=$(echo "$ACCESS_LISTS_IDS" | wc -l | tr -d ' ')
+        # Initialize JSON array for complete access lists
+        echo "[" > "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
+        local first=true
+        
+        # Get each access list with expanded items and clients for complete backup
+        # Note: The expand parameter is required to get full details of items and clients
+        for list_id in $ACCESS_LISTS_IDS; do
+            if [ "$first" = true ]; then
+                first=false
+            else
+                echo "," >> "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
+            fi
+            
+            curl -s -X GET "$BASE_URL/nginx/access-lists/$list_id?expand=items%2Cclients" \
+                -H "Authorization: Bearer $(cat "$TOKEN_FILE")" >> "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
+        done
+        
+        echo "]" >> "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
+        
+        # Verify JSON is valid
+        if jq empty "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json" 2>/dev/null; then
+            # Add access lists to full configuration
+            ACCESS_LISTS_RESPONSE=$(cat "$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json")
+            jq --argjson lists "$ACCESS_LISTS_RESPONSE" '. + {access_lists: $lists}' \
+                "$BACKUP_PATH/full_config${DATE}.json" > "$BACKUP_PATH/full_config${DATE}.json.tmp"
+            mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
+            echo -e " ✅ ${COLOR_GREEN}Backed up $access_lists_count access lists with complete details${CoR}"
+            ((success_count++))
+        else
+            echo -e " ⚠️ ${COLOR_YELLOW}Failed to create valid access lists backup${CoR}"
+            ((error_count++))
+        fi
     else
-        echo -e " ⚠️ ${COLOR_YELLOW}No access lists found or invalid response${CoR}"
+        echo -e " ⚠️ ${COLOR_YELLOW}No access lists found${CoR}"
         ((error_count++))
     fi
 
@@ -4370,6 +4398,18 @@ while [[ "$#" -gt 0 ]]; do
         --access-list-show)
             ACCESS_LIST_SHOW=true
             shift
+            # Check if access list ID is provided
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n⛔ ${COLOR_RED}Erreur : L'ID de la liste d'accès est requis.${CoR}"
+                echo -e "\n   ${COLOR_CYAN}Usage :${CoR}"
+                echo -e "    ${COLOR_ORANGE}$0 --access-list-show <id>${CoR}"
+                echo -e "\n   ${COLOR_CYAN}Exemples :${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --access-list-show 5${CoR}"
+                echo -e "    ${COLOR_GREEN}$0 --access-list-show 123${CoR}"
+                echo -e "\n   ${COLOR_YELLOW}💡 Astuce :${CoR}"
+                echo -e "    • Utilisez ${COLOR_GREEN}--access-list${CoR} pour voir toutes les listes d'accès et leurs IDs\n"
+                exit 1
+            fi
             ACCESS_LIST_ID="$1"
             shift
             ;;      
