@@ -8,20 +8,6 @@
 
 # Nginx Proxy Manager CLI Script V3.0.7 🚀
 
-## Table of Contents
-
-1. [Description](#description)
-2. [Reference API](#reference-api)
-3. [Prerequisites](#prerequisites)
-4. [Installation](#installation)
-5. [Settings](#settings)
-6. [Usage](#usage)
-7. [Options](#options)
-8. [Examples](#examples)
-   - [Backup](#backup)
-   - [Script Info](#script-info)
-   - [SSL Enable](#host-ssl-enable)
-9. [TODO](#todo)
 
 
 
@@ -33,7 +19,7 @@ Check the latest release with major improvements and fixes.
 
 It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
 
-⚠️ The RESTORE function is still under development. 🚧
+🚧 The RESTORE function is still under development. 
 
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
