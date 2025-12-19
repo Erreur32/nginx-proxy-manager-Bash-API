@@ -23,9 +23,7 @@
    - [SSL Enable](#host-ssl-enable)
 9. [TODO](#todo)
 
-> [!WARNING]
-> The  --restore command is disabled  (a fix is in progress).
-> 
+
 
 # V3.0.0 is out 🚀
 Check the latest release with major improvements and fixes.
