@@ -105,8 +105,9 @@ API_PASS="changeme"
 ./npm-api.sh  --show-default 
 ```
 
-<details><a id="Options"></a> 
-<summary> Options</summary>
+
+<details>
+<summary>Options</summary>
    
 ## Options
 ```tcl
@@ -189,7 +190,7 @@ API_PASS="changeme"
 ```
 </details>
 
-<details><a id="examples"></a>
+<details>
 <summary>Examples commands</summary>
 
 ```bash
@@ -334,7 +335,6 @@ API_PASS="changeme"
 ```
 </details>
 
-<a id="backup"></a>
 <details>
 <summary> 💾 Backup</summary>
 
@@ -439,7 +439,7 @@ Simply specify the **proxy host ID** and the **field you want to update**, like 
 </details>
 
 
-<details><a id="script-info"></a>
+<details>
 <summary>🔍 Info</summary>
 
 #### Verifying the Configuration
@@ -501,8 +501,8 @@ Some info of settings in the script with `./npm-api.sh --info`
 ```
 </details>
 
-<details><a id="host-ssl-enable"></a>
-<summary> 🔐 **How to activate SSL ?**</summary>
+<details>
+<summary> 🔐 How to activate SSL ?</summary>
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
@@ -566,7 +566,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
 ```
 </details>
 
-<details><a id="todo"></a>
+<details>
 <summary>TODO:</summary>
 
  
