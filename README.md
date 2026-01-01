@@ -564,6 +564,13 @@ By following these steps, you can enable SSL for your proxy host for the first t
 - [ ] Restore Function not working properly, need to find FIX
 </details>
 
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left)](https://www.star-history.com/#Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left)
+
+
 ## Credits & Thanks
 
 Special thanks to:
