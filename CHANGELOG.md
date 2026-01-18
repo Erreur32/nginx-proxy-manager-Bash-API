@@ -2,6 +2,52 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.1.0] - 2025-01-27
+
+### 🐛 Bug Fixes
+
+- **`host_list` fails when proxy hosts have multiple domain names** ([PR #28](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/28))
+  - **The problem**: When a proxy host had multiple domain names (e.g., "domain1.com, domain2.com"), the `host_list()` function would fail to parse the output correctly because it used space-separated values with `read`, which broke when domain names contained spaces or commas.
+  - **Why it broke**: The original implementation used `join(", ")` to combine multiple domain names, then tried to parse with `read -r id domain enabled certificate_id`, which failed when the domain string contained spaces or multiple domains.
+  - **What we did**: 
+    - Changed the delimiter from spaces to tabulation (`\t`) for safe parsing
+    - Updated the `jq` command to use tab-separated values: `"\(.id)\t\(.domain_names | join(", "))\t..."`
+    - Modified the `read` command to use `IFS=$'\t'` to properly handle tab-separated input
+  - **Technical details**:
+    - Tab delimiter (`\t`) is safer than spaces because domain names can contain spaces
+    - Using `IFS=$'\t'` ensures proper field separation
+    - This fix ensures that proxy hosts with multiple domain names are displayed correctly
+  - **Examples**:
+    ```bash
+    # Now works correctly with multiple domains! 🎉
+    ./npm-api.sh --host-list
+    # Displays: "domain1.com, domain2.com" correctly in the DOMAIN column
+    ```
+
+### ✨ New Features
+
+- **Added TARGET column to `host_list` output** ([PR #29](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/29))
+  - **Feature**: The `host_list` command now displays a TARGET column showing where each proxy host forwards traffic
+  - **What it shows**: The TARGET column displays the forwarding configuration in the format `scheme://host:port` (e.g., `http://192.168.1.10:8080`)
+  - **Why it's useful**: This allows users to quickly see the destination of each proxy host without needing to run `--host-show` for each host
+  - **Technical details**:
+    - Extracts `forward_scheme`, `forward_host`, and `forward_port` from the API response
+    - Formats the target as `${forward_scheme:-http}://${forward_host}:${forward_port}`
+    - Displays "N/A" if forwarding information is not available
+    - The column is positioned between SSL and CERT DOMAIN columns for better readability
+  - **Examples**:
+    ```bash
+    # Now shows TARGET column with forwarding information
+    ./npm-api.sh --host-list
+    # Output includes: ID | DOMAIN | STATUS | SSL | TARGET | CERT DOMAIN
+    # TARGET shows: http://192.168.1.10:8080
+    ```
+
+### 🔧 Technical Improvements
+
+- **Improved `host_list` function robustness**: Combined the fixes from PR #28 and PR #29 to create a more robust and informative listing function
+- **Better column formatting**: Adjusted column widths to accommodate the new TARGET column while maintaining readability
+
 ## [3.0.7] - 2025-01-27
 
 ### 🐛 Bug Fixes

@@ -6,7 +6,7 @@
 [![Stargazers][stars-shield]][stars]
 
 
-# Nginx Proxy Manager CLI Script V3.0.7 🚀
+# Nginx Proxy Manager CLI Script V3.1.0 🚀
 
 
 
@@ -589,8 +589,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.0.7-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.0.7
+[release-shield]: https://img.shields.io/badge/version-v3.1.0-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.1.0
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
@@ -603,3 +603,6 @@ MIT License - see the [LICENSE.md][license] file for details
 
 Special thanks to [@popy2k14](https://github.com/popy2k14) for identifying and reporting the certificate download issue in [PR #20](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/20). Their contribution helped improve the script's compatibility with newer NPM installations by highlighting the API changes and the need for fallback support.
 
+Special thanks to the contributors of [PR #28](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/28) for fixing the `host_list` function to properly handle proxy hosts with multiple domain names. This critical bug fix ensures that the listing function works correctly when domain names contain spaces or when multiple domains are configured.
+
+Special thanks to the contributors of [PR #29](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/29) for adding the TARGET column to the `host_list` output. This enhancement makes it much easier to see where each proxy host forwards traffic without needing to check individual host details.
