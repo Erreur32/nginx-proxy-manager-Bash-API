@@ -1823,7 +1823,7 @@ create_or_update_proxy_host() {
 host_list() {
   check_token_notverbose
   echo -e "\n${COLOR_ORANGE} 👉 List of proxy hosts ${CoR}\n"
-  printf "  %4s %-36s %-9s %-6s %-36s\n" "ID" " DOMAIN" " STATUS" " SSL" " CERT DOMAIN"
+  printf "  %4s %-32s %-9s %-6s %-22s %-32s\n" "ID" " DOMAIN" " STATUS" " SSL" " TARGET" " CERT DOMAIN"
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
@@ -1831,7 +1831,7 @@ host_list() {
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
-  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | [.id, (.domain_names | join(", ")), .enabled, .certificate_id, "\(.forward_host):\(.forward_port)"] | @tsv' | while IFS=$'\t' read -r id domain enabled certificate_id target; do
 		if [ "$enabled" = "true" ]; then
   		status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
 		else
@@ -1856,8 +1856,8 @@ host_list() {
     fi
 
     # Print the row with colors and certificate domain (if available)
-    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-36s${CoR} %-9s ${ssl_color}%-6s${CoR} ${COLOR_CYAN}%-36s${CoR}\n" \
-      "$id" "$(pad "$domain" 36)" "$status" "$ssl_status" "$cert_domain"
+    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-32s${CoR} %-9s ${ssl_color}%-6s${CoR} ${COLOR_GREY}%-22s${CoR} ${COLOR_CYAN}%-32s${CoR}\n" \
+      "$id" "$(pad "$domain" 32)" "$status" "$ssl_status" "$(pad "$target" 22)" "$cert_domain"
   done
   echo ""
   exit 0
