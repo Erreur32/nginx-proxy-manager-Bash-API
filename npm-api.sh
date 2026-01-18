@@ -1823,7 +1823,7 @@ create_or_update_proxy_host() {
 host_list() {
   check_token_notverbose
   echo -e "\n${COLOR_ORANGE} 👉 List of proxy hosts ${CoR}\n"
-  printf "  %4s %-36s %-9s %-6s %-36s\n" "ID" " DOMAIN" " STATUS" " SSL" " CERT DOMAIN"
+  printf "  %4s %-36s %-9s %-6s %-30s %-36s\n" "ID" " DOMAIN" " STATUS" " SSL" " TARGET" " CERT DOMAIN"
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
   -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
@@ -1831,7 +1831,9 @@ host_list() {
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
-  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
+  # Fix PR #28: Use tab delimiter to safely handle multiple domain names
+  # Fix PR #29: Extract forward_host, forward_port, forward_scheme for TARGET column
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id)\t\(.domain_names | join(", "))\t\(.enabled)\t\(.certificate_id)\t\(.forward_scheme)\t\(.forward_host)\t\(.forward_port)"' | while IFS=$'\t' read -r id domain enabled certificate_id forward_scheme forward_host forward_port; do
 		if [ "$enabled" = "true" ]; then
   		status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
 		else
@@ -1855,9 +1857,16 @@ host_list() {
       fi
     fi
 
-    # Print the row with colors and certificate domain (if available)
-    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-36s${CoR} %-9s ${ssl_color}%-6s${CoR} ${COLOR_CYAN}%-36s${CoR}\n" \
-      "$id" "$(pad "$domain" 36)" "$status" "$ssl_status" "$cert_domain"
+    # Build TARGET column (PR #29): scheme://host:port
+    if [ -n "$forward_host" ] && [ "$forward_host" != "null" ] && [ -n "$forward_port" ] && [ "$forward_port" != "null" ]; then
+      target="${forward_scheme:-http}://${forward_host}:${forward_port}"
+    else
+      target="N/A"
+    fi
+
+    # Print the row with colors, TARGET column, and certificate domain (if available)
+    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-36s${CoR} %-9s ${ssl_color}%-6s${CoR} ${COLOR_CYAN}%-30s${CoR} ${COLOR_CYAN}%-36s${CoR}\n" \
+      "$id" "$(pad "$domain" 36)" "$status" "$ssl_status" "$(pad "$target" 30)" "$cert_domain"
   done
   echo ""
   exit 0
