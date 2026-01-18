@@ -1831,7 +1831,7 @@ host_list() {
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
-  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | [.id, (.domain_names | join(", ")), .enabled, .certificate_id] | @tsv' | while IFS=$'\t' read -r id domain enabled certificate_id; do
 		if [ "$enabled" = "true" ]; then
   		status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
 		else
