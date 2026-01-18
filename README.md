@@ -8,24 +8,8 @@
 
 # Nginx Proxy Manager CLI Script V3.0.7 🚀
 
-## Table of Contents
 
-1. [Description](#description)
-2. [Reference API](#reference-api)
-3. [Prerequisites](#prerequisites)
-4. [Installation](#installation)
-5. [Settings](#settings)
-6. [Usage](#usage)
-7. [Options](#options)
-8. [Examples](#examples)
-   - [Backup](#backup)
-   - [Script Info](#script-info)
-   - [SSL Enable](#host-ssl-enable)
-9. [TODO](#todo)
 
-> [!WARNING]
-> The  --restore command is disabled  (a fix is in progress).
-> 
 
 # V3.0.0 is out 🚀
 Check the latest release with major improvements and fixes.
@@ -35,7 +19,7 @@ Check the latest release with major improvements and fixes.
 
 It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
 
-⚠️ The RESTORE function is still under development. 🚧
+🚧 The RESTORE function is still under development. 
 
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
@@ -105,8 +89,9 @@ API_PASS="changeme"
 ./npm-api.sh  --show-default 
 ```
 
-<details><a id="Options"></a> 
-<summary> Options</summary>
+
+<details>
+<summary>Options</summary>
    
 ## Options
 ```tcl
@@ -189,7 +174,7 @@ API_PASS="changeme"
 ```
 </details>
 
-<details><a id="examples"></a>
+<details>
 <summary>Examples commands</summary>
 
 ```bash
@@ -334,7 +319,6 @@ API_PASS="changeme"
 ```
 </details>
 
-<a id="backup"></a>
 <details>
 <summary> 💾 Backup</summary>
 
@@ -439,7 +423,7 @@ Simply specify the **proxy host ID** and the **field you want to update**, like 
 </details>
 
 
-<details><a id="script-info"></a>
+<details>
 <summary>🔍 Info</summary>
 
 #### Verifying the Configuration
@@ -501,8 +485,8 @@ Some info of settings in the script with `./npm-api.sh --info`
 ```
 </details>
 
-<details><a id="host-ssl-enable"></a>
-<summary> 🔐 **How to activate SSL ?**</summary>
+<details>
+<summary> 🔐 How to activate SSL ?</summary>
 
 By following these steps, you can enable SSL for your proxy host for the first time using Let's Encrypt.
 
@@ -566,7 +550,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
 ```
 </details>
 
-<details><a id="todo"></a>
+<details>
 <summary>TODO:</summary>
 
  
@@ -579,6 +563,13 @@ By following these steps, you can enable SSL for your proxy host for the first t
 - [X] Creation of ACCESS list through CLI
 - [ ] Restore Function not working properly, need to find FIX
 </details>
+
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left)](https://www.star-history.com/#Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left)
+
 
 ## Credits & Thanks
 
