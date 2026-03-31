@@ -1,2 +1,13 @@
 # IDE specific files
 .vscode/
+.idea/
+
+# Planning & internal docs (not for distribution)
+docs/
+
+# Config file with credentials
+npm-api.conf
+
+# Runtime data
+data/
+*.log
