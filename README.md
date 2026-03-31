@@ -11,25 +11,28 @@
 
 
 
-# V3.0.0 is out 🚀
-Check the latest release with major improvements and fixes.
-
 ## Description
-🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, user management, and configuration display, while also integrating a backup system (BACKUP) with a user-friendly interface.
+🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, redirection host management, user management, and configuration display, while also integrating a configuration export (BACKUP) system with a user-friendly interface.
 
 It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
 
-🚧 The RESTORE function is still under development. 
-
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
+
+> [!NOTE]
+> **About backup & restore:** The `--backup` command exports your NPM configuration (hosts, SSL, access lists) via the API as JSON files — useful for auditing and re-creating hosts. However, **a full restore is not possible through the API alone**: NPM stores its state in a SQLite database and SSL private keys on disk, neither of which are accessible via the API. For a reliable full restore, back up your Docker volumes directly:
+> ```bash
+> # Volumes to back up
+> /data          # SQLite database, nginx configs, SSL certs
+> /etc/letsencrypt   # Let's Encrypt certificates
+> ```
 
 <details>
 <summary>French description:</summary>
-Ce script permet de gérer Nginx Proxy Manager via son API de manière simple et efficace. Il offre des fonctionnalités avancées telles que la création de hosts proxy, la gestion des utilisateurs et l'affichage des configurations, tout en intégrant un système de sauvegarde (BACKUP) avec une interface conviviale.
+Ce script permet de gérer Nginx Proxy Manager via son API de manière simple et efficace. Il offre des fonctionnalités avancées telles que la création de proxy hosts, la gestion des redirection hosts, la gestion des utilisateurs et l'affichage des configurations, tout en intégrant un système d'export de configuration (BACKUP) avec une interface conviviale.
 
 Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la gestion des certificats SSL et l'administration complète de vos reverse proxies.
 
-⚠️ La fonction RESTORE est encore en développement. 🚧
+> **Note sur le backup/restore :** La commande `--backup` exporte la configuration NPM via l'API (hosts, SSL, listes d'accès) sous forme de fichiers JSON. Un restore complet via l'API n'est pas possible : NPM stocke son état dans une base SQLite et les clés privées SSL sur disque, inaccessibles via l'API. Pour un restore fiable, sauvegardez directement vos volumes Docker (`/data` et `/etc/letsencrypt`).
 </details>
 
 ## Reference API
@@ -589,8 +592,8 @@ By following these steps, you can enable SSL for your proxy host for the first t
 - [x] Add automatic confirmation with -y parameter
 - [X] Clean/minimize output when using -y parameter for better script integration
 - [X] Creation of ACCESS list through CLI
-- [ ] Restore Function not working properly, need to find FIX
 - [x] Add Create/Update/Delete/Enable/Disable for Redirection Hosts
+- ~~Restore via API~~ — not feasible (SQLite + SSL keys not exposed by API); use Docker volume backup instead
 </details>
 
 
