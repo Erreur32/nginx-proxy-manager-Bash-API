@@ -233,6 +233,16 @@ RESTORE_HOST=false
 RESTORE_BACKUP=false
 CLEAN_HOSTS=false
 
+REDIRECT_HOST_LIST=false
+REDIRECT_HOST_CREATE=false
+REDIRECT_HOST_DELETE=false
+REDIRECT_HOST_ENABLE=false
+REDIRECT_HOST_DISABLE=false
+REDIRECT_HOST_ID=""
+FORWARD_DOMAIN=""
+FORWARD_HTTP_CODE="301"
+PRESERVE_PATH=false
+
 
 
 if [ $# -eq 0 ]; then
@@ -298,7 +308,7 @@ check_nginx_access() {
     echo -e "🔍 Details:"
     echo -e " • URL: ${COLOR_YELLOW}$BASE_URL${CoR}"
     echo -e " • Host: ${COLOR_YELLOW}$NGINX_IP${CoR}"
-    echo -e " • Port: ${COLOR_YELLOW}${API_PORT}${CoR}"
+    echo -e " • Port: ${COLOR_YELLOW}${NGINX_PORT}${CoR}"
     echo -e "\n📋 Troubleshooting:"
     echo -e " 1. Check if NPM is running"
     echo -e " 2. Verify network connectivity"
@@ -605,6 +615,22 @@ show_help() {
   echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} dns-provider PROVIDER dns-api-key KEY"
   echo -e "                                             - ${COLOR_YELLOW}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, ..."
   echo ""
+  echo ""
+  echo -e " Redirection Host Management:"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo -e "  --redirect-host-list                    List all Redirection Hosts"
+  echo -e "  --redirect-host-create ${COLOR_ORANGE}domain${CoR} --forward-domain ${COLOR_ORANGE}target${CoR} [options]"
+  echo -e "     Required:"
+  echo -e "            domain                        Source domain name"
+  echo -e "       --forward-domain ${COLOR_ORANGE}target${CoR}              Target domain to redirect to"
+  echo -e "     Optional:"
+  echo -e "       --forward-scheme ${COLOR_GREY}http|https${CoR}            Scheme (default: http)"
+  echo -e "       --http-code      ${COLOR_GREY}301|302|307...${CoR}        HTTP redirect code (default: 301)"
+  echo -e "       --preserve-path  ${COLOR_GREY}true|false${CoR}            Keep URI path (default: false)"
+  echo -e "  --redirect-host-enable  ${COLOR_CYAN}🆔${CoR}               Enable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --redirect-host-disable ${COLOR_CYAN}🆔${CoR}               Disable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
+  echo -e "  --redirect-host-delete  ${COLOR_CYAN}🆔${CoR}               Delete Redirection Host by ${COLOR_YELLOW}ID${CoR}"
+  echo ""
   echo -e "  --user-list                             List All Users"
   echo -e "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR}   Create User with a ${COLOR_YELLOW}username${CoR}, ${COLOR_YELLOW}password${CoR} and ${COLOR_YELLOW}email${CoR}"
   echo -e "  --user-delete ${COLOR_CYAN}🆔${CoR}                        Delete User by ${COLOR_YELLOW}username${CoR}"
@@ -704,6 +730,21 @@ examples_cli() {
     echo -e "    --dns-provider dynu \\"
     echo -e "    --dns-credentials '{\"dns_dynu_api_key\":\"your_key\"}'${CoR}"
 
+
+    # Redirection Host Management
+    echo -e "\n${COLOR_GREEN}🔀 Redirection Host Management:${CoR}"
+    echo -e "${COLOR_GREY}  # List all redirection hosts${CoR}"
+    echo -e "  $0 --redirect-host-list"
+    echo -e "${COLOR_GREY}  # Create a simple 301 redirect${CoR}"
+    echo -e "  $0 --redirect-host-create old.example.com --forward-domain new.example.com"
+    echo -e "${COLOR_GREY}  # Create a 302 redirect preserving path${CoR}"
+    echo -e "  $0 --redirect-host-create old.example.com --forward-domain new.example.com --http-code 302 --preserve-path true"
+    echo -e "${COLOR_GREY}  # Delete a redirection host (with auto-confirm)${CoR}"
+    echo -e "  $0 --redirect-host-delete 5 -y"
+    echo -e "${COLOR_GREY}  # Enable / disable a redirection host${CoR}"
+    echo -e "  $0 --redirect-host-enable 5"
+    echo -e "  $0 --redirect-host-disable 5"
+    echo
 
     # User Management
     echo -e "\n${COLOR_GREEN}👤 User Management:${CoR}"
@@ -1889,6 +1930,279 @@ host_list_full() {
 
 
 ################################
+# List all redirection hosts
+redirect_host_list() {
+  check_token_notverbose
+  echo -e "\n${COLOR_ORANGE} 👉 List of Redirection hosts ${CoR}\n"
+  printf "  %4s %-36s %-9s %-7s %-7s %-36s\n" "ID" " DOMAIN" " STATUS" " CODE" " SSL" " FORWARD DOMAIN"
+
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
+  -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+
+  CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
+
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id)\t\(.domain_names | join(", "))\t\(.enabled)\t\(.forward_http_code)\t\(.certificate_id)\t\(.forward_domain_name)"' | \
+  while IFS=$'\t' read -r id domain enabled http_code certificate_id forward_domain; do
+    if [ "$enabled" = "true" ]; then
+      status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
+    else
+      status="$(echo -e "${COLOR_RED} disable ${CoR}")"
+    fi
+    ssl_status="$(pad "✘" 7)"
+    ssl_color="${COLOR_RED}"
+    if [ "$certificate_id" != "null" ] && [ -n "$certificate_id" ]; then
+      ssl_status="$(pad "$certificate_id" 7)"
+      ssl_color="${COLOR_CYAN}"
+    fi
+    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-36s${CoR} %-9s ${COLOR_CYAN}%-7s${CoR} ${ssl_color}%-7s${CoR} ${COLOR_CYAN}%-36s${CoR}\n" \
+      "$id" "$(pad "$domain" 36)" "$status" "$http_code" "$ssl_status" "$forward_domain"
+  done
+  echo ""
+  exit 0
+}
+
+################################
+# Create or Update a redirection host
+# Reads globals: DOMAIN_NAMES, FORWARD_DOMAIN, FORWARD_SCHEME, FORWARD_HTTP_CODE,
+#                PRESERVE_PATH, BLOCK_EXPLOITS, ADVANCED_CONFIG, AUTO_YES
+create_or_update_redirect_host() {
+    if [ "${REDIRECT_FUNCTION_CALLED:-0}" -eq 1 ]; then
+        return 0
+    fi
+    REDIRECT_FUNCTION_CALLED=1
+
+    if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_DOMAIN" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: Missing required parameters (domain, forward domain).${CoR}"
+        echo -e "   Usage: ${COLOR_ORANGE}$0 --redirect-host-create domain.com --forward-domain target.com${CoR}"
+        exit 1
+    fi
+
+    # Validate HTTP code
+    if ! [[ "$FORWARD_HTTP_CODE" =~ ^(301|302|303|307|308)$ ]]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: Invalid HTTP code '$FORWARD_HTTP_CODE'. Must be 301, 302, 303, 307, or 308.${CoR}"
+        exit 1
+    fi
+
+    # Validate forward scheme
+    if ! [[ "$FORWARD_SCHEME" =~ ^(http|https)$ ]]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: Invalid forward scheme '$FORWARD_SCHEME'. Must be 'http' or 'https'.${CoR}"
+        exit 1
+    fi
+
+    check_token_notverbose
+
+    # Check if a redirect host for this domain already exists
+    RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+
+    EXISTING=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
+    REDIRECT_ID=$(echo "$EXISTING" | jq -r '.id // empty')
+
+    # Convert booleans to JSON
+    PRESERVE_PATH_JSON=$( [ "$PRESERVE_PATH" == "true" ] && echo true || echo false )
+    BLOCK_EXPLOITS_JSON=$( [ "$BLOCK_EXPLOITS" == "true" ] && echo true || echo false )
+
+    DATA=$(jq -n \
+        --arg domain "$DOMAIN_NAMES" \
+        --arg forward_scheme "$FORWARD_SCHEME" \
+        --argjson forward_http_code "$FORWARD_HTTP_CODE" \
+        --arg forward_domain_name "$FORWARD_DOMAIN" \
+        --argjson preserve_path "$PRESERVE_PATH_JSON" \
+        --argjson block_exploits "$BLOCK_EXPLOITS_JSON" \
+        --arg advanced_config "$ADVANCED_CONFIG" \
+        '{
+            domain_names: [$domain],
+            forward_scheme: $forward_scheme,
+            forward_http_code: $forward_http_code,
+            forward_domain_name: $forward_domain_name,
+            preserve_path: $preserve_path,
+            block_exploits: $block_exploits,
+            advanced_config: $advanced_config,
+            meta: {}
+        }')
+
+    if ! echo "$DATA" | jq empty > /dev/null 2>&1; then
+        echo -e " ${COLOR_RED}⛔ ERROR: Invalid JSON generated:\n$DATA${CoR}"
+        exit 1
+    fi
+
+    if [ -n "$REDIRECT_ID" ]; then
+        if [ "$AUTO_YES" != "true" ]; then
+            echo -e " ${COLOR_YELLOW}👉 Do you want to update this redirect host ${CoR} $DOMAIN_NAMES ${COLOR_YELLOW}?${CoR}"
+            read -n 1 -r -p "   (y/n):  " answer
+            echo
+            if [[ ! $answer =~ ^[OoYy]$ ]]; then
+                echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}\n"
+                return 0
+            fi
+        fi
+        echo -e "\n ${COLOR_CYAN}🔄${CoR} Updating redirect host: ${COLOR_GREEN}$DOMAIN_NAMES${CoR}"
+        METHOD="PUT"
+        URL="$BASE_URL/nginx/redirection-hosts/$REDIRECT_ID"
+    else
+        echo -e "\n ${COLOR_CYAN}🔀${CoR} Creating redirect host: ${COLOR_GREEN}$DOMAIN_NAMES${CoR} → ${COLOR_YELLOW}$FORWARD_DOMAIN${CoR}"
+        METHOD="POST"
+        URL="$BASE_URL/nginx/redirection-hosts"
+    fi
+
+    RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+        -H "Content-Type: application/json; charset=UTF-8" \
+        --data-raw "$DATA")
+
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+    if [ -z "$ERROR_MSG" ]; then
+        RID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
+        if [ "$METHOD" = "PUT" ]; then
+            echo -e " ✅ ${COLOR_GREEN}Redirect host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$RID${COLOR_GREEN}) updated successfully! 🎉${CoR}\n"
+        else
+            echo -e " ✅ ${COLOR_GREEN}Redirect host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$RID${COLOR_GREEN}) created successfully! 🎉${CoR}\n"
+        fi
+    else
+        echo -e " ⛔ ${COLOR_RED}Operation failed. Error: $ERROR_MSG${CoR}\n"
+        exit 1
+    fi
+}
+
+################################
+# Delete a redirection host by ID
+redirect_host_delete() {
+    local host_id="$1"
+
+    if [ -z "$host_id" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: The --redirect-host-delete option requires a host 🆔.${CoR}"
+        echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-delete <id>${CoR}"
+        echo -e "   Example: ${COLOR_GREEN}$0 --redirect-host-delete 5${CoR}"
+        exit 1
+    fi
+
+    check_token_notverbose
+
+    CHECK_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+        "$BASE_URL/nginx/redirection-hosts/$host_id" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
+
+    CHECK_BODY=${CHECK_RESPONSE//HTTPSTATUS:*/}
+    CHECK_STATUS=${CHECK_RESPONSE##*HTTPSTATUS:}
+
+    if [ "$CHECK_STATUS" -eq 404 ]; then
+        echo -e " ⛔ ${COLOR_RED}ERROR: Redirect host ID ${COLOR_YELLOW}$host_id${COLOR_RED} not found!${CoR}"
+        exit 1
+    elif [ "$CHECK_STATUS" -ne 200 ]; then
+        echo -e " ⛔ ${COLOR_RED}ERROR: Failed to check redirect host. Status: $CHECK_STATUS${CoR}"
+        exit 1
+    fi
+
+    DOMAIN_NAME=$(echo "$CHECK_BODY" | jq -r '.domain_names[0] // "unknown"')
+
+    if [ "$AUTO_YES" != true ]; then
+        echo -e " ┌───────────────────────────────────────────"
+        echo -e " │ ID: ${COLOR_YELLOW}$host_id${CoR}"
+        echo -e " │ Domain: ${COLOR_GREEN}$DOMAIN_NAME${CoR}"
+        echo -e " └───────────────────────────────────────────"
+        echo -e " ⚠️  ${COLOR_RED}WARNING: This action cannot be undone!${CoR}"
+        read -n 1 -r -p " 🔔 Confirm deletion? (y/n): " CONFIRM
+        echo
+        if [[ ! $CONFIRM =~ ^[Yy]$ ]]; then
+            echo -e " ❌ ${COLOR_RED}Operation cancelled${CoR}"
+            exit 1
+        fi
+    else
+        echo -e "\n ${COLOR_YELLOW}🔔 -y Auto-confirming deletion${CoR}"
+    fi
+
+    echo -e " 🗑️ Deleting redirect host ${COLOR_GREEN}$DOMAIN_NAME${CoR} (ID: ${COLOR_GREEN}$host_id${CoR})..."
+
+    RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
+        "$BASE_URL/nginx/redirection-hosts/$host_id" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
+
+    HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+
+    if [ "$HTTP_STATUS" -eq 200 ]; then
+        echo -e " ✅ ${COLOR_GREEN}Redirect host ${COLOR_YELLOW}$DOMAIN_NAME${CoR} (ID: $host_id) deleted successfully!${CoR}\n"
+        exit 0
+    else
+        echo -e " ⛔ ${COLOR_RED}Failed to delete redirect host. Status: $HTTP_STATUS${CoR}"
+        exit 1
+    fi
+}
+
+################################
+# Enable a redirection host by ID
+redirect_host_enable() {
+    local host_id="$1"
+
+    if [ -z "$host_id" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: The --redirect-host-enable option requires a host 🆔.${CoR}"
+        echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-enable <id>${CoR}"
+        echo -e "   Example: ${COLOR_GREEN}$0 --redirect-host-enable 5${CoR}"
+        return 1
+    fi
+
+    check_token_notverbose
+
+    CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts/$host_id" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+
+    if echo "$CHECK_RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo -e " ⛔ ${COLOR_RED}Redirect host with ID $host_id does not exist${CoR}"
+        return 1
+    fi
+
+    DOMAIN_NAME=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[0]')
+    echo -e "\n ${COLOR_YELLOW}🔄 Enabling redirect host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+
+    RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/redirection-hosts/$host_id/enable" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+        -H "Content-Type: application/json; charset=UTF-8")
+
+    if ! echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+    else
+        ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+        echo -e " ⛔ ${COLOR_RED}Failed to enable redirect host: $ERROR_MSG${CoR}"
+    fi
+}
+
+################################
+# Disable a redirection host by ID
+redirect_host_disable() {
+    local host_id="$1"
+
+    if [ -z "$host_id" ]; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: The --redirect-host-disable option requires a host 🆔.${CoR}"
+        echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-disable <id>${CoR}"
+        echo -e "   Example: ${COLOR_GREEN}$0 --redirect-host-disable 5${CoR}"
+        return 1
+    fi
+
+    check_token_notverbose
+
+    CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts/$host_id" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+
+    if echo "$CHECK_RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo -e " ⛔ ${COLOR_RED}Redirect host with ID $host_id does not exist${CoR}"
+        return 1
+    fi
+
+    DOMAIN_NAME=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[0]')
+    echo -e "\n ${COLOR_YELLOW}🔄 Disabling redirect host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+
+    RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/redirection-hosts/$host_id/disable" \
+        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+        -H "Content-Type: application/json; charset=UTF-8")
+
+    if ! echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+    else
+        ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+        echo -e " ⛔ ${COLOR_RED}Failed to disable redirect host: $ERROR_MSG${CoR}"
+    fi
+}
+
+################################
 # Update an existing proxy host
 update_proxy_host() {
   check_token_notverbose
@@ -2099,7 +2413,7 @@ host_search() {
     #check_token false
     check_token_notverbose
     if [ -z "$HOST_SEARCHNAME" ]; then
-        echo -e "\n ⛔ ${COLOR_RED}ERROR: The --host-enable option requires a <host domain>.${CoR}"
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: The --host-search option requires a <host domain>.${CoR}"
         echo -e "     Usage  : ${COLOR_ORANGE}$0 --host-search domain_name${CoR}"
         echo -e "     Example: ${COLOR_GREEN}$0 --host-search example.com${CoR}\n"
         exit 1
@@ -4490,9 +4804,87 @@ while [[ "$#" -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --redirect-host-list) REDIRECT_HOST_LIST=true; shift;;
+        --redirect-host-create)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: --redirect-host-create requires a domain name.${CoR}"
+                echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-create domain.com --forward-domain target.com [options]${CoR}"
+                echo -e "   Options:"
+                echo -e "     --forward-domain  domain    Target domain (${COLOR_RED}required${CoR})"
+                echo -e "     --forward-scheme  http|https (default: http)"
+                echo -e "     --http-code       301|302|303|307|308 (default: 301)"
+                echo -e "     --preserve-path   true|false (default: false)"
+                exit 1
+            fi
+            DOMAIN_NAMES="$1"
+            shift
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --forward-domain)
+                        if [[ -n "$2" && "$2" != -* ]]; then FORWARD_DOMAIN="$2"; shift 2
+                        else echo -e "\n ⛔ ${COLOR_RED}--forward-domain requires a value${CoR}"; exit 1; fi ;;
+                    --forward-scheme|-f)
+                        if [[ -n "$2" && "$2" =~ ^(http|https)$ ]]; then FORWARD_SCHEME="$2"; shift 2
+                        else echo -e "\n ⛔ ${COLOR_RED}--forward-scheme must be 'http' or 'https'${CoR}"; exit 1; fi ;;
+                    --http-code)
+                        if [[ -n "$2" && "$2" =~ ^(301|302|303|307|308)$ ]]; then FORWARD_HTTP_CODE="$2"; shift 2
+                        else echo -e "\n ⛔ ${COLOR_RED}--http-code must be 301, 302, 303, 307, or 308${CoR}"; exit 1; fi ;;
+                    --preserve-path)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then PRESERVE_PATH="$2"; shift 2
+                        else echo -e "\n ⛔ ${COLOR_RED}--preserve-path must be 'true' or 'false'${CoR}"; exit 1; fi ;;
+                    -b|--block-exploits)
+                        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then BLOCK_EXPLOITS="$2"; shift 2
+                        else echo -e "\n ⛔ ${COLOR_RED}--block-exploits must be 'true' or 'false'${CoR}"; exit 1; fi ;;
+                    -a|--advanced-config)
+                        if [[ -n "$2" && "$2" != -* ]]; then ADVANCED_CONFIG="$2"; shift 2
+                        else echo -e "\n ⛔ ${COLOR_RED}--advanced-config requires a value${CoR}"; exit 1; fi ;;
+                    -y) AUTO_YES=true; shift ;;
+                    *) if [[ "$1" == -* ]]; then echo -e "\n ⚠️ ${COLOR_YELLOW}WARNING: Unknown option ignored -> $1${CoR}"; fi; shift ;;
+                esac
+            done
+            if [ -z "$FORWARD_DOMAIN" ]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: --forward-domain is required${CoR}"
+                echo -e "   Example: ${COLOR_GREEN}$0 --redirect-host-create example.com --forward-domain target.com${CoR}"
+                exit 1
+            fi
+            REDIRECT_HOST_CREATE=true
+            ;;
+        --redirect-host-delete)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: --redirect-host-delete requires a host 🆔.${CoR}"
+                echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-delete <id> [-y]${CoR}"
+                echo -e "   Example: ${COLOR_GREEN}$0 --redirect-host-delete 5${CoR}"
+                exit 1
+            fi
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                REDIRECT_HOST_ID="$1"; REDIRECT_HOST_DELETE=true; shift
+            else
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: ID must be a number.${CoR}"; exit 1
+            fi
+            ;;
+        --redirect-host-enable)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: --redirect-host-enable requires a host 🆔.${CoR}"
+                echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-enable <id>${CoR}"
+                exit 1
+            fi
+            REDIRECT_HOST_ID="$1"; REDIRECT_HOST_ENABLE=true; shift
+            ;;
+        --redirect-host-disable)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                echo -e "\n ⛔ ${COLOR_RED}INVALID: --redirect-host-disable requires a host 🆔.${CoR}"
+                echo -e "   Usage  : ${COLOR_ORANGE}$0 --redirect-host-disable <id>${CoR}"
+                exit 1
+            fi
+            REDIRECT_HOST_ID="$1"; REDIRECT_HOST_DISABLE=true; shift
+            ;;
         *)
             echo -e "\n ${COLOR_RED}⛔ Unknown option:${CoR} $1"
-            echo -e "    ${COLOR_GREY}Use --help to see available commands.${CoR}\n"            
+            echo -e "    ${COLOR_GREY}Use --help to see available commands.${CoR}\n"
             exit 1
             ;;
     esac
@@ -4559,8 +4951,6 @@ elif [ "$HOST_CREATE" = true ]; then
     if [ "$CERT_GENERATE" = true ]; then
         cert_generate "$DOMAIN_NAMES" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_CREDENTIALS"
         if [ "$HOST_SSL_ENABLE" = true ]; then
-            echo "DEBUG: HOST_ID=$HOST_ID"
-            echo "DEBUG: GENERATED_CERT_ID=$GENERATED_CERT_ID"
             host_ssl_enable "$HOST_ID" "$GENERATED_CERT_ID" 
         fi
     fi
@@ -4600,6 +4990,17 @@ elif [ "$HOST_ACL_ENABLE" = true ]; then
 elif [ "$HOST_ACL_DISABLE" = true ]; then
   host_acl_disable
 
+# Redirection Host Management
+elif [ "$REDIRECT_HOST_LIST" = true ]; then
+  redirect_host_list
+elif [ "$REDIRECT_HOST_CREATE" = true ]; then
+  create_or_update_redirect_host
+elif [ "$REDIRECT_HOST_DELETE" = true ]; then
+  redirect_host_delete "$REDIRECT_HOST_ID"
+elif [ "$REDIRECT_HOST_ENABLE" = true ]; then
+  redirect_host_enable "$REDIRECT_HOST_ID"
+elif [ "$REDIRECT_HOST_DISABLE" = true ]; then
+  redirect_host_disable "$REDIRECT_HOST_ID"
 
 elif [ "$HOST_SSL_ENABLE" = true ]; then
     host_ssl_enable "$HOST_ID" "$CERT_ID"

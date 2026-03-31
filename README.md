@@ -146,6 +146,21 @@ API_PASS="changeme"
                                              - Format: dns-provider PROVIDER dns-api-key KEY
                                              - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, ...
 
+ Redirection Host Management:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  --redirect-host-list                    List All Redirection Hosts
+  --redirect-host-create domain --forward-domain target [options]
+     Required:
+            domain                        Source domain name
+       --forward-domain  target           Target domain to redirect to
+     Optional:
+       --forward-scheme  http|https       Scheme (default: http)
+       --http-code       301|302|307...   HTTP redirect code (default: 301)
+       --preserve-path   true|false       Keep URI path (default: false)
+  --redirect-host-enable  🆔             Enable Redirection Host by ID
+  --redirect-host-disable 🆔             Disable Redirection Host by ID
+  --redirect-host-delete  🆔             Delete Redirection Host by ID
+
   --user-list                             List All Users
   --user-create username password email   Create User with a username, password and email
   --user-delete 🆔                        Delete User by username
@@ -291,6 +306,19 @@ API_PASS="changeme"
    ./npm-api.sh --host-acl-enable 42,5         # Enable ACL ID 5 for host 42
    # Disable ACL for a host
    ./npm-api.sh --host-acl-disable 42          # Disable ACL for host 42
+
+ 🔀 Redirection Hosts:
+   # List all redirection hosts
+   ./npm-api.sh --redirect-host-list
+   # Create 301 redirect
+   ./npm-api.sh --redirect-host-create old.example.com --forward-domain new.example.com
+   # Create 302 redirect preserving path
+   ./npm-api.sh --redirect-host-create old.example.com --forward-domain new.example.com --http-code 302 --preserve-path true
+   # Delete with auto-confirm
+   ./npm-api.sh --redirect-host-delete 5 -y
+   # Enable / disable
+   ./npm-api.sh --redirect-host-enable 5
+   ./npm-api.sh --redirect-host-disable 5
 
  👥 User Management:
    ./npm-api.sh --create-user newuser password123 user@example.com
@@ -562,6 +590,7 @@ By following these steps, you can enable SSL for your proxy host for the first t
 - [X] Clean/minimize output when using -y parameter for better script integration
 - [X] Creation of ACCESS list through CLI
 - [ ] Restore Function not working properly, need to find FIX
+- [x] Add Create/Update/Delete/Enable/Disable for Redirection Hosts
 </details>
 
 
