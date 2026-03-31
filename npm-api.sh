@@ -322,7 +322,7 @@ check_nginx_access() {
 
 ################################
 # Generate and/or validate token
-# $1: boolean - true pour afficher les messages, false pour mode silencieux
+# $1: boolean - true to display messages, false for silent mode
 check_token() {
     local verbose=${1:-false}
     # PATH 
@@ -546,7 +546,7 @@ validate_json() {
   local file=$1
   if ! jq empty "$file" 2>/dev/null; then
     echo -e "\n ⛔ Invalid JSON detected in file: $file"
-    cat "$file"  # Afficher le contenu du fichier pour debug
+    cat "$file"  # Show file content for debug
     return 1
   fi
   return 0
@@ -842,7 +842,7 @@ display_info() {
   DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
   BACKUP_PATH="$BACKUP_DIR"
 
-  # Vérifier si le répertoire existe et contient des fichiers
+  # Check if directory exists and contains files
   if [ -d "$BACKUP_PATH" ] && [ -n "$(find "$BACKUP_PATH" -mindepth 1 -print -quit 2>/dev/null)" ]; then
       # Count backup files by type
       local total_files=$(find "$BACKUP_PATH" -type f \( \
@@ -866,7 +866,7 @@ display_info() {
           local settings_files=$(find "$BACKUP_PATH/.settings" -type f -name "*.json" 2>/dev/null | wc -l)
           local user_files=$(find "$BACKUP_PATH/.user" -type f -name "*.json" 2>/dev/null | wc -l)
 
-          # Afficher les statistiques seulement s'il y a des fichiers
+          # Show statistics only if there are files
           [ "$config_files" -gt 0 ] && echo -e " • Full Config Files : ${COLOR_CYAN}$config_files${CoR}"
           [ "$proxy_files" -gt 0 ] && echo -e " • Proxy Host Files  : ${COLOR_CYAN}$proxy_files${CoR}"
           [ "$ssl_files" -gt 0 ] && echo -e " • SSL Files         : ${COLOR_CYAN}$ssl_files${CoR}"
@@ -961,20 +961,20 @@ display_dashboard() {
     print_row() {
         local component="$1"
         local status="$2"
-        local force_color="${3:-}"  # Initialisation avec une valeur vide par défaut
+        local force_color="${3:-}"  # Initialize with empty value by default
         local status_color=""
-        # Si une couleur est forcée, l'utiliser
+        # If a color is forced, use it
         if [ -n "$force_color" ]; then
             status_color="$force_color"
-        # Sinon, appliquer la logique de coloration automatique
+        # Otherwise, apply automatic coloring logic
         else
-            # Liste des composants qui ne doivent pas être colorés en vert
+            # Components that should not be colored green
             case "$component" in
                 *"Disabled"* | *"Expired"* | *"Uptime"* | *"Version"*)
                     status_color=""
                     ;;
                 *)
-                    # Pour les autres, colorer en vert si > 0
+                    # For others, color green if > 0
                     if [[ "$status" =~ ^[0-9]+$ ]] && [ "$status" -gt 0 ]; then
                         status_color="$COLOR_GREEN"
                     fi
@@ -2305,14 +2305,14 @@ host_update() {
   # echo -e "    🏷  FIELD: $FIELD"
   # echo -e "    ✏️  VALUE: $NEW_VALUE"
 
-  #  1) Vérifier que tous les paramètres sont fournis
+  #  1) Check that all required parameters are provided
   if [ -z "$HOST_ID" ] || [ -z "$FIELD" ] || [ -z "$NEW_VALUE" ]; then
       echo -e "\n ⛔ ${COLOR_RED}INVALID command: Missing required parameters.${CoR}"
       echo -e "    Usage: ${COLOR_ORANGE}$0 --host-update <host_id> <field=value>${CoR}"
       exit 1
   fi
 
-  #  2) Récupérer la configuration actuelle
+  #  2) Fetch current configuration
   CURRENT_DATA=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
 
@@ -2323,7 +2323,7 @@ host_update() {
     exit 1
   fi
 
-  #  3) Vérifier si le champ demandé est modifiable
+  #  3) Check if the requested field is editable
   FILTERED_DATA=$(echo "$CURRENT_DATA" | jq '{
     domain_names,
     forward_host,
@@ -2653,7 +2653,7 @@ host_delete() {
 ################################
 # ACL  proxy host 
 host_acl_enable() {
-  # Vérifier que les deux arguments sont fournis
+  # Check that both arguments are provided
   if [ -z "$HOST_ID" ] || [ -z "$ACCESS_LIST_ID" ]; then
     echo -e "\n ⛔ ${COLOR_RED}Error: HOST_ID and ACCESS_LIST_ID are required to enable the ACL.${CoR}"
     echo -e " Usage: ${COLOR_ORANGE}$0 --host-acl-enable <host_id> <access_list_id>${CoR}"
@@ -2733,7 +2733,7 @@ host_show() {
         echo -e " ⛔ ${COLOR_RED}Error: $(echo "$response" | jq -r '.error.message')${CoR}\n"
         return 1
     fi
-    # Formater et afficher les détails
+    # Format and display details
     echo -e "\n📋 ${COLOR_YELLOW}Host Details:${CoR}"
     echo -e "┌───────────────────────────────────"
     echo -e "│ 🆔 ID: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.id')${CoR}"
@@ -2754,7 +2754,7 @@ host_show() {
     echo -e "│    • Websocket Upgrade: $(colorize_boolean $(echo "$response" | jq -r '.websockets_enabled | if . then "true" else "false" end'))"
     echo -e "│ 🔑 Access List ID: ${COLOR_ORANGE}$(echo "$response" | jq -r '.access_list_id')${CoR}"
     
-    # Vérifier et afficher la configuration avancée
+    # Check and display advanced configuration
     if [ "$(echo "$response" | jq -r '.advanced_config')" != "null" ]; then
         echo -e "│ ⚙️ Advanced Config: ${COLOR_GREEN}Yes${CoR}"
         echo -e "│"
@@ -2917,7 +2917,7 @@ cert_generate() {
 
 
     else
-        # Seulement vérifier le domaine dans NPM si ce n'est pas un wildcard
+        # Only check domain in NPM if it is not a wildcard
         PROXY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
             -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
         
@@ -2932,7 +2932,7 @@ cert_generate() {
         fi
     fi
 
-    # Ensuite vérifier les certificats existants
+    # Then check existing certificates
     RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
         -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
   
@@ -3363,7 +3363,7 @@ access_list_create() {
         esac
     done
 
-    # Vérifier qu'au moins une règle est définie
+    # Check that at least one rule is defined
     if [ "$AUTH_ITEMS" = "[]" ] && [ "$IP_CLIENTS" = "[]" ]; then
         echo -e "\n ⛔ ${COLOR_RED}ERROR: At least one --auth or --access rule is required${CoR}"
         return 1
@@ -3959,7 +3959,7 @@ full_backup() {
         # Save all hosts metadata
         echo "$ALL_HOSTS_RESPONSE" | jq '.' > "$BACKUP_PATH/.Proxy_Hosts/all_hosts_${NGINX_IP//./_}$DATE.json"
         
-        # Process each proxy host - Utiliser while read avec un pipe pour préserver les variables
+        # Process each proxy host - use while read with pipe to preserve variables
         while IFS= read -r host; do
             local host_id=$(echo "$host" | jq -r '.id')
             local domain_name=$(echo "$host" | jq -r '.domain_names[0]' | sed 's/[^a-zA-Z0-9.]/_/g')
@@ -4309,7 +4309,7 @@ while [[ "$#" -gt 0 ]]; do
           if [[ "$2" =~ ^[0-9]+$ ]]; then
               HOST_ID="$2"
               FIELD_VALUE="$3"
-              # On sépare FIELD et VALUE
+              # Split FIELD and VALUE
               if [[ "$FIELD_VALUE" == *"="* ]]; then
                   FIELD=$(echo "$FIELD_VALUE" | cut -d '=' -f1)
                   VALUE=$(echo "$FIELD_VALUE" | cut -d '=' -f2-)
@@ -4469,7 +4469,7 @@ while [[ "$#" -gt 0 ]]; do
                                     CERT_DOMAIN="$1"
                                     shift
                                 else
-                                    # Si pas d'argument spécifique pour --cert-generate, utiliser le domaine du host
+                                    # If no specific argument for --cert-generate, use the host domain
                                     CERT_DOMAIN="$DOMAIN_NAMES"
                                 fi
                                 ;;
