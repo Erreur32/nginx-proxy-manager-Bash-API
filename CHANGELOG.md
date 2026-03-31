@@ -2,6 +2,41 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.2.0] - 2026-03-31
+
+### Pour les utilisateurs
+
+> Vous pouvez maintenant créer, modifier, activer/désactiver et supprimer des **Redirection Hosts** directement depuis la ligne de commande.
+
+- **Gestion complète des Redirection Hosts** — Cinq nouvelles commandes couvrent tout le cycle de vie d'un redirect : listage, création (ou mise à jour si le domaine existe déjà), activation, désactivation et suppression.
+- **Codes HTTP configurables** — Choisissez le code de redirection parmi 301, 302, 303, 307 ou 308 (défaut : 301).
+- **Option preserve-path** — Possibilité de conserver le chemin URI lors de la redirection (`--preserve-path true`).
+
+---
+
+### Technique
+
+#### Nouvelles commandes
+
+- **`--redirect-host-list`** — Affiche tous les Redirection Hosts en tableau (ID, domaine, statut, code HTTP, SSL, domaine cible).
+- **`--redirect-host-create <domain> --forward-domain <target> [options]`** — Crée un redirect host (POST) ou le met à jour silencieusement si le domaine existe déjà (PUT). Options : `--forward-scheme http|https`, `--http-code 301|302|303|307|308`, `--preserve-path true|false`, `-b/--block-exploits`, `-a/--advanced-config`, `-y`.
+- **`--redirect-host-delete <id> [-y]`** — Supprime avec confirmation interactive (contournable avec `-y`).
+- **`--redirect-host-enable <id>`** — Active via l'endpoint natif NPM `POST /redirection-hosts/{id}/enable`.
+- **`--redirect-host-disable <id>`** — Désactive via `POST /redirection-hosts/{id}/disable`.
+
+#### Bug fixes
+
+- **`check_nginx_access()`** — Variable `$API_PORT` indéfinie remplacée par `$NGINX_PORT` (ligne 301).
+- **`host_search()`** — Message d'erreur mentionnait `--host-enable` au lieu de `--host-search`.
+- **Code mort** — Deux `echo "DEBUG: ..."` laissés en production dans le bloc `--host-create` supprimés.
+
+#### Documentation
+
+- `show_help()` — Nouvelle section *Redirection Host Management*.
+- `examples_cli()` — Nouveaux exemples de création 301/302 avec et sans `--preserve-path`.
+- `README.md` — Section Options et section Examples mises à jour, TODO coché.
+- `.gitignore` — Ajout de `docs/`, `npm-api.conf`, `data/`, `.idea/`, `*.log`.
+
 ## [3.1.0] - 2025-01-27
 
 ### 🐛 Bug Fixes
