@@ -6,7 +6,7 @@
 [![Stargazers][stars-shield]][stars]
 
 
-# Nginx Proxy Manager CLI Script V3.2.0 🚀
+# Nginx Proxy Manager CLI Script V3.3.0 🚀
 
 
 
@@ -99,17 +99,19 @@ API_PASS="changeme"
 ## Options
 ```tcl
 
+
  Options available:                       (see --examples for more details)
    -y                                     Automatic yes prompts!
   --info                                  Display Script Variables Information
-  --show-default                         Show  Default settings for host creation
-  --check-token                           Check Check current token info
+  --show-default                          Show Default settings for host creation
+  --check-token                           Check current token info
   --backup                                💾 Backup All configurations to a different files in $DATA_DIR
 
  Proxy Host Management:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   --host-search domain                    Search Proxy host by domain name
   --host-list                             List All Proxy hosts (to find ID)
+  --host-list-full                        List All Proxy hosts with full details (JSON)
   --host-show 🆔                          Show Full details for a specific host by ID
 
   --host-create domain -i forward_host -p forward_port [options]
@@ -123,7 +125,7 @@ API_PASS="changeme"
        -f FORWARD_SCHEME                  Scheme for forwarding (http/https, default: http)
        -c CACHING_ENABLED                 Enable caching (true/false, default: false)
        -b BLOCK_EXPLOITS                  Block exploits (true/false, default: true)
-       -w ALLOW_WEBSOCKET_UPGRADE         Allow WebSocket upgrade (true/false, default: true)
+       -w ALLOW_WEBSOCKET_UPGRADE         Allow WebSocket upgrade (true/false, default: false)
        -l CUSTOM_LOCATIONS                Custom locations (JSON array of location objects)
        -a ADVANCED_CONFIG                 Advanced configuration (string)
 
@@ -140,32 +142,35 @@ API_PASS="changeme"
 
   --cert-list                             List ALL SSL certificates
   --cert-show     domain Or 🆔            List SSL certificates filtered by [domain name] (JSON)
-  --cert-delete   domain Or 🆔            Delete Certificate for the given 'domain'
-  --cert-download 🆔 [output_dir] [cert_name]  Download certificate as ZIP with fallback support
+  --cert-delete   domain Or 🆔 [--purge]  Delete Certificate for the given 'domain' (--purge also removes on-disk files)
+  --cert-download 🆔 [output_dir] [cert_name]
+                                          Download certificate as ZIP with fallback support
   --cert-generate domain [email]          Generate Let's Encrypt Certificate or others Providers.
                                            • Standard domains: example.com, sub.example.com
                                            • Wildcard domains: *.example.com (requires DNS challenge)
                                            • DNS Challenge: Required for wildcard certificates
                                              - Format: dns-provider PROVIDER dns-api-key KEY
-                                             - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, ...
+                                             - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, ...
+
 
  Redirection Host Management:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  --redirect-host-list                    List All Redirection Hosts
+  --redirect-host-list                    List all Redirection Hosts
   --redirect-host-create domain --forward-domain target [options]
      Required:
             domain                        Source domain name
-       --forward-domain  target           Target domain to redirect to
+       --forward-domain target            Target domain to redirect to
      Optional:
-       --forward-scheme  http|https       Scheme (default: http)
-       --http-code       301|302|307...   HTTP redirect code (default: 301)
-       --preserve-path   true|false       Keep URI path (default: false)
-  --redirect-host-enable  🆔             Enable Redirection Host by ID
-  --redirect-host-disable 🆔             Disable Redirection Host by ID
-  --redirect-host-delete  🆔             Delete Redirection Host by ID
+       --forward-scheme http|https        Scheme (default: http)
+       --http-code      301|302|307...    HTTP redirect code (default: 301)
+       --preserve-path  true|false        Keep URI path (default: false)
+  --redirect-host-enable  🆔              Enable Redirection Host by ID
+  --redirect-host-disable 🆔              Disable Redirection Host by ID
+  --redirect-host-delete  🆔              Delete Redirection Host by ID
 
   --user-list                             List All Users
-  --user-create username password email   Create User with a username, password and email
+  --user-create username password email [--admin]
+                                          Create User (--admin grants admin role; default standard)
   --user-delete 🆔                        Delete User by username
 
   --access-list                           List All available Access Lists (ID and Name)
@@ -186,9 +191,9 @@ API_PASS="changeme"
                                            • --deny "ip1,ip2"             Update denied IPs/ranges
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  --examples                             🔖 Examples commands, more explicits
-  --help                                     👉 It's me
-
+  --examples                              🔖 Examples commands, more explicits
+  --help                                  👉 It's me
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 </details>
 
@@ -234,7 +239,7 @@ API_PASS="changeme"
 
  🔒 SSL Management:
    # List all certificates
-   ./npm-api.sh --list-ssl-cert
+   ./npm-api.sh --cert-list
    # Download certificate as ZIP
    ./npm-api.sh --cert-download 123
    ./npm-api.sh --cert-download 123 ./certs mydomain
@@ -247,7 +252,8 @@ API_PASS="changeme"
      --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
 
    # Delete certificate
-   ./npm-api.sh --delete-cert domain.com        
+   ./npm-api.sh --cert-delete domain.com
+   ./npm-api.sh --cert-delete 240 --purge -y   # also remove on-disk files (needs NGINX_PATH_DOCKER)        
    # Enable SSL for host
    ./npm-api.sh --host-ssl-enable HOST_ID            
    # Generate certificate and enable SSL for existing host
@@ -324,9 +330,10 @@ API_PASS="changeme"
    ./npm-api.sh --redirect-host-disable 5
 
  👥 User Management:
-   ./npm-api.sh --create-user newuser password123 user@example.com
-   ./npm-api.sh --delete-user 'username'
-   ./npm-api.sh --list-users
+   ./npm-api.sh --user-create newuser password123 user@example.com
+   ./npm-api.sh --user-create admin secret admin@example.com --admin   # grant admin role
+   ./npm-api.sh --user-delete 'username'
+   ./npm-api.sh --user-list
 
  🔧 Advanced Examples:
    # Custom Nginx configuration
@@ -621,8 +628,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.2.0-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.2.0
+[release-shield]: https://img.shields.io/badge/version-v3.3.0-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.3.0
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg

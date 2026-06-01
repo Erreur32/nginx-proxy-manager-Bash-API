@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.2.0"
+VERSION="3.3.0"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -148,15 +148,15 @@ TOKEN_EXPIRY="1y"
 CACHING_ENABLED=false
 BLOCK_EXPLOITS=true
 ALLOW_WEBSOCKET_UPGRADE=false # Fixed: was '1' instead of 'false' (Issue #23)
-HTTP2_SUPPORT=0
+HTTP2_SUPPORT=false           # consistent true/false convention (Issue #23 class)
 ADVANCED_CONFIG=""
 LETS_ENCRYPT_AGREE=false
 LETS_ENCRYPT_EMAIL=""
 FORWARD_SCHEME="http"
 FORCE_CERT_CREATION=false
-SSL_FORCED=0
-HSTS_ENABLED=0
-HSTS_SUBDOMAINS=0
+SSL_FORCED=false
+HSTS_ENABLED=false
+HSTS_SUBDOMAINS=false
 #DNS_PROVIDER=""
 #DNS_API_KEY=""
 # Don't touch below that line (or you know ...)
@@ -184,6 +184,7 @@ SHOW_DEFAULT=false
 
 USER_CREATE=false
 USER_DELETE=false
+USER_IS_ADMIN=false
 USER_LIST=false
 
 HOST_SHOW=false
@@ -203,9 +204,19 @@ LIST_CERT_ALL=false
 CERT_SHOW=false
 CERT_GENERATE=false
 CERT_DELETE=false
+CERT_PURGE=false
 CERT_DOWNLOAD=false
 CERT_DOMAIN=""
 CERT_EMAIL=""
+# IDs / search term resolved by command parsers; initialized for set -u safety
+CERT_ID=""
+GENERATED_CERT_ID=""
+USER_ID=""
+search_term=""
+# Cached API token (populated by check_token_notverbose) to avoid re-reading
+# the token file on every curl. Curl headers use ${TOKEN:-$(cat "$TOKEN_FILE")}
+# so an empty cache safely falls back to reading the file.
+TOKEN=""
 DNS_PROVIDER=""
 DNS_API_KEY=""
 DOMAIN_EXISTS=""
@@ -220,7 +231,7 @@ ACCESS_LIST_DELETE=false
 ACCESS_LIST_SHOW=false
 ACCESS_LIST_ID=""
 ACCESS_LIST_UPDATE_ARGS=()
-AUTO_YES=false
+ACCESS_LIST_CREATE_ARGS=()
 
 BACKUP=false
 BACKUP_LIST=false
@@ -290,7 +301,7 @@ check_nginx_access() {
       local version_info=$(curl -s --max-redirs 0 "${BASE_URL%/api}/version")
       return 0
     fi
-    ((retry_count++))
+    retry_count=$((retry_count + 1))
     # Show retry message if not last attempt
     if [ $retry_count -lt $max_retries ]; then
       echo -e " ⏳ Attempt $retry_count/$max_retries - Retrying in ${timeout}s..."
@@ -399,7 +410,7 @@ check_token() {
 
   local http_status=$(echo "$test_response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-  if [ "$http_status" -eq 200 ]; then
+  if [ "${http_status:-0}" -eq 200 ]; then
     [ "$verbose" = true ] && echo -e " ✅ ${COLOR_GREEN}Token is valid${CoR}"
     [ "$verbose" = true ] && echo -e " 📅 Expires: ${COLOR_YELLOW}$expires${CoR}\n"
   else
@@ -412,6 +423,8 @@ check_token() {
 # validate_token not verbose
 check_token_notverbose() {
   check_token false
+  # Cache the validated token once so subsequent curls reuse it (see $TOKEN)
+  TOKEN=$(cat "$TOKEN_FILE" 2>/dev/null)
 }
 
 ################################
@@ -440,7 +453,7 @@ generate_new_token() {
   local temp_body=$(echo "$temp_response" | sed -e 's/HTTPSTATUS\:.*//g')
   local temp_status=$(echo "$temp_response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-  if [ "$temp_status" -ne 200 ]; then
+  if [ "${temp_status:-0}" -ne 200 ]; then
     echo -e " ❌ ${COLOR_RED}Failed to generate temporary token. Status: $temp_status${CoR}"
     echo -e " 📝 Response: $temp_body"
     exit 1
@@ -457,7 +470,7 @@ generate_new_token() {
   local body=$(echo "$response" | sed -e 's/HTTPSTATUS\:.*//g')
   local status=$(echo "$response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-  if [ "$status" -ne 200 ]; then
+  if [ "${status:-0}" -ne 200 ]; then
     echo -e " ❌ ${COLOR_RED}Failed to generate long-term token. Status: $status${CoR}"
     echo -e " 📝 Response: $body"
     exit 1
@@ -497,6 +510,21 @@ pad() {
   local pad_len=$((len - str_len))
   local padding=$(printf '%*s' "$pad_len" "")
   echo "$str$padding"
+}
+
+################################
+# Like pad() but truncates with an ellipsis when the string is longer than
+# the requested width, so columns stay aligned even with long names.
+# Always returns a string of exactly $len visible characters.
+truncate_pad() {
+  local str="$1"
+  local len="$2"
+  if [ "${#str}" -gt "$len" ]; then
+    str="${str:0:$((len - 1))}…"
+  fi
+  local pad_len=$((len - ${#str}))
+  [ "$pad_len" -lt 0 ] && pad_len=0
+  printf '%s%*s' "$str" "$pad_len" ""
 }
 
 ################################
@@ -548,13 +576,37 @@ validate_json() {
 
 ################################
 # Display help
+# Print one help line with its description aligned to a fixed column.
+# Visible width ignores literal ANSI color sequences (\033[..m / \e[..m) and
+# counts wide emoji (1 code point but 2 terminal cells) as 2.
+HELP_DESC_COL=42
+help_row() {
+  local left="$1" desc="$2"
+  local plain width pad g tmp
+  plain=$(printf '%s' "$left" | sed -E 's/\\(033|e)\[[0-9;]*m//g')
+  width=${#plain}
+  for g in 🆔 💾 🔖 🌍 🔗 🔒 🔄 ✨ 📥 📦 📜; do
+    tmp=${plain//"$g"/}
+    width=$((width + ${#plain} - ${#tmp}))
+  done
+  pad=$((HELP_DESC_COL - width))
+  if [ "$pad" -lt 1 ]; then
+    # Left part is wider than the description column: wrap the description onto
+    # the next line, aligned under the same column so everything stays tidy.
+    echo -e "${left}"
+    echo -e "$(printf '%*s' "$HELP_DESC_COL" '')${desc}"
+  else
+    echo -e "${left}$(printf '%*s' "$pad" '')${desc}"
+  fi
+}
+
 show_help() {
   echo -e "\n Options available:                       ${COLOR_GREY}(see --examples for more details)${CoR}"
-  echo -e "   -y                                     Automatic ${COLOR_YELLOW}yes${CoR} prompts!"
-  echo -e "  --info                                  Display ${COLOR_GREY}Script Variables Information${CoR}"
-  echo -e "  --show-default                          Show  ${COLOR_GREY}Default settings for host creation${CoR}"
-  echo -e "  --check-token                           Check ${COLOR_GREY}Check current token info${CoR}"
-  echo -e "  --backup                                ${COLOR_GREEN}💾 ${CoR}Backup ${COLOR_GREY}All configurations to a different files in \$DATA_DIR${CoR}"
+  help_row "   -y" "Automatic ${COLOR_YELLOW}yes${CoR} prompts!"
+  help_row "  --info" "Display ${COLOR_GREY}Script Variables Information${CoR}"
+  help_row "  --show-default" "Show ${COLOR_GREY}Default settings for host creation${CoR}"
+  help_row "  --check-token" "Check ${COLOR_GREY}current token info${CoR}"
+  help_row "  --backup" "${COLOR_GREEN}💾 ${CoR}Backup ${COLOR_GREY}All configurations to a different files in \$DATA_DIR${CoR}"
   #echo -e "  --clean-hosts                          ${COLOR_GREEN}📥 ${CoR}Reimport${CoR} ${COLOR_GREY}Clean Proxy ID and SSL ID in sqlite database ;)${CoR}"
   #echo -e "  --backup-host                          📦 ${COLOR_GREEN}Backup${CoR}   All proxy hosts and SSL certificates in Single file"
   #echo -e "  --backup-host 5                        📦 ${COLOR_GREEN}Backup${CoR}   Proxy host ID 5 and its SSL certificate"
@@ -564,81 +616,81 @@ show_help() {
   echo ""
   echo -e " Proxy Host Management:"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo -e "  --host-search ${COLOR_CYAN}domain${CoR}                    Search ${COLOR_GREY}Proxy host by ${COLOR_YELLOW}domain name${CoR}"
-  echo -e "  --host-list                             List ${COLOR_GREY}All Proxy hosts (to find ID)${CoR}"
-  #echo -e "  --host-list-full                       📜 List ${COLOR_GREY}All Proxy hosts full details (JSON)${CoR}"
-  echo -e "  --host-show ${COLOR_CYAN}🆔${CoR}                          Show ${COLOR_GREY}Full details for a specific host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --host-search ${COLOR_CYAN}domain${CoR}" "Search ${COLOR_GREY}Proxy host by ${COLOR_YELLOW}domain name${CoR}"
+  help_row "  --host-list" "List ${COLOR_GREY}All Proxy hosts (to find ID)${CoR}"
+  help_row "  --host-list-full" "List ${COLOR_GREY}All Proxy hosts with full details (${COLOR_YELLOW}JSON${COLOR_GREY})${CoR}"
+  help_row "  --host-show ${COLOR_CYAN}🆔${CoR}" "Show ${COLOR_GREY}Full details for a specific host by ${COLOR_YELLOW}ID${CoR}"
   echo ""
 
   echo -e "  --host-create ${COLOR_ORANGE}domain${CoR} ${COLOR_CYAN}-i ${COLOR_ORANGE}forward_host${CoR} ${COLOR_CYAN}-p ${COLOR_ORANGE}forward_port${CoR} [options]\n"
   echo -e "     ${COLOR_RED}Required:${CoR}"
-  echo -e "            domain                        Domain name (${COLOR_RED}required${CoR})"
-  echo -e "       ${COLOR_CYAN}-i${CoR}   forward-host                  IP address or domain name of the target server (${COLOR_RED}required${CoR})"
-  echo -e "       ${COLOR_CYAN}-p${CoR}   forward-port                  Port of the target server (${COLOR_RED}required${CoR})\n"
-
+  help_row "            domain" "Domain name (${COLOR_RED}required${CoR})"
+  help_row "       ${COLOR_CYAN}-i${CoR}   forward-host" "IP address or domain name of the target server (${COLOR_RED}required${CoR})"
+  help_row "       ${COLOR_CYAN}-p${CoR}   forward-port" "Port of the target server (${COLOR_RED}required${CoR})"
+  echo ""
   echo -e "     optional: ${COLOR_GREY}(Check default settings,no argument needed if already set!)${CoR}"
-  echo -e "       ${COLOR_CYAN}-f ${COLOR_GREY}FORWARD_SCHEME${CoR}                  Scheme for forwarding (http/https, default: $(colorize_booleanh "$FORWARD_SCHEME"))"
-  echo -e "       ${COLOR_CYAN}-c ${COLOR_GREY}CACHING_ENABLED${CoR}                 Enable caching (true/false, default: $(colorize_boolean "$CACHING_ENABLED"))"
-  echo -e "       ${COLOR_CYAN}-b ${COLOR_GREY}BLOCK_EXPLOITS${CoR}                  Block exploits (true/false, default: $(colorize_boolean "$BLOCK_EXPLOITS"))"
-  echo -e "       ${COLOR_CYAN}-w ${COLOR_GREY}ALLOW_WEBSOCKET_UPGRADE${CoR}         Allow WebSocket upgrade (true/false, default: $(colorize_boolean "$ALLOW_WEBSOCKET_UPGRADE"))"
-  echo -e "       ${COLOR_CYAN}-l ${COLOR_GREY}CUSTOM_LOCATIONS${CoR}                Custom locations (${COLOR_YELLOW}JSON array${CoR} of location objects)"
-  echo -e "       ${COLOR_CYAN}-a ${COLOR_GREY}ADVANCED_CONFIG${CoR}                 Advanced configuration (${COLOR_YELLOW}string${CoR})"
+  help_row "       ${COLOR_CYAN}-f ${COLOR_GREY}FORWARD_SCHEME${CoR}" "Scheme for forwarding (http/https, default: $(colorize_booleanh "$FORWARD_SCHEME"))"
+  help_row "       ${COLOR_CYAN}-c ${COLOR_GREY}CACHING_ENABLED${CoR}" "Enable caching (true/false, default: $(colorize_boolean "$CACHING_ENABLED"))"
+  help_row "       ${COLOR_CYAN}-b ${COLOR_GREY}BLOCK_EXPLOITS${CoR}" "Block exploits (true/false, default: $(colorize_boolean "$BLOCK_EXPLOITS"))"
+  help_row "       ${COLOR_CYAN}-w ${COLOR_GREY}ALLOW_WEBSOCKET_UPGRADE${CoR}" "Allow WebSocket upgrade (true/false, default: $(colorize_boolean "$ALLOW_WEBSOCKET_UPGRADE"))"
+  help_row "       ${COLOR_CYAN}-l ${COLOR_GREY}CUSTOM_LOCATIONS${CoR}" "Custom locations (${COLOR_YELLOW}JSON array${CoR} of location objects)"
+  help_row "       ${COLOR_CYAN}-a ${COLOR_GREY}ADVANCED_CONFIG${CoR}" "Advanced configuration (${COLOR_YELLOW}string${CoR})"
   #echo -e "       ${COLOR_CYAN}-h ${COLOR_GREY}HTTP2_SUPPORT${CoR}                   HTTP2 (true/false, default: $(colorize_boolean "$HTTP2_SUPPORT"))"
 
   echo ""
-  echo -e "  --host-enable  ${COLOR_CYAN}🆔${CoR}                       Enable Proxy host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-disable ${COLOR_CYAN}🆔${CoR}                       Disable Proxy host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-delete  ${COLOR_CYAN}🆔${CoR}                       Delete Proxy host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-update  ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[field]=value${CoR}         Update One specific field of an existing proxy host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --host-enable  ${COLOR_CYAN}🆔${CoR}" "Enable Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --host-disable ${COLOR_CYAN}🆔${CoR}" "Disable Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --host-delete  ${COLOR_CYAN}🆔${CoR}" "Delete Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --host-update  ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[field]=value${CoR}" "Update One specific field of an existing proxy host by ${COLOR_YELLOW}ID${CoR}"
   echo -e "                                          (eg., --host-update 42 forward_host=foobar.local)${CoR}"
   echo ""
-  echo -e "  --host-acl-enable  ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}access_list_id${CoR}    Enable ACL for Proxy host by ${COLOR_YELLOW}ID${CoR} with Access List ID"
-  echo -e "  --host-acl-disable ${COLOR_CYAN}🆔${CoR}                   Disable ACL for Proxy host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --host-ssl-enable  ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[cert_id]${CoR}         Enable SSL for host ID optionally using specific certificate ID"
-  echo -e "  --host-ssl-disable ${COLOR_CYAN}🆔${CoR}                   Disable SSL, HTTP/2, and HSTS for a proxy host${CoR}"
+  help_row "  --host-acl-enable  ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}access_list_id${CoR}" "Enable ACL for Proxy host by ${COLOR_YELLOW}ID${CoR} with Access List ID"
+  help_row "  --host-acl-disable ${COLOR_CYAN}🆔${CoR}" "Disable ACL for Proxy host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --host-ssl-enable  ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[cert_id]${CoR}" "Enable SSL for host ID optionally using specific certificate ID"
+  help_row "  --host-ssl-disable ${COLOR_CYAN}🆔${CoR}" "Disable SSL, HTTP/2, and HSTS for a proxy host"
   echo ""
-  echo -e "  --cert-list                             List ALL SSL certificates"
-  echo -e "  --cert-show     ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}            List SSL certificates filtered by [domain name] (${COLOR_YELLOW}JSON${CoR})${CoR}"
-  echo -e "  --cert-delete   ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}            Delete Certificate for the given '${COLOR_YELLOW}domain${CoR}'"
-  echo -e "  --cert-download ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[output_dir]${CoR} ${COLOR_CYAN}[cert_name]${CoR}  Download certificate as ZIP with fallback support"
+  help_row "  --cert-list" "List ALL SSL certificates"
+  help_row "  --cert-show     ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}" "List SSL certificates filtered by [domain name] (${COLOR_YELLOW}JSON${CoR})"
+  help_row "  --cert-delete   ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[--purge]${CoR}" "Delete Certificate for the given '${COLOR_YELLOW}domain${CoR}' (${COLOR_GREY}--purge${CoR} also removes on-disk files)"
+  help_row "  --cert-download ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[output_dir]${CoR} ${COLOR_CYAN}[cert_name]${CoR}" "Download certificate as ZIP with fallback support"
 
-  echo -e "  --cert-generate ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}          Generate Let's Encrypt Certificate or others Providers.${CoR}"
+  help_row "  --cert-generate ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}" "Generate Let's Encrypt Certificate or others Providers."
   echo -e "                                           • ${COLOR_YELLOW}Standard domains:${CoR} example.com, sub.example.com"
   echo -e "                                           • ${COLOR_YELLOW}Wildcard domains:${CoR} *.example.com (requires DNS challenge)${CoR}"
   echo -e "                                           • DNS Challenge:${CoR} Required for wildcard certificates"
   echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} dns-provider PROVIDER dns-api-key KEY"
-  echo -e "                                             - ${COLOR_YELLOW}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, ..."
+  echo -e "                                             - ${COLOR_YELLOW}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, ..."
   echo ""
   echo ""
   echo -e " Redirection Host Management:"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo -e "  --redirect-host-list                    List all Redirection Hosts"
+  help_row "  --redirect-host-list" "List all Redirection Hosts"
   echo -e "  --redirect-host-create ${COLOR_ORANGE}domain${CoR} --forward-domain ${COLOR_ORANGE}target${CoR} [options]"
   echo -e "     Required:"
-  echo -e "            domain                        Source domain name"
-  echo -e "       --forward-domain ${COLOR_ORANGE}target${CoR}              Target domain to redirect to"
+  help_row "            domain" "Source domain name"
+  help_row "       --forward-domain ${COLOR_ORANGE}target${CoR}" "Target domain to redirect to"
   echo -e "     Optional:"
-  echo -e "       --forward-scheme ${COLOR_GREY}http|https${CoR}            Scheme (default: http)"
-  echo -e "       --http-code      ${COLOR_GREY}301|302|307...${CoR}        HTTP redirect code (default: 301)"
-  echo -e "       --preserve-path  ${COLOR_GREY}true|false${CoR}            Keep URI path (default: false)"
-  echo -e "  --redirect-host-enable  ${COLOR_CYAN}🆔${CoR}               Enable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --redirect-host-disable ${COLOR_CYAN}🆔${CoR}               Disable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
-  echo -e "  --redirect-host-delete  ${COLOR_CYAN}🆔${CoR}               Delete Redirection Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "       --forward-scheme ${COLOR_GREY}http|https${CoR}" "Scheme (default: http)"
+  help_row "       --http-code      ${COLOR_GREY}301|302|307...${CoR}" "HTTP redirect code (default: 301)"
+  help_row "       --preserve-path  ${COLOR_GREY}true|false${CoR}" "Keep URI path (default: false)"
+  help_row "  --redirect-host-enable  ${COLOR_CYAN}🆔${CoR}" "Enable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --redirect-host-disable ${COLOR_CYAN}🆔${CoR}" "Disable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --redirect-host-delete  ${COLOR_CYAN}🆔${CoR}" "Delete Redirection Host by ${COLOR_YELLOW}ID${CoR}"
   echo ""
-  echo -e "  --user-list                             List All Users"
-  echo -e "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR}   Create User with a ${COLOR_YELLOW}username${CoR}, ${COLOR_YELLOW}password${CoR} and ${COLOR_YELLOW}email${CoR}"
-  echo -e "  --user-delete ${COLOR_CYAN}🆔${CoR}                        Delete User by ${COLOR_YELLOW}username${CoR}"
+  help_row "  --user-list" "List All Users"
+  help_row "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR} ${COLOR_CYAN}[--admin]${CoR}" "Create User (${COLOR_GREY}--admin${CoR} grants admin role; default standard)"
+  help_row "  --user-delete ${COLOR_CYAN}🆔${CoR}" "Delete User by ${COLOR_YELLOW}username${CoR}"
   echo ""
-  echo -e "  --access-list                           List All available Access Lists (ID and Name)"
-  echo -e "  --access-list-show ${COLOR_CYAN}🆔${CoR}                   Show detailed information for specific access list"
-  echo -e "  --access-list-create                    Create Access Lists with options:"
+  help_row "  --access-list" "List All available Access Lists (ID and Name)"
+  help_row "  --access-list-show ${COLOR_CYAN}🆔${CoR}" "Show detailed information for specific access list"
+  help_row "  --access-list-create" "Create Access Lists with options:"
   echo -e "                                           • ${COLOR_YELLOW}--satisfy [any|all]${CoR}          Set access list satisfaction mode"
   echo -e "                                           • ${COLOR_YELLOW}--pass-auth [true|false]${CoR}     Enable/disable password authentication"
   echo -e "                                           • ${COLOR_YELLOW}--users \"user1,user2\"${CoR}        List of users (comma-separated)"
   echo -e "                                           • ${COLOR_YELLOW}--allow \"ip1,ip2\"${CoR}            List of allowed IPs/ranges"
   echo -e "                                           • ${COLOR_YELLOW}--deny \"ip1,ip2\"${CoR}             List of denied IPs/ranges"
-  echo -e "  --access-list-delete ${COLOR_CYAN}🆔${CoR}                 Delete Access List by access ID"
-  echo -e "  --access-list-update ${COLOR_CYAN}🆔${CoR}                 Update Access List by access ID with options:"
+  help_row "  --access-list-delete ${COLOR_CYAN}🆔${CoR}" "Delete Access List by access ID"
+  help_row "  --access-list-update ${COLOR_CYAN}🆔${CoR}" "Update Access List by access ID with options:"
   echo -e "                                           • ${COLOR_YELLOW}--name \"new_name\"${CoR}            New name for the access list"
   echo -e "                                           • ${COLOR_YELLOW}--satisfy [any|all]${CoR}          Update satisfaction mode"
   echo -e "                                           • ${COLOR_YELLOW}--pass-auth [true|false]${CoR}     Update password authentication"
@@ -647,8 +699,8 @@ show_help() {
   echo -e "                                           • ${COLOR_YELLOW}--deny \"ip1,ip2\"${CoR}             Update denied IPs/ranges\n"
   #echo -e "\n    ${COLOR_CYAN}🆔${CoR} = ID Host Proxy"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo -e "  --examples                             ${COLOR_ORANGE}🔖 ${CoR}Examples ${COLOR_GREY}commands, more explicits${CoR}"
-  echo -e "  --help                                 ${COLOR_YELLOW}👉 ${COLOR_GREY}It's me${CoR}"
+  help_row "  --examples" "${COLOR_ORANGE}🔖 ${CoR}Examples ${COLOR_GREY}commands, more explicits${CoR}"
+  echo -e "  --help                                 ${COLOR_YELLOW} 👉 ${COLOR_GREY}It's me${CoR}"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   exit 0
 }
@@ -886,17 +938,17 @@ display_dashboard() {
   echo -e " ${COLOR_GREY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CoR}"
   # Get all data first
   local proxy_hosts=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local redirection_hosts=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/redirection-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local stream_hosts=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/streams" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local certificates=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local users=$(curl -s --max-redirs 0 -X GET "$BASE_URL/users" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local access_lists=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/access-lists" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   # Calculate counts with error checking
   local proxy_count=0
@@ -1059,7 +1111,7 @@ user_list() {
   check_token_notverbose
   echo -e "\n 👉 List of users..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   echo -e "\n $RESPONSE" | jq
   exit 0
 }
@@ -1070,14 +1122,14 @@ user_create() {
   check_token_notverbose
   if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ] || [ -z "$EMAIL" ]; then
     echo -e "\n 👤 ${COLOR_RED}The --user-create option requires username, password, and email.${CoR}"
-    echo -e " Usage: ${COLOR_ORANGE}$0 --user-create username password email${CoR}"
+    echo -e " Usage: ${COLOR_ORANGE}$0 --user-create username password email [--admin]${CoR}"
     echo -e " Example:"
     echo -e "   ${COLOR_GREEN}$0 --user-create john secretpass john@domain.com${CoR}\n"
     return 1
   fi
   # check if user already exists
   EXISTING_USERS=$(curl -s -X GET "$BASE_URL/users" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   # check if email already exists
   if echo "$EXISTING_USERS" | jq -e --arg email "$EMAIL" '.[] | select(.email == $email)' >/dev/null; then
     echo -e "\n ⛔ ${COLOR_RED}Error: A user with email $EMAIL already exists.${CoR}"
@@ -1089,7 +1141,14 @@ user_create() {
     return 1
   fi
   # create user
-  echo -e "\n 👤 Creating user ${COLOR_GREEN}$USERNAME${CoR}..."
+  # Standard user by default; admin only when --admin was passed
+  if [ "$USER_IS_ADMIN" = true ]; then
+    ROLES_JSON='["admin"]'
+    echo -e "\n 👤 Creating ${COLOR_YELLOW}admin${CoR} user ${COLOR_GREEN}$USERNAME${CoR}..."
+  else
+    ROLES_JSON='[]'
+    echo -e "\n 👤 Creating user ${COLOR_GREEN}$USERNAME${CoR}..."
+  fi
   DATA=$(jq -n \
     --arg username "$USERNAME" \
     --arg password "$PASSWORD" \
@@ -1097,11 +1156,12 @@ user_create() {
     --arg name "$USERNAME" \
     --arg nickname "$USERNAME" \
     --arg secret "$PASSWORD" \
+    --argjson roles "$ROLES_JSON" \
     '{
       name: $name,
       nickname: $nickname,
       email: $email,
-      roles: ["admin"],
+      roles: $roles,
       is_disabled: false,
       auth: {
         type: "password",
@@ -1110,20 +1170,17 @@ user_create() {
     }')
   # send data to API
   RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/users" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
 
   HTTP_BODY=${RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
 
-  if [ "$HTTP_STATUS" -eq 201 ]; then
-    # debug
-    echo "Debug response: $HTTP_BODY" >>/tmp/npm_debug.log
-
+  if [ "${HTTP_STATUS:-0}" -eq 201 ]; then
     # get user id
     USERS_RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
     USER_ID=$(echo "$USERS_RESPONSE" | jq -r --arg email "$EMAIL" --arg name "$USERNAME" \
       '.[] | select(.email == $email and .name == $name) | .id')
@@ -1168,7 +1225,7 @@ user_delete() {
 
   # Get user details first
   local RESPONSE=$(curl -s -X GET "$BASE_URL/users/$USER_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ "$(echo "$RESPONSE" | jq -r '.error.code // empty')" = "404" ]; then
     echo -e " ⛔ ${COLOR_RED}User ID $USER_ID not found${CoR}"
@@ -1197,7 +1254,7 @@ user_delete() {
 
   # Delete user
   RESPONSE=$(curl -s -X DELETE "$BASE_URL/users/$USER_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ "$RESPONSE" = "true" ]; then
     echo -e " ✅ ${COLOR_GREEN}User '$USERNAME' (ID: $USER_ID) deleted successfully!${CoR}"
@@ -1218,7 +1275,7 @@ check_certificate_exists() {
   local CERT_ID
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [[ "$DOMAIN" == \** ]]; then
     CERT_ID=$(echo "$RESPONSE" | jq -r --arg domain "$DOMAIN" \
@@ -1250,22 +1307,22 @@ delete_all_proxy_hosts() {
 
   # Get all host IDs
   local existing_hosts=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" | jq -r '.[].id')
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" | jq -r '.[].id')
 
   local count=0
   for host_id in $existing_hosts; do
     echo -e " •  Deleting host ID ${COLOR_CYAN}$host_id${CoR}...${COLOR_GREEN}✓${CoR}"
     local response=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE "$BASE_URL/nginx/proxy-hosts/$host_id" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
     local http_body=$(echo "$response" | sed -e 's/HTTPSTATUS\:.*//g')
     local http_status=$(echo "$response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-    if [ "$http_status" -ne 200 ]; then
+    if [ "${http_status:-0}" -ne 200 ]; then
       echo -e " ⛔ ${COLOR_RED}Failed to delete host ID $host_id. HTTP status: $http_status. Response: $http_body${CoR}"
       return 1
     fi
-    ((count++))
+    count=$((count + 1))
   done
 
   echo -e " ✅ ${COLOR_GREEN}Successfully deleted $count proxy hosts!${CoR}"
@@ -1283,7 +1340,7 @@ create_safety_backup() {
   echo -e "📦 Creating safety backup..."
   # Get the list of IDs
   local host_ids=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" | jq -r '.[].id')
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" | jq -r '.[].id')
   # Create a table to store the complete configurations
   echo "[" >"$SAFETY_BACKUP"
   local first=true
@@ -1296,7 +1353,7 @@ create_safety_backup() {
     fi
 
     curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$id" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")" >>"$SAFETY_BACKUP"
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >>"$SAFETY_BACKUP"
   done
 
   echo "]" >>"$SAFETY_BACKUP"
@@ -1331,6 +1388,26 @@ display_import_summary() {
 }
 
 ################################
+# Shared jq format + colorizer for certificate listings (used by cert_show and
+# list_cert_all). CERT_JQ_FMT formats one certificate object; cert_colorize
+# reads that output on stdin and colors the Status line.
+CERT_JQ_FMT='" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"'
+
+cert_colorize() {
+  while IFS= read -r line; do
+    if [[ $line == *"❌ EXPIRED"* ]]; then
+      echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"
+    elif [[ $line == *"✅ VALID"* ]]; then
+      echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"
+    elif [[ $line == *"⚠️ PENDING"* ]]; then
+      echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"
+    else
+      echo -e "$line"
+    fi
+  done
+}
+
+################################
 # Function to list SSL certificates by ID or domain
 cert_show() {
   local search_term="$1"
@@ -1348,7 +1425,7 @@ cert_show() {
 
   # Get all certificates
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ -z "$RESPONSE" ] || [ "$RESPONSE" == "null" ]; then
     echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve certificates${CoR}"
@@ -1361,12 +1438,12 @@ cert_show() {
 
     # Get specific certificate by ID
     CERT_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$search_term" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
     if echo "$CERT_RESPONSE" | jq -e '.error' >/dev/null; then
       echo -e " ⛔ ${COLOR_RED}Certificate not found with ID: $search_term${CoR}"
     else
-      echo "$CERT_RESPONSE" | jq -r '" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider : \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"' | while IFS= read -r line; do if [[ $line == *"❌ EXPIRED"* ]]; then echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"; elif [[ $line == *"✅ VALID"* ]]; then echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"; elif [[ $line == *"⚠️ PENDING"* ]]; then echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"; else echo -e "$line"; fi; done
+      echo "$CERT_RESPONSE" | jq -r "$CERT_JQ_FMT" | cert_colorize
     fi
     echo ""
     return 0
@@ -1380,7 +1457,7 @@ cert_show() {
   if [ -z "$DOMAIN_CERTS" ]; then
     echo -e " ℹ️ ${COLOR_YELLOW}No certificates found for domain: $search_term${CoR}"
   else
-    echo "$DOMAIN_CERTS" | jq -r '" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"' | while IFS= read -r line; do if [[ $line == *"❌ EXPIRED"* ]]; then echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"; elif [[ $line == *"✅ VALID"* ]]; then echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"; elif [[ $line == *"⚠️ PENDING"* ]]; then echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"; else echo -e "$line"; fi; done
+    echo "$DOMAIN_CERTS" | jq -r "$CERT_JQ_FMT" | cert_colorize
     echo ""
   fi
 }
@@ -1392,7 +1469,7 @@ list_cert_all() {
 
   # Get all certificates
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ -z "$RESPONSE" ] || [ "$RESPONSE" == "null" ]; then
     echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve certificates${CoR}"
@@ -1408,24 +1485,13 @@ list_cert_all() {
   fi
 
   # Process and display all certificates
-  echo "$RESPONSE" | jq -r '.[] | " 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"' |
-    while IFS= read -r line; do
-      if [[ $line == *"❌ EXPIRED"* ]]; then
-        echo -e "${line/❌ EXPIRED/${COLOR_RED}❌ EXPIRED${CoR}}"
-      elif [[ $line == *"✅ VALID"* ]]; then
-        echo -e "${line/✅ VALID/${COLOR_GREEN}✅ VALID${CoR}}"
-      elif [[ $line == *"⚠️ PENDING"* ]]; then
-        echo -e "${line/⚠️ PENDING/${COLOR_YELLOW}⚠️ PENDING${CoR}}"
-      else
-        echo -e "$line"
-      fi
-    done
+  echo "$RESPONSE" | jq -r ".[] | $CERT_JQ_FMT" | cert_colorize
   # Display statistics
   TOTAL_CERTS=$(echo "$RESPONSE" | jq '. | length')
-  # Check if expires_on is in the future
-  VALID_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expires_on > now)] | length')
-  # Check if expires_on is in the past
-  EXPIRED_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expires_on < now)] | length')
+  # Use the API's own boolean: .expires_on is an ISO string, so comparing it to
+  # the numeric `now` was always wrong (every string sorts > every number in jq).
+  EXPIRED_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired == true)] | length')
+  VALID_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired != true)] | length')
 
   echo -e "\n 📊 Statistics"
   echo -e "    Total certs: ${COLOR_YELLOW}$TOTAL_CERTS${CoR}"
@@ -1460,7 +1526,7 @@ cert_download() {
   # Get certificate metadata first
   local CERT_META
   CERT_META=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ -z "$CERT_META" ] || ! echo "$CERT_META" | jq empty 2>/dev/null; then
     echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve certificate metadata${CoR}"
@@ -1486,7 +1552,7 @@ cert_download() {
   echo -e "\n 🔄 Trying new API format..."
   local CERT_CONTENT
   CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Accept: application/json")
 
   if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
@@ -1539,7 +1605,7 @@ cert_download() {
   # Download ZIP file
   local download_response
   download_response=$(curl -s -w "%{http_code}" -X GET "$BASE_URL/nginx/certificates/$cert_id/download" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -o "$zip_file")
 
   local http_code="${download_response: -3}"
@@ -1659,7 +1725,7 @@ create_or_update_proxy_host() {
   # Check if the host already exists
   #echo -e "\n 🔎 Checking if the host ${COLOR_RED}$DOMAIN_NAMES${CoR} already exists..."
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   EXISTING_HOST=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
   HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id // empty')
@@ -1721,7 +1787,7 @@ create_or_update_proxy_host() {
       echo -e " ${COLOR_YELLOW}👉 Do you want to update this host ${CoR} $DOMAIN_NAMES ${COLOR_YELLOW}?${CoR}"
       read -n 1 -r -p "   (y/n):  " answer
       echo
-      if [[ ! $answer =~ ^[OoYy]$ ]]; then
+      if [[ ! $answer =~ ^[Yy]$ ]]; then
         echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}\n"
         return 0
       fi
@@ -1738,7 +1804,7 @@ create_or_update_proxy_host() {
 
   # Send API request
   RESPONSE=$(curl -s -X "$METHOD" "$URL" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
 
@@ -1791,7 +1857,7 @@ create_or_update_proxy_host() {
 
       # Check SSL creation
       CERT_CHECK=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
       CERT_ID=$(echo "$CERT_CHECK" | jq -r --arg domain "$CERT_DOMAIN" \
         '.[] | select(.domain_names[] == $domain) | .id' | sort -n | tail -n1)
@@ -1813,7 +1879,7 @@ create_or_update_proxy_host() {
 
         UPDATE_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT \
           "$BASE_URL/nginx/proxy-hosts/$PROXY_ID" \
-          -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+          -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
           -H "Content-Type: application/json" \
           --data "$UPDATE_DATA")
 
@@ -1855,10 +1921,19 @@ host_list() {
   printf "  %4s %-36s %-9s %-6s %-30s %-36s\n" "ID" " DOMAIN" " STATUS" " SSL" " TARGET" " CERT DOMAIN"
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
+
+  # Fetch all certificates once and build an "id -> domain1, domain2" map, so we
+  # don't make one API call per proxy host to resolve the CERT DOMAIN column.
+  ALL_CERTS=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  declare -A CERT_DOMAINS=()
+  while IFS=$'\t' read -r _cid _cdoms; do
+    [ -n "$_cid" ] && CERT_DOMAINS["$_cid"]="$_cdoms"
+  done < <(echo "$ALL_CERTS" | jq -r '.[]? | select(.domain_names != null) | "\(.id)\t\(.domain_names | join(", "))"')
 
   # Fix PR #28: Use tab delimiter to safely handle multiple domain names
   # Fix PR #29: Extract forward_host, forward_port, forward_scheme for TARGET column
@@ -1872,15 +1947,10 @@ host_list() {
     ssl_status="$(pad "✘" 6)"
     ssl_color="${COLOR_RED}"
     cert_domain=""
-    # Check if a valid certificate ID is present and not null
+    # Resolve the certificate domain from the prefetched map (no per-host call)
     if [ "$certificate_id" != "null" ] && [ -n "$certificate_id" ]; then
-      # Fetch the certificate details using the certificate_id
-      CERT_DETAILS=$(curl -s -X GET "$BASE_URL/nginx/certificates/$certificate_id" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-
-      # Check if the certificate details are valid and domain_names is not null
-      if [ "$(echo "$CERT_DETAILS" | jq -r '.domain_names')" != "null" ]; then
-        cert_domain=$(echo "$CERT_DETAILS" | jq -r '.domain_names | join(", ")')
+      cert_domain="${CERT_DOMAINS[$certificate_id]:-}"
+      if [ -n "$cert_domain" ]; then
         ssl_status="$(pad "$certificate_id" 6)"
         ssl_color="${COLOR_CYAN}"
       fi
@@ -1893,9 +1963,20 @@ host_list() {
       target="N/A"
     fi
 
+    # Split the domain list: the first domain goes on the main row, any extra
+    # domains are printed below, indented under the DOMAIN column. This keeps
+    # all columns aligned even with long or multiple domain names.
+    IFS=', ' read -ra domain_arr <<<"$domain"
+    primary_domain="${domain_arr[0]}"
+
     # Print the row with colors, TARGET column, and certificate domain (if available)
-    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-36s${CoR} %-9s ${ssl_color}%-6s${CoR} ${COLOR_CYAN}%-30s${CoR} ${COLOR_CYAN}%-36s${CoR}\n" \
-      "$id" "$(pad "$domain" 36)" "$status" "$ssl_status" "$(pad "$target" 30)" "$cert_domain"
+    printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%s${CoR} %-9s ${ssl_color}%-6s${CoR} ${COLOR_CYAN}%s${CoR} ${COLOR_CYAN}%s${CoR}\n" \
+      "$id" "$(truncate_pad "$primary_domain" 36)" "$status" "$ssl_status" "$(truncate_pad "$target" 30)" "$cert_domain"
+
+    # Continuation lines for the remaining domains (indented under DOMAIN, col 8)
+    for ((i = 1; i < ${#domain_arr[@]}; i++)); do
+      printf "        ${COLOR_GREEN}%s${CoR}\n" "$(truncate_pad "${domain_arr[i]}" 36)"
+    done
   done
   echo ""
   exit 0
@@ -1906,7 +1987,7 @@ host_list() {
 host_list_full() {
   check_token_notverbose
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   echo "$RESPONSE" | jq -c '.[]' | while read -r proxy; do
     echo "$proxy" | jq .
@@ -1923,7 +2004,7 @@ redirect_host_list() {
   printf "  %4s %-36s %-9s %-7s %-7s %-36s\n" "ID" " DOMAIN" " STATUS" " CODE" " SSL" " FORWARD DOMAIN"
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
@@ -1940,8 +2021,20 @@ redirect_host_list() {
         ssl_status="$(pad "$certificate_id" 7)"
         ssl_color="${COLOR_CYAN}"
       fi
-      printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-36s${CoR} %-9s ${COLOR_CYAN}%-7s${CoR} ${ssl_color}%-7s${CoR} ${COLOR_CYAN}%-36s${CoR}\n" \
-        "$id" "$(pad "$domain" 36)" "$status" "$http_code" "$ssl_status" "$forward_domain"
+
+      # Split the domain list: the first domain goes on the main row, any extra
+      # domains are printed below, indented under the DOMAIN column. Keeps all
+      # columns aligned even with long or multiple domains (same as host_list).
+      IFS=', ' read -ra domain_arr <<<"$domain"
+      primary_domain="${domain_arr[0]}"
+
+      printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%s${CoR} %-9s ${COLOR_CYAN}%-7s${CoR} ${ssl_color}%-7s${CoR} ${COLOR_CYAN}%s${CoR}\n" \
+        "$id" "$(truncate_pad "$primary_domain" 36)" "$status" "$http_code" "$ssl_status" "$(truncate_pad "$forward_domain" 36)"
+
+      # Continuation lines for the remaining domains (indented under DOMAIN, col 8)
+      for ((i = 1; i < ${#domain_arr[@]}; i++)); do
+        printf "        ${COLOR_GREEN}%s${CoR}\n" "$(truncate_pad "${domain_arr[i]}" 36)"
+      done
     done
   echo ""
   exit 0
@@ -1979,7 +2072,7 @@ create_or_update_redirect_host() {
 
   # Check if a redirect host for this domain already exists
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   EXISTING=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
   REDIRECT_ID=$(echo "$EXISTING" | jq -r '.id // empty')
@@ -2017,7 +2110,7 @@ create_or_update_redirect_host() {
       echo -e " ${COLOR_YELLOW}👉 Do you want to update this redirect host ${CoR} $DOMAIN_NAMES ${COLOR_YELLOW}?${CoR}"
       read -n 1 -r -p "   (y/n):  " answer
       echo
-      if [[ ! $answer =~ ^[OoYy]$ ]]; then
+      if [[ ! $answer =~ ^[Yy]$ ]]; then
         echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}\n"
         return 0
       fi
@@ -2032,7 +2125,7 @@ create_or_update_redirect_host() {
   fi
 
   RESPONSE=$(curl -s -X "$METHOD" "$URL" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
 
@@ -2066,7 +2159,7 @@ redirect_host_delete() {
 
   CHECK_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
     "$BASE_URL/nginx/redirection-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
 
   CHECK_BODY=${CHECK_RESPONSE//HTTPSTATUS:*/}
   CHECK_STATUS=${CHECK_RESPONSE##*HTTPSTATUS:}
@@ -2101,11 +2194,11 @@ redirect_host_delete() {
 
   RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
     "$BASE_URL/nginx/redirection-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
 
   HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
 
-  if [ "$HTTP_STATUS" -eq 200 ]; then
+  if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
     echo -e " ✅ ${COLOR_GREEN}Redirect host ${COLOR_YELLOW}$DOMAIN_NAME${CoR} (ID: $host_id) deleted successfully!${CoR}\n"
     exit 0
   else
@@ -2129,7 +2222,7 @@ redirect_host_enable() {
   check_token_notverbose
 
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if echo "$CHECK_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
     echo -e " ⛔ ${COLOR_RED}Redirect host with ID $host_id does not exist${CoR}"
@@ -2140,7 +2233,7 @@ redirect_host_enable() {
   echo -e "\n ${COLOR_YELLOW}🔄 Enabling redirect host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
 
   RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/redirection-hosts/$host_id/enable" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
   if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
@@ -2148,6 +2241,7 @@ redirect_host_enable() {
   else
     ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
     echo -e " ⛔ ${COLOR_RED}Failed to enable redirect host: $ERROR_MSG${CoR}"
+    return 1
   fi
 }
 
@@ -2166,7 +2260,7 @@ redirect_host_disable() {
   check_token_notverbose
 
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if echo "$CHECK_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
     echo -e " ⛔ ${COLOR_RED}Redirect host with ID $host_id does not exist${CoR}"
@@ -2177,7 +2271,7 @@ redirect_host_disable() {
   echo -e "\n ${COLOR_YELLOW}🔄 Disabling redirect host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
 
   RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/redirection-hosts/$host_id/disable" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
   if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
@@ -2185,6 +2279,7 @@ redirect_host_disable() {
   else
     ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
     echo -e " ⛔ ${COLOR_RED}Failed to disable redirect host: $ERROR_MSG${CoR}"
+    return 1
   fi
 }
 
@@ -2264,7 +2359,7 @@ update_proxy_host() {
 
   # 🚀 send the API request for update
   RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
 
@@ -2301,7 +2396,7 @@ host_update() {
 
   #  2) Fetch current configuration
   CURRENT_DATA=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   #echo -e "\n 🔄 DEBUG: API response (CURRENT_DATA):\n$CURRENT_DATA\n"
 
@@ -2358,7 +2453,7 @@ host_update() {
 
   #  Sending update request to API..."
   RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$UPDATED_DATA")
 
@@ -2369,7 +2464,7 @@ host_update() {
     echo -e "\n ✅ ${COLOR_GREEN}SUCCESS:${CoR}  Proxy host 🆔 $HOST_ID updated successfully! 🎉"
 
     SUMMARY=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
     if echo "$SUMMARY" | jq empty >/dev/null 2>&1; then
 
       echo -e "    New Value Proxy host 🆔 $HOST_ID $FIELD : $(echo "$SUMMARY" | jq -r --arg field "$FIELD" '.[$field]')\n"
@@ -2406,7 +2501,7 @@ host_search() {
   echo -e "\n ${COLOR_CYAN}🔍${CoR} Searching proxy hosts for: ${COLOR_YELLOW}$HOST_SEARCHNAME${CoR}"
 
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ -z "$RESPONSE" ] || [ "$RESPONSE" == "null" ]; then
     echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve proxy host data.${CoR}"
@@ -2459,7 +2554,7 @@ host_enable() {
 
   # Check if the proxy host exists first
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ $? -eq 0 ] && [ -n "$CHECK_RESPONSE" ]; then
     # Check if the host was found (not a 404 error)
@@ -2475,7 +2570,7 @@ host_enable() {
 
     # Use the CORRECT NPM endpoint: POST to /enable (like the web interface does)
     RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts/$host_id/enable" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
       -H "Content-Type: application/json; charset=UTF-8")
 
     if [ $? -eq 0 ] && ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
@@ -2484,9 +2579,11 @@ host_enable() {
     else
       ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
       echo -e " ⛔ ${COLOR_RED}Failed to enable proxy host: $ERROR_MSG${CoR}"
+      return 1
     fi
   else
     echo -e " ⛔ ${COLOR_RED}Proxy host with ID $host_id does not exist${CoR}"
+    return 1
   fi
 }
 
@@ -2523,7 +2620,7 @@ host_disable() {
 
   # Check if the proxy host exists first
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ $? -eq 0 ] && [ -n "$CHECK_RESPONSE" ]; then
     # Check if the host was found (not a 404 error)
@@ -2539,7 +2636,7 @@ host_disable() {
 
     # Use the CORRECT NPM endpoint: POST to /disable (like the web interface does)
     RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/proxy-hosts/$host_id/disable" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
       -H "Content-Type: application/json; charset=UTF-8")
 
     if [ $? -eq 0 ] && ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
@@ -2548,9 +2645,11 @@ host_disable() {
     else
       ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
       echo -e " ⛔ ${COLOR_RED}Failed to disable proxy host: $ERROR_MSG${CoR}"
+      return 1
     fi
   else
     echo -e " ⛔ ${COLOR_RED}Proxy host with ID $host_id does not exist${CoR}"
+    return 1
   fi
 }
 
@@ -2573,7 +2672,7 @@ host_delete() {
   #echo -e "\n 🔎 Checking if host ID ${COLOR_GREEN}$HOST_ID${CoR} exists..."
   CHECK_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
     "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
 
   CHECK_BODY=${CHECK_RESPONSE//HTTPSTATUS:*/}
   CHECK_STATUS=${CHECK_RESPONSE##*HTTPSTATUS:}
@@ -2616,12 +2715,12 @@ host_delete() {
   # Perform deletion
   RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
     "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" 2>/dev/null)
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
 
   HTTP_BODY=${RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
 
-  if [ "$HTTP_STATUS" -eq 200 ]; then
+  if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
     echo -e " ✅ ${COLOR_GREEN}Proxy host ${COLOR_YELLOW}$DOMAIN_NAME${CoR} (ID: $HOST_ID) deleted successfully!${CoR}\n"
     exit 0
   else
@@ -2655,15 +2754,18 @@ host_acl_enable() {
       enabled: $enabled
     }')
 
-  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
+  HTTP_BODY=${RESPONSE//HTTPSTATUS:*/}
+  HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
 
-  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
+  if [ "$HTTP_STATUS" = "200" ]; then
     echo -e " ✅ ${COLOR_GREEN}ACL successfully enabled access list ${CoR}🆔${COLOR_CYAN}$ACCESS_LIST_ID${CoR} for host🆔${COLOR_CYAN}$HOST_ID${CoR}\n"
   else
-    echo -e " ⛔ ${COLOR_RED}Failed to enable ACL. Error: $(echo "$RESPONSE" | jq -r '.message')${CoR}\n"
+    echo -e " ⛔ ${COLOR_RED}Failed to enable ACL (HTTP $HTTP_STATUS). Error: $(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')${CoR}\n"
+    exit 1
   fi
 }
 
@@ -2684,15 +2786,19 @@ host_acl_disable() {
       access_list_id: $access_list_id,
       enabled: $enabled
     }')
-  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
-  if [ "$(echo "$RESPONSE" | jq -r '.error | length')" -eq 0 ]; then
+  HTTP_BODY=${RESPONSE//HTTPSTATUS:*/}
+  HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+
+  if [ "$HTTP_STATUS" = "200" ]; then
     echo -e "\n 🔒 ${COLOR_ORANGE}Disabling ACL for host${CoR}🆔${COLOR_CYAN} $HOST_ID${CoR}"
     echo -e " ✅ ${COLOR_GREEN}ACL successfully disabled ACL for host ${CoR}🆔${COLOR_CYAN}$HOST_ID${CoR}\n"
   else
-    echo -e "\n ⛔ ${COLOR_RED}Failed to disable ACL. Error: $(echo "$RESPONSE" | jq -r '.message')${CoR}\n"
+    echo -e "\n ⛔ ${COLOR_RED}Failed to disable ACL (HTTP $HTTP_STATUS). Error: $(echo "$HTTP_BODY" | jq -r '.error.message // "Unknown error"')${CoR}\n"
+    exit 1
   fi
 }
 
@@ -2710,7 +2816,7 @@ host_show() {
   echo -e "\n 🔍 Fetching details for proxy host ID: ${COLOR_YELLOW}$host_id${CoR}..."
   # get host details
   local response=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   # Check if the response contains an error
   if echo "$response" | jq -e '.error' >/dev/null; then
     echo -e " ⛔ ${COLOR_RED}Error: $(echo "$response" | jq -r '.error.message')${CoR}\n"
@@ -2724,7 +2830,7 @@ host_show() {
   echo -e "│ 🔄 Forward Configuration:"
   echo -e "│   • Host: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_host')${CoR}"
   echo -e "│   • Port: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_port')${CoR}"
-  echo -e "│   • Scheme: $(colorize_boolean $(echo "$response" | jq -r '.forward_scheme'))"
+  echo -e "│   • Scheme: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_scheme')${CoR}"
   echo -e "│ ✅ Status: $(colorize_boolean $(echo "$response" | jq -r '.enabled | if . then "Enabled" else "Disabled" end'))"
   echo -e "│ 🔒 SSL Configuration:"
   echo -e "│    • Certificate ID: ${COLOR_ORANGE}$(echo "$response" | jq -r '.certificate_id')${CoR}"
@@ -2734,7 +2840,7 @@ host_show() {
   echo -e "│ 🛠️ Features:"
   echo -e "│    • Block Exploits: $(colorize_boolean $(echo "$response" | jq -r '.block_exploits | if . then "true" else "false" end'))"
   echo -e "│    • Caching: $(colorize_boolean $(echo "$response" | jq -r '.caching_enabled | if . then "true" else "false" end'))"
-  echo -e "│    • Websocket Upgrade: $(colorize_boolean $(echo "$response" | jq -r '.websockets_enabled | if . then "true" else "false" end'))"
+  echo -e "│    • Websocket Upgrade: $(colorize_boolean $(echo "$response" | jq -r '.allow_websocket_upgrade | if . then "true" else "false" end'))"
   echo -e "│ 🔑 Access List ID: ${COLOR_ORANGE}$(echo "$response" | jq -r '.access_list_id')${CoR}"
 
   # Check and display advanced configuration
@@ -2758,6 +2864,56 @@ host_show() {
 
 ################################
 # Delete a certificate in NPM
+# NOTE: NPM's DELETE /nginx/certificates/:id is a SOFT delete (sets is_deleted=1):
+# the cert leaves the list/UI but its on-disk files remain. The optional --purge
+# flag (see cert_purge_files) removes those leftover files. The DB row is left
+# untouched on purpose to avoid any referential-integrity risk.
+
+################################
+# Remove the on-disk certificate files left behind by NPM's soft-delete.
+# Requires NGINX_PATH_DOCKER (set in npm-api.conf) to point at the NPM data
+# directory that holds custom_ssl/ and letsencrypt/. No-op (with a clear
+# message) when that path is not configured/accessible on this host.
+cert_purge_files() {
+  local id="$1"
+  local base="${NGINX_PATH_DOCKER:-}"
+
+  if [ -z "$base" ] || [ "$base" = "$DEFAULT_NGINX_PATH_DOCKER" ]; then
+    echo -e "  ⚠️ ${COLOR_YELLOW}--purge skipped:${CoR} set ${COLOR_CYAN}NGINX_PATH_DOCKER${CoR} in npm-api.conf to the NPM data dir (holding ${COLOR_GREY}custom_ssl/${CoR} and ${COLOR_GREY}letsencrypt/${CoR}).\n"
+    return 0
+  fi
+  if [ ! -d "$base" ]; then
+    echo -e "  ⚠️ ${COLOR_YELLOW}--purge skipped:${CoR} NGINX_PATH_DOCKER (${COLOR_GREY}$base${CoR}) is not an accessible directory on this host.\n"
+    return 0
+  fi
+
+  local targets=(
+    "$base/custom_ssl/npm-$id"
+    "$base/letsencrypt/live/npm-$id"
+    "$base/letsencrypt/archive/npm-$id"
+    "$base/letsencrypt/renewal/npm-$id.conf"
+  )
+
+  local removed=0 t
+  for t in "${targets[@]}"; do
+    if [ -e "$t" ]; then
+      if rm -rf "$t" 2>/dev/null; then
+        echo -e "    🧹 Removed ${COLOR_GREY}$t${CoR}"
+        removed=$((removed + 1))
+      else
+        echo -e "    ⛔ ${COLOR_RED}Could not remove $t${CoR} ${COLOR_GREY}(permissions? try as root or inside the NPM container)${CoR}"
+      fi
+    fi
+  done
+
+  if [ "$removed" -eq 0 ]; then
+    echo -e "  ℹ️ ${COLOR_GREY}--purge: no on-disk files found for npm-$id under $base${CoR}\n"
+  else
+    echo -e "  ✅ ${COLOR_GREEN}Purged $removed on-disk item(s) for cert npm-$id${CoR}\n"
+  fi
+}
+
+################################
 cert_delete() {
   local CERT_IDENTIFIER="$1"
 
@@ -2771,7 +2927,7 @@ cert_delete() {
 
   # Get certificates list from API
   CERTIFICATES=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   # Check if input is a number (ID) or domain
   if [[ "$CERT_IDENTIFIER" =~ ^[0-9]+$ ]]; then
@@ -2823,6 +2979,32 @@ cert_delete() {
     exit 1
   fi
 
+  # Warn if the certificate is still referenced by a proxy/redirection host.
+  # NPM's delete is a soft-delete, so those hosts keep a dangling certificate_id
+  # until their SSL is reconfigured; and --purge would remove files still in use.
+  REFERENCING=$(
+    {
+      curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" |
+        jq -r --argjson id "$CERT_ID" '.[]? | select(.certificate_id == $id) | "proxy host #\(.id) (\(.domain_names | join(", ")))"' 2>/dev/null
+      curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" |
+        jq -r --argjson id "$CERT_ID" '.[]? | select(.certificate_id == $id) | "redirection host #\(.id) (\(.domain_names | join(", ")))"' 2>/dev/null
+    } | grep -v '^$' || true
+  )
+
+  if [ -n "$REFERENCING" ]; then
+    echo -e "\n  ⚠️ ${COLOR_YELLOW}Certificate ID $CERT_ID is still used by:${CoR}"
+    echo "$REFERENCING" | while IFS= read -r ref; do
+      echo -e "      • ${COLOR_GREY}$ref${CoR}"
+    done
+    echo -e "  ${COLOR_GREY}These hosts will keep a dangling certificate_id until you reconfigure their SSL.${CoR}"
+    if [ "$CERT_PURGE" = true ]; then
+      echo -e "  ⛔ ${COLOR_RED}--purge refused:${CoR} the on-disk files are still in use. Disable/re-assign SSL on those hosts first.\n"
+      exit 1
+    fi
+  fi
+
   # Ask for confirmation unless AUTO_YES is set
   if [ "$AUTO_YES" = true ]; then
     #echo -e " 🔔 The -y option was provided. Skipping confirmation prompt..."
@@ -2835,7 +3017,7 @@ cert_delete() {
 
   if [[ "$CONFIRM" != "y" ]]; then
     echo -e "${COLOR_RED}  ❌ Certificate deletion aborted.${CoR}\n"
-    exit 1
+    exit 0
   fi
 
   echo -e "\n  🗑️ Deleting certificate ID: $CERT_ID..."
@@ -2843,13 +3025,16 @@ cert_delete() {
   # Delete certificate through API
   HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
     "$BASE_URL/nginx/certificates/$CERT_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
 
-  if [ "$HTTP_STATUS" -eq 200 ]; then
+  if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
     echo -e "  ✅ ${COLOR_GREEN}Certificate successfully deleted!${CoR}\n"
+    if [ "$CERT_PURGE" = true ]; then
+      cert_purge_files "$CERT_ID"
+    fi
   else
     echo -e "  ⛔ ${COLOR_RED}Deletion failed. Status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}\n"
   fi
@@ -2898,7 +3083,7 @@ cert_generate() {
   else
     # Only check domain in NPM if it is not a wildcard
     PROXY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
     DOMAIN_EXISTS=$(echo "$PROXY_RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
       '.[] | select(.domain_names[] == $DOMAIN) | .id')
@@ -2913,21 +3098,7 @@ cert_generate() {
 
   # Then check existing certificates
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
-
-  EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg domain "$DOMAIN" \
-    '.[] | select(.domain_names[] == $domain) | select(.expired == false)')
-
-  if [ -n "$EXISTING_CERT" ]; then
-    CERT_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
-    CERT_EXPIRES=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
-    echo -e " ${COLOR_GREEN}🔔${CoR} Valid certificate found for ${COLOR_YELLOW}$DOMAIN${CoR} (Certificate ID: ${COLOR_ORANGE}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$((($(date -d "$CERT_EXPIRES" +%s) - $(date +%s)) / 86400))${CoR} days)"
-    return 0
-  fi
-
-  # 4. Check for existing certificate
-  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg domain "$DOMAIN" \
     '.[] | select(.domain_names[] == $domain) | select(.expired == false)')
@@ -3004,14 +3175,14 @@ cert_generate() {
 
   # 8. Send request and handle response
   HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$BASE_URL/nginx/certificates" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json" \
     --data "$REQUEST_DATA")
 
   HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
   HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
 
-  if [ "$HTTP_STATUS" -eq 201 ]; then
+  if [ "${HTTP_STATUS:-0}" -eq 201 ]; then
     CERT_ID=$(echo "$HTTP_BODY" | jq -r '.id')
     echo -e "\n ✅ ${COLOR_GREEN}Certificate generation initiated successfully!${CoR}"
     echo -e " 📋 Certificate Details:"
@@ -3107,7 +3278,7 @@ host_ssl_enable() {
   # Quick check if host exists
   check_token_notverbose
   local CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ "$(echo "$CHECK_RESPONSE" | jq -r .id)" = "null" ]; then
     echo -e " ${COLOR_RED}❌${CoR} Host ID $HOST_ID not found"
@@ -3127,14 +3298,14 @@ host_ssl_enable() {
         }')
 
   local HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
 
   local HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
   local HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
 
-  if [ "$HTTP_STATUS" -eq 200 ]; then
+  if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
     echo -e "\n ✅ ${COLOR_GREEN}SSL enabled successfully for${CoR} ${COLOR_YELLOW}$HOST_DOMAIN${CoR} (ID: ${COLOR_CYAN}$HOST_ID${CoR}) (Cert ID: ${COLOR_CYAN}$CERT_ID${CoR})\n"
     return 0
     #exit 0
@@ -3158,7 +3329,7 @@ host_ssl_disable() {
   check_token_notverbose
 
   CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if echo "$CHECK_RESPONSE" | jq -e '.id' >/dev/null 2>&1; then
     DATA=$(jq -n --argjson cert_id null '{
@@ -3170,14 +3341,14 @@ host_ssl_disable() {
         }')
 
     HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-      -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
       -H "Content-Type: application/json; charset=UTF-8" \
       --data-raw "$DATA")
 
     HTTP_BODY=${HTTP_RESPONSE//HTTPSTATUS:*/}
     HTTP_STATUS=${HTTP_RESPONSE##*HTTPSTATUS:}
 
-    if [ "$HTTP_STATUS" -eq 200 ]; then
+    if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
       echo -e "\n 🚫 Disabling 🔓 SSL for proxy 🆔${COLOR_YELLOW}$HOST_ID${CoR}"
       echo -e " ✅ ${COLOR_GREEN}SSL disabled successfully!${CoR} 🆔${COLOR_CYAN}$HOST_ID${CoR}\n"
     else
@@ -3330,8 +3501,12 @@ access_list_create() {
       shift 2
       ;;
     --pass-auth)
-      PASS_AUTH="true"
-      shift
+      if [ $# -lt 2 ] || { [ "$2" != "true" ] && [ "$2" != "false" ]; }; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: --pass-auth requires true/false${CoR}"
+        return 1
+      fi
+      PASS_AUTH="$2"
+      shift 2
       ;;
     *)
       echo -e "\n ⛔ ${COLOR_RED}ERROR: Unknown option $1${CoR}"
@@ -3363,7 +3538,7 @@ access_list_create() {
 
   # Create access list via API
   RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/access-lists" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json" \
     -d "$PAYLOAD")
 
@@ -3419,7 +3594,7 @@ access_list_update() {
   # Get the current access list details with expanded items and clients
   # Note: The expand parameter is required to get full details of items and clients
   local current_list=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$access_list_id?expand=items%2Cclients" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ "$(echo "$current_list" | jq -r '.error | length')" -ne 0 ]; then
     echo -e " ⛔ ${COLOR_RED}Failed to fetch access list details. Error: $(echo "$current_list" | jq -r '.error')${CoR}"
@@ -3582,7 +3757,7 @@ access_list_update() {
 
   # Update the access list
   local response=$(curl -s -X PUT "$BASE_URL/nginx/access-lists/$access_list_id" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     -d "$payload")
 
@@ -3613,7 +3788,7 @@ access_list_delete() {
 
   # Check if access list exists
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$ACCESS_LIST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ "$(echo "$RESPONSE" | jq -r '.error.code')" = "404" ]; then
     echo -e " ⛔ ${COLOR_RED}Access list ID $ACCESS_LIST_ID not found${CoR}"
@@ -3639,7 +3814,7 @@ access_list_delete() {
 
   # Delete access list
   RESPONSE=$(curl -s -X DELETE "$BASE_URL/nginx/access-lists/$ACCESS_LIST_ID" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ "$RESPONSE" = "true" ]; then
     echo -e " ✅ ${COLOR_GREEN}Access list successfully deleted! ${CoR}🗑️ "
@@ -3663,7 +3838,7 @@ access_list() {
 
   # Get all access lists
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   # Check for API errors
   if [ "$(echo "$RESPONSE" | jq -r 'if type=="object" then .error.message else empty end')" != "" ]; then
@@ -3678,19 +3853,19 @@ access_list() {
   echo "├════════════════════════════════════════════════════════════════════════════════════┤"
 
   # Process each access list and format output
-  echo "$RESPONSE" | jq -r '.[] | "\(.id)|\(.name)|\(if .items then .items|length else 0 end) User\(if (.items|length//0) != 1 then "s" else "" end)|\(if .clients then .clients|length else 0 end) Rule\(if (.clients|length//0) != 1 then "s" else "" end)|\(.satisfy_any)|\(.proxy_host_count)"' |
+  echo "$RESPONSE" | jq -r '.[] | "\(.id)|\(.name)|\(if .items then .items|length else 0 end) User\(if (.items|length//0) != 1 then "s" else "" end)|\(if .clients then .clients|length else 0 end) Rule\(if (.clients|length//0) != 1 then "s" else "" end)|\(.satisfy_any)|\(.proxy_host_count // 0)"' |
     while IFS="|" read -r id name users rules satisfy proxy_hosts; do
       # Format satisfy display (Any/All)
       satisfy_display=$([ "$satisfy" = "true" ] && echo "Any" || echo "All")
 
-      # Print formatted line
-      printf "│ %-3s │ %-22s │ %-13s │ %-8s │ %-7s │ %d Proxy Hosts  │\n" \
+      # Print formatted line (name truncated to column width; count guarded above)
+      printf "│ %-3s │ %s │ %-13s │ %-8s │ %-7s │ %-15s│\n" \
         "$id" \
-        "$name" \
+        "$(truncate_pad "$name" 22)" \
         "$users" \
         "$rules" \
         "$satisfy_display" \
-        "$proxy_hosts"
+        "$proxy_hosts Proxy Hosts"
     done
 
   # Close table
@@ -3717,7 +3892,7 @@ access_list_show() {
   # Get specific access list with expanded items and clients
   # Note: The expand parameter is required to get full details of items and clients
   local response=$(curl -s -X GET "$BASE_URL/nginx/access-lists/$id?expand=items%2Cclients" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   # Check if response is valid JSON
   if ! echo "$response" | jq empty 2>/dev/null; then
@@ -3837,7 +4012,7 @@ full_backup() {
   #   set -x  # Debug mode ON
   echo -e "\n👥 ${COLOR_CYAN}Backing up users...${CoR}"
   USERS_RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ -n "$USERS_RESPONSE" ] && echo "$USERS_RESPONSE" | jq empty 2>/dev/null; then
     users_count=$(echo "$USERS_RESPONSE" | jq '. | length')
@@ -3859,7 +4034,7 @@ full_backup() {
   # 2. Backup settings
   echo -e "\n⚙️  ${COLOR_CYAN}Backing up settings...${CoR}"
   SETTINGS_RESPONSE=$(curl -s -X GET "$BASE_URL/settings" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   #echo -e "\n🔍 DEBUG Settings Response: $SETTINGS_RESPONSE"  # Debug line
   if [ -n "$SETTINGS_RESPONSE" ] && echo "$SETTINGS_RESPONSE" | jq empty 2>/dev/null; then
     # Save settings to dedicated file
@@ -3869,17 +4044,17 @@ full_backup() {
       "$BACKUP_PATH/full_config${DATE}.json" >"$BACKUP_PATH/full_config${DATE}.json.tmp"
     mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
     echo -e " ✅ ${COLOR_GREEN}Settings backed up successfully${CoR}"
-    ((success_count++))
+    success_count=$((success_count + 1))
   else
     echo -e " ⚠️ ${COLOR_YELLOW}Invalid settings response${CoR}"
-    ((error_count++))
+    error_count=$((error_count + 1))
   fi
 
   # 3. Backup access lists
   echo -e "\n🔑 ${COLOR_CYAN}Backing up access lists...${CoR}"
   # Get list of access list IDs first
   ACCESS_LISTS_IDS=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")" | jq -r '.[].id' 2>/dev/null)
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" | jq -r '.[].id' 2>/dev/null)
 
   if [ -n "$ACCESS_LISTS_IDS" ]; then
     access_lists_count=$(echo "$ACCESS_LISTS_IDS" | wc -l | tr -d ' ')
@@ -3897,7 +4072,7 @@ full_backup() {
       fi
 
       curl -s -X GET "$BASE_URL/nginx/access-lists/$list_id?expand=items%2Cclients" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" >>"$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >>"$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
     done
 
     echo "]" >>"$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
@@ -3910,20 +4085,20 @@ full_backup() {
         "$BACKUP_PATH/full_config${DATE}.json" >"$BACKUP_PATH/full_config${DATE}.json.tmp"
       mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
       echo -e " ✅ ${COLOR_GREEN}Backed up $access_lists_count access lists with complete details${CoR}"
-      ((success_count++))
+      success_count=$((success_count + 1))
     else
       echo -e " ⚠️ ${COLOR_YELLOW}Failed to create valid access lists backup${CoR}"
-      ((error_count++))
+      error_count=$((error_count + 1))
     fi
   else
     echo -e " ⚠️ ${COLOR_YELLOW}No access lists found${CoR}"
-    ((error_count++))
+    error_count=$((error_count + 1))
   fi
 
   # 4. Backup proxy hosts
   echo -e "\n🌐 ${COLOR_CYAN}Backing up proxy hosts...${CoR}"
   ALL_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   if [ -n "$ALL_HOSTS_RESPONSE" ] && echo "$ALL_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
     hosts_count=$(echo "$ALL_HOSTS_RESPONSE" | jq '. | length')
@@ -3949,16 +4124,16 @@ full_backup() {
       # Get and save nginx configuration
       local NGINX_CONFIG
       NGINX_CONFIG=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/nginx" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
       if [ -n "$NGINX_CONFIG" ]; then
         echo "$NGINX_CONFIG" >"$PROXY_DIR/nginx.conf"
       fi
 
       # Get and save logs if they exist
       curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/access.log" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" >"$PROXY_DIR/logs/access.log"
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/access.log"
       curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/error.log" \
-        -H "Authorization: Bearer $(cat "$TOKEN_FILE")" >"$PROXY_DIR/logs/error.log"
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/error.log"
 
       # Process SSL certificate if exists
       if [ -n "$cert_id" ] && [ "$cert_id" != "null" ] && [ "$cert_id" != "0" ]; then
@@ -3967,7 +4142,7 @@ full_backup() {
         # Get certificate metadata first
         local CERT_META
         CERT_META=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id" \
-          -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
+          -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
         if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
           echo "$CERT_META" | jq '.' >"$PROXY_DIR/ssl/certificate_meta.json"
@@ -3975,7 +4150,7 @@ full_backup() {
           # Get certificate content
           local CERT_CONTENT
           CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
-            -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+            -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
             -H "Accept: application/json")
 
           if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
@@ -4004,7 +4179,6 @@ full_backup() {
             ln -sf "$CENTRAL_SSL_DIR" "$BACKUP_PATH/.ssl/${CERT_NAME}_latest"
 
             echo -e "   ✅ ${COLOR_GREEN}SSL certificate backed up successfully${CoR}"
-            ((success_count++))
 
             # Count certificate type - maintenant les compteurs fonctionneront
             if echo "$CERT_META" | jq -e '.provider // empty | contains("letsencrypt")' >/dev/null 2>&1; then
@@ -4016,11 +4190,11 @@ full_backup() {
             success_count=$((success_count + 1))
           else
             echo -e "   ⚠️ ${COLOR_YELLOW}Failed to download certificate content${CoR}"
-            ((error_count++))
+            error_count=$((error_count + 1))
           fi
         else
           echo -e "   ⚠️ ${COLOR_YELLOW}Failed to get certificate metadata${CoR}"
-          ((error_count++))
+          error_count=$((error_count + 1))
         fi
       fi
 
@@ -4034,7 +4208,7 @@ full_backup() {
     echo -e "\n ✅ ${COLOR_GREEN}Backed up $hosts_count proxy hosts${CoR}"
   else
     echo -e " ⚠️ ${COLOR_YELLOW}No proxy hosts found or invalid response${CoR}"
-    ((error_count++))
+    error_count=$((error_count + 1))
   fi
 
   # Generate backup report and statistics
@@ -4112,18 +4286,24 @@ for arg in "$@"; do
   fi
 done
 
+# Pre-scan for --purge so its position on the command line does not matter
+# (e.g. "--cert-delete 240 --purge" or "--cert-delete --purge 240").
+for arg in "$@"; do
+  if [ "$arg" = "--purge" ]; then
+    CERT_PURGE=true
+    break
+  fi
+done
+
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-  -O)
-    echo "todo" # WITHOUT output
-    shift
-    ;;
-  -J)
-    echo "todo" # JSON ouput
-    shift
-    ;;
   -y)
     AUTO_YES=true
+    shift
+    ;;
+  --purge)
+    # Handled via pre-scan (CERT_PURGE); only used together with --cert-delete.
+    CERT_PURGE=true
     shift
     ;;
   --help)
@@ -4208,6 +4388,11 @@ while [[ "$#" -gt 0 ]]; do
     EMAIL="$3"
     USER_CREATE=true
     shift 3
+    # Optional: grant admin role (default is a standard, non-admin user)
+    if [ $# -gt 0 ] && [ "$1" = "--admin" ]; then
+      USER_IS_ADMIN=true
+      shift
+    fi
     ;;
   --user-delete)
     shift
@@ -4309,7 +4494,7 @@ while [[ "$#" -gt 0 ]]; do
     ;;
   --host-update)
     if [[ "$#" -lt 3 ]]; then
-      echo -e "\n ⛔ ${COLOR_RED}INVALID: L'option --host-update requiert un host 🆔 et une paire field=value.${CoR}"
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-update option requires a host 🆔 and a field=value pair.${CoR}"
       echo -e "    Usage  : ${COLOR_GREEN}$0 --host-update <host_id> <field=value>${CoR}"
       echo -e "    Find ID: $0 --host-list${CoR}\n"
       exit 1
@@ -4324,8 +4509,8 @@ while [[ "$#" -gt 0 ]]; do
         VALUE=$(echo "$FIELD_VALUE" | cut -d '=' -f2-)
         HOST_UPDATE=true
       else
-        echo -e "\n ⛔ ${COLOR_RED}INVALID: La paire field=value est incorrecte.${CoR}"
-        echo -e "   Exemple: $0 --host-update 42 forward_host=new.backend.local"
+        echo -e "\n ⛔ ${COLOR_RED}INVALID: The field=value pair is malformed.${CoR}"
+        echo -e "   Example: $0 --host-update 42 forward_host=new.backend.local"
         exit 1
       fi
 
@@ -4333,7 +4518,7 @@ while [[ "$#" -gt 0 ]]; do
       #host_update "$HOST_ID" "$FIELD" "$VALUE"
       #HOST_UPDATE=true
     else
-      echo -e "\n ⛔ ${COLOR_RED}INVALID: L'option --host-update requiert un host 🆔 valide (numérique).${CoR}"
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: The --host-update option requires a valid (numeric) host 🆔.${CoR}"
       exit 1
     fi
     ;;
@@ -4693,12 +4878,14 @@ while [[ "$#" -gt 0 ]]; do
     if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
       echo -e "\n ⛔ ${COLOR_RED}The --cert-delete option requires a certificate ID.${CoR}"
       echo -e "\n   ${COLOR_CYAN}Usage:${CoR}"
-      echo -e "    ${COLOR_ORANGE}$0 --cert-delete <cert_id> [-y]${CoR}"
+      echo -e "    ${COLOR_ORANGE}$0 --cert-delete <cert_id> [-y] [--purge]${CoR}"
       echo -e "\n   ${COLOR_CYAN}Examples:${CoR}"
       echo -e "    ${COLOR_GREEN}$0 --cert-delete 240${CoR}"
       echo -e "    ${COLOR_GREEN}$0 --cert-delete 240 -y${CoR} ${COLOR_GREY}# Skip confirmation${CoR}"
+      echo -e "    ${COLOR_GREEN}$0 --cert-delete 240 --purge${CoR} ${COLOR_GREY}# Also remove on-disk cert files (requires NGINX_PATH_DOCKER)${CoR}"
       echo -e "\n   ${COLOR_YELLOW}💡 Tips:${CoR}"
-      echo -e "    • Use ${COLOR_GREEN}--cert-list${CoR} to see all certificates and their IDs\n"
+      echo -e "    • Use ${COLOR_GREEN}--cert-list${CoR} to see all certificates and their IDs"
+      echo -e "    • ${COLOR_GREY}Without --purge the API does a soft-delete only (the cert leaves the UI but its files remain)${CoR}\n"
       exit 1
     fi
     CERT_DELETE=true
@@ -4713,7 +4900,7 @@ while [[ "$#" -gt 0 ]]; do
       shift
     fi
     ;;
-  --cert-list)
+  --cert-list | --cert-show-all)
     LIST_CERT_ALL=true
     shift
     ;;
@@ -4756,14 +4943,14 @@ while [[ "$#" -gt 0 ]]; do
     shift
     # Check if access list ID is provided
     if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
-      echo -e "\n⛔ ${COLOR_RED}Erreur : L'ID de la liste d'accès est requis.${CoR}"
-      echo -e "\n   ${COLOR_CYAN}Usage :${CoR}"
+      echo -e "\n⛔ ${COLOR_RED}Error: The access list ID is required.${CoR}"
+      echo -e "\n   ${COLOR_CYAN}Usage:${CoR}"
       echo -e "    ${COLOR_ORANGE}$0 --access-list-show <id>${CoR}"
-      echo -e "\n   ${COLOR_CYAN}Exemples :${CoR}"
+      echo -e "\n   ${COLOR_CYAN}Examples:${CoR}"
       echo -e "    ${COLOR_GREEN}$0 --access-list-show 5${CoR}"
       echo -e "    ${COLOR_GREEN}$0 --access-list-show 123${CoR}"
-      echo -e "\n   ${COLOR_YELLOW}💡 Astuce :${CoR}"
-      echo -e "    • Utilisez ${COLOR_GREEN}--access-list${CoR} pour voir toutes les listes d'accès et leurs IDs\n"
+      echo -e "\n   ${COLOR_YELLOW}💡 Tip:${CoR}"
+      echo -e "    • Use ${COLOR_GREEN}--access-list${CoR} to see all access lists and their IDs\n"
       exit 1
     fi
     ACCESS_LIST_ID="$1"
@@ -4771,11 +4958,14 @@ while [[ "$#" -gt 0 ]]; do
     ;;
   --access-list-create)
     shift
-    if access_list_create "$@"; then
-      exit 0
-    else
-      exit 1
-    fi
+    # Stash remaining args and dispatch at the bottom (like --access-list-update),
+    # instead of running mid-parse which left the bottom dispatch unreachable.
+    ACCESS_LIST_CREATE=true
+    ACCESS_LIST_CREATE_ARGS=()
+    while [ $# -gt 0 ]; do
+      ACCESS_LIST_CREATE_ARGS+=("$1")
+      shift
+    done
     ;;
   --access-list-update)
     shift
@@ -4989,6 +5179,8 @@ elif [ "$EXAMPLES" = true ]; then
   examples_cli
 elif [ "$CHECK_TOKEN" = true ]; then
   check_token true
+elif [ "$INFO" = true ]; then
+  display_info
 # Actions users
 elif [ "$USER_CREATE" = true ]; then
   user_create "$USERNAME" "$PASSWORD" "$EMAIL"
@@ -5009,7 +5201,7 @@ elif [ "$CERT_DOWNLOAD" = true ]; then
 elif [ "$ACCESS_LIST" = true ]; then
   access_list
 elif [ "$ACCESS_LIST_CREATE" = true ]; then
-  access_list_create
+  access_list_create "${ACCESS_LIST_CREATE_ARGS[@]}"
 elif [ "$ACCESS_LIST_UPDATE" = true ]; then
   access_list_update "${ACCESS_LIST_UPDATE_ARGS[@]}"
 elif [ "$ACCESS_LIST_DELETE" = true ]; then
