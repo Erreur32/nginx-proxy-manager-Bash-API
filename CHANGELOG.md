@@ -2,6 +2,63 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.3.0] - 2026-06-01
+
+### ✨ New Features
+
+- **`--cert-delete <id|domain> --purge`** — New optional `--purge` flag. After the API soft-delete (NPM sets `is_deleted=1`, which only removes the cert from the list/UI), `--purge` also deletes the leftover on-disk files: `custom_ssl/npm-<id>`, `letsencrypt/live|archive/npm-<id>` and `letsencrypt/renewal/npm-<id>.conf`. Requires `NGINX_PATH_DOCKER` to be set in `npm-api.conf`; without it (or if the path is not accessible) `--purge` is a safe no-op with a clear message. The DB row is intentionally left untouched to avoid referential-integrity risk and DB-schema drift between NPM versions.
+- **`--user-create … --admin`** — New optional `--admin` flag. Users are now created as **standard (non-admin)** by default; pass `--admin` to grant the admin role. Previously every created user was forced to `roles: ["admin"]`.
+- **`--cert-show-all`** — Now works as an alias of `--cert-list` (it was shown in usage text but had no parser case).
+
+### 💅 Output / Display
+
+- **`host_list()` — long & multiple domains** — Proxy hosts with several domains (or a very long one) no longer break column alignment. The first domain stays on the main row; the remaining domains are listed below, indented under the DOMAIN column. New `truncate_pad()` helper truncates over-long values with an ellipsis (`…`) instead of overflowing, applied to the DOMAIN and TARGET columns.
+- **`redirect_host_list()` — same alignment fix** — Applied the identical treatment to the Redirection Hosts table (it had the same `pad`-without-truncation overflow bug): `truncate_pad()` on the DOMAIN and FORWARD DOMAIN columns, plus multi-line display for hosts with multiple domains.
+- **`show_help()` — aligned description column** — New `help_row()` helper measures visible width (ignoring ANSI color codes and counting wide emoji such as 🆔 as 2 cells) and aligns every description to a fixed column. Lines whose left part is wider than the column (e.g. `--cert-download`) wrap their description onto the next line, still aligned. All option lines converted to `help_row`.
+
+### 🐛 Bug Fixes
+
+- **`list_cert_all()` — wrong Valid/Expired statistics** — The stats used `select(.expires_on > now)`, comparing an ISO date _string_ to the numeric `now`; in jq every string sorts greater than every number, so "Valid" always equalled the total and "Expired" was always 0. Now uses the API's own `.expired` boolean (`select(.expired == true)` / `!= true`).
+- **`cert_delete()` — no check that the certificate is still in use** — Before deleting, the script now lists the proxy/redirection hosts that still reference the certificate and warns that they will be left with a dangling `certificate_id`. When combined with `--purge`, the purge is now _refused_ while the cert is still referenced (its on-disk files are in use), to avoid breaking live TLS.
+- **`--access-list-create` — command ran during argument parsing; bottom dispatch was dead code** — `ACCESS_LIST_CREATE` was never set, so the dispatcher branch was unreachable and the function executed mid-parse. Now aligned with `--access-list-update`: arguments are stashed (`ACCESS_LIST_CREATE_ARGS`) and the function runs from the dispatch block.
+- **`--access-list-create --pass-auth` — asymmetric parsing** — The create parser set `--pass-auth` with no value while `--access-list-update` (and the documented usage `--pass-auth true`) expects a `true|false` argument, so `--pass-auth true` failed with "Unknown option true". Create now consumes and validates the value like update.
+- **`host_acl_enable` / `host_acl_disable` — error handling** — Read the error from the wrong jq path (`.message` instead of `.error.message`) and never checked the HTTP status. Now capture `HTTPSTATUS`, treat non-200 as failure (`exit 1`), and read `.error.message`.
+- **`host_show()` — wrong fields** — Read `.websockets_enabled` (always null) instead of the real field `.allow_websocket_upgrade`, and passed `.forward_scheme` (`http`/`https`) through `colorize_boolean` (mislabelled). Both fixed.
+- **`user_create` — no longer writes the raw API response to `/tmp/npm_debug.log`** (a world-readable path).
+- **`cert_delete` — declining the confirmation now exits 0** (deliberate user choice) instead of 1.
+- **Exit codes** — `host_enable` / `host_disable` and `redirect_host_enable` / `redirect_host_disable` now `return 1` on every failure path (previously they printed the error but still returned success).
+- **`full_backup` — `success_count` double-counted** — Each backed-up certificate incremented the success counter twice, inflating the final summary. Fixed to count once.
+
+### 🛡️ Robustness
+
+- **`--info` dispatch** — Added a dedicated `elif [ "$INFO" = true ]` branch so `--info` works even when combined with other flags (it previously only ran as the no-argument fallback).
+- **`set -u` safety** — Initialized `CERT_ID`, `GENERATED_CERT_ID`, `USER_ID` and `search_term` in the top variable block (they were referenced in the dispatcher before being set on some code paths).
+- **`set -e` safety** — Guarded the 11 `[ "$HTTP_STATUS" -eq … ]` checks with `${VAR:-0}` so an empty/garbled response falls into the error branch instead of aborting the script, and converted the 10 `((var++))` counters to `var=$((var + 1))` (the `((x++))` form returns exit status 1 when `x` is 0, which aborts under `set -e`).
+- **Consistent boolean defaults** — `HTTP2_SUPPORT`, `SSL_FORCED`, `HSTS_ENABLED` and `HSTS_SUBDOMAINS` now default to `false` instead of `0` (same class as the Issue #23 fix), and the duplicate `AUTO_YES=false` declaration was removed.
+
+### ⚡ Performance
+
+- **Token read once per run** — The API token was re-read from disk with `$(cat "$TOKEN_FILE")` on every single request (~81 call sites). It is now cached in a global `$TOKEN` (populated by `check_token_notverbose`); headers use `${TOKEN:-$(cat "$TOKEN_FILE")}` so an empty cache still falls back safely to reading the file.
+- **`host_list` — one certificate fetch instead of one per host** — The CERT DOMAIN column previously triggered a `GET /nginx/certificates/<id>` call for every proxy host that had SSL. The full certificate list is now fetched once and resolved locally through an `id → domains` map, turning N API round-trips into 1.
+
+### ♻️ Code Quality / Cleanup
+
+- **Factored the duplicated certificate formatter** — The three near-identical `jq` cert-formatting one-liners (in `cert_show` ID/domain branches and `list_cert_all`) now share a single `CERT_JQ_FMT` format string and a `cert_colorize` helper; this also fixes the inconsistent `Provider :` vs `Provider:` label.
+- **`access_list` table** — Guarded `proxy_host_count` against `null` (`// 0`), truncated long names to the column width via `truncate_pad`, and made the "Proxy Hosts" cell fixed-width so a 2-digit count no longer breaks the box border.
+- **Consistent confirmation prompts** — All `(y/n)` prompts now accept `^[Yy]$` (the two French leftovers accepting `O/o` were aligned).
+- **English usage text** — Translated the remaining French usage/error strings (`--host-update`, `--access-list-show`) to match the rest of the CLI.
+- **Removed dead code** — Dropped the unimplemented `-O` / `-J` flag stubs (they only printed `todo`) and a duplicated `GET /nginx/certificates` block in `cert_generate`.
+
+### 🆕 Documentation / Help
+
+- **`--host-list-full`** — Now shown in `--help` (was a functional but hidden/commented command). Lists all proxy hosts with full details (JSON).
+- **`--cert-generate`** — Help now lists the new NPM v2.15.0 Certbot DNS plugins: `hostinger`, `rcodezero`, `hoster.by`.
+- Minor help wording fixes: `Show  Default…` (double space) and `Check Check current token info` (duplicated word) cleaned up.
+
+### 🔎 Compatibility
+
+- Reviewed against **NPM v2.15.0**: no proxy-host/certificate data-model changes, version is read dynamically, and DNS provider names are passed through to the API — so no breaking changes for the script.
+
 ## [3.2.0] - 2026-03-31
 
 ### ✨ New Features
@@ -26,7 +83,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 
 ### 📝 Documentation
 
-- `show_help()` — New *Redirection Host Management* section.
+- `show_help()` — New _Redirection Host Management_ section.
 - `examples_cli()` — New 301/302 redirect examples with and without `--preserve-path`.
 - `README.md` — Options and Examples sections updated; backup/restore limitation clearly documented.
 - `.gitignore` — Added `docs/`, `npm-api.conf`, `data/`, `.idea/`, `*.log`.
@@ -38,7 +95,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - **`host_list` fails when proxy hosts have multiple domain names** ([PR #28](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/28))
   - **The problem**: When a proxy host had multiple domain names (e.g., "domain1.com, domain2.com"), the `host_list()` function would fail to parse the output correctly because it used space-separated values with `read`, which broke when domain names contained spaces or commas.
   - **Why it broke**: The original implementation used `join(", ")` to combine multiple domain names, then tried to parse with `read -r id domain enabled certificate_id`, which failed when the domain string contained spaces or multiple domains.
-  - **What we did**: 
+  - **What we did**:
     - Changed the delimiter from spaces to tabulation (`\t`) for safe parsing
     - Updated the `jq` command to use tab-separated values: `"\(.id)\t\(.domain_names | join(", "))\t..."`
     - Modified the `read` command to use `IFS=$'\t'` to properly handle tab-separated input
@@ -84,7 +141,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - **IP whitelist not showing in `--access-list-show` command** ([Issue #26](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/26))
   - **The problem**: When you ran `./npm-api.sh --access-list-show 5`, it showed "No IPs whitelisted" even though IPs were actually configured. Classic! 😅
   - **Why it broke**: NPM's API changed (thanks evolving schemas...) and now you need to pass the `expand=items,clients` parameter to get all the details. Without it, the API just returns basic info without items and clients.
-  - **What we did**: 
+  - **What we did**:
     - Added `?expand=items%2Cclients` to API calls in `access_list_show()` and `access_list_update()`
     - Improved the backup function to fetch each access list individually with the expand parameter (so we get a complete backup with all details)
   - **Technical details** (for the curious):
@@ -92,18 +149,19 @@ All notable changes to the npm-api.sh script will be documented in this file.
     - Modified GET requests in `access_list_show()` and `access_list_update()`
     - Backup now fetches each access list one by one with expand to make sure we get everything
   - **Examples**:
+
     ```bash
     # Now it works correctly! 🎉
     ./npm-api.sh --access-list-show 5
-    
+
     # Update also retrieves complete data
     ./npm-api.sh --access-list-update 5 --name "new_name"
     ```
 
-- **"Unbound variable" error when you forget the ID** 
+- **"Unbound variable" error when you forget the ID**
   - **The problem**: If you ran `./npm-api.sh --access-list-show` without an ID, it crashed with a nice "unbound variable" error (thanks `set -eu` doing its job a bit too well 😄)
   - **Why it broke**: We were directly assigning `$1` to a variable without checking if it existed. With `set -eu`, bash doesn't like that at all!
-  - **What we did**: 
+  - **What we did**:
     - Added a check before assigning the variable (we check if `$# -eq 0` or if `$1` starts with `-`)
     - Added a friendly error message with examples and tips
     - Aligned with other commands (`--access-list-update`, `--access-list-delete`) for consistency
@@ -111,10 +169,11 @@ All notable changes to the npm-api.sh script will be documented in this file.
     - Added check: `if [ $# -eq 0 ] || [[ "$1" == -* ]]` before assignment
     - Exit with code 1 to prevent the script from continuing
   - **Examples**:
+
     ```bash
     # Now it shows a helpful message instead of crashing
     ./npm-api.sh --access-list-show
-    
+
     # Correct usage
     ./npm-api.sh --access-list-show 5
     ```
@@ -137,7 +196,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 
 - **Added certificate download functionality with fallback support** ([PR #20](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/pull/20))
   - **Issue**: Certificate download failed on newer NPM installations due to API changes
-  - **Solution**: 
+  - **Solution**:
     - Added `--cert-download` command to download certificates as ZIP files
     - Implemented automatic fallback from new API (JSON) to legacy API (ZIP)
     - Added support for wildcard file matching (cert*.pem, privkey*.pem, etc.)
@@ -149,16 +208,18 @@ All notable changes to the npm-api.sh script will be documented in this file.
     - Creates both individual files and ZIP archive for easy distribution
     - Proper error handling and cleanup of temporary files
   - **Usage Examples**:
+
     ```bash
     # Download certificate with default settings
     ./npm-api.sh --cert-download 123
-    
+
     # Download to specific directory
     ./npm-api.sh --cert-download 123 ./certs
-    
+
     # Download with custom name
     ./npm-api.sh --cert-download 123 ./certs mydomain
     ```
+
   - **Output Files**:
     - `{cert_name}.crt` - Certificate file
     - `{cert_name}.key` - Private key file
@@ -174,7 +235,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - **Fixed `-l` and `-a` options being ignored in host creation** ([Issue #22](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/22))
   - **Issue**: The commands `./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr;'` and `./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'` were showing "Unknown option ignored" warnings
   - **Root Cause**: The options `-l` (custom_locations) and `-a` (advanced_config) were documented in help text but not implemented in the argument parsing for `--host-create`
-  - **Solution**: 
+  - **Solution**:
     - Added support for `-l|--custom-locations` option in argument parsing
     - Added support for `-a|--advanced-config` option in argument parsing
     - Updated help messages to include these options in the optional parameters list
@@ -185,23 +246,24 @@ All notable changes to the npm-api.sh script will be documented in this file.
     - Updated all help message sections to include the new options
     - Added example usage in error messages for better user guidance
   - **Usage Examples**:
+
     ```bash
     # Create host with custom locations
     ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
-    
+
     # Create host with advanced configuration
     ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -a 'proxy_set_header X-Real-IP $remote_addr;'
-    
+
     # Create host with both custom locations and advanced config
     ./npm-api.sh --host-create example.com -i 192.168.1.10 -p 8080 -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]' -a 'proxy_set_header X-Real-IP $remote_addr;'
     ```
 
 - **Fixed `--websocket` and `--cache` options not being respected in host creation** ([Issue #23](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/23))
   - **Issue**: The commands `./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --cache true --websocket true` were not enabling caching and websocket support in NPM
-  - **Root Cause**: 
+  - **Root Cause**:
     - Variable naming mismatch in argument parsing (`CACHE_ENABLED` vs `CACHING_ENABLED`, `WEBSOCKET_SUPPORT` vs `ALLOW_WEBSOCKET_UPGRADE`)
     - Incorrect default value for `ALLOW_WEBSOCKET_UPGRADE` (was `1` instead of `false`)
-  - **Solution**: 
+  - **Solution**:
     - Fixed variable names in argument parsing to match the variables used in the JSON payload
     - Corrected default value for `ALLOW_WEBSOCKET_UPGRADE` to `false`
     - Updated function call to use correct variable names
@@ -211,13 +273,14 @@ All notable changes to the npm-api.sh script will be documented in this file.
     - Updated function call parameters to use correct variable names
     - Fixed default value: `ALLOW_WEBSOCKET_UPGRADE=1` → `ALLOW_WEBSOCKET_UPGRADE=false`
   - **Usage Examples**:
+
     ```bash
     # Create host with caching enabled
     ./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --cache true
-    
+
     # Create host with websocket support enabled
     ./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --websocket true
-    
+
     # Create host with both caching and websocket support
     ./npm-api.sh --host-create example.com -i 192.168.1.100 -p 8081 --cache true --websocket true
     ```
@@ -225,28 +288,29 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - **Fixed `--allow` and `--deny` options not working in access-list commands** ([Issue #24](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/issues/24))
   - **Issue**: The commands `./npm-api.sh --access-list-create "test" --allow "172.0.0.0/8"` and `./npm-api.sh --access-list-update 6 --allow "172.0.0.0/8"` were failing with "Unknown option --allow" error
   - **Root Cause**: The `--allow` and `--deny` options were documented in help text but not implemented in the actual functions
-  - **Solution**: 
+  - **Solution**:
     - Added full support for `--allow` and `--deny` options in `access_list_create()` function
     - Added full support for `--allow`, `--deny`, and `--users` options in `access_list_update()` function
     - Implemented comma-separated value parsing for multiple IPs/users
     - Added proper error handling and validation for all new options
   - **Technical Details**:
     - Added `--allow` option processing with comma-separated IP support
-    - Added `--deny` option processing with comma-separated IP support  
+    - Added `--deny` option processing with comma-separated IP support
     - Added `--users` option processing with password prompts for each user
     - Updated help messages to include all available options
     - Maintained backward compatibility with existing `--access allow|deny <ip>` syntax
   - **Usage Examples**:
+
     ```bash
     # Create access list with allow rules
     ./npm-api.sh --access-list-create "office" --allow "192.168.1.0/24,10.0.0.0/8"
-    
+
     # Create access list with deny rules
     ./npm-api.sh --access-list-create "secure" --deny "192.168.1.100,10.0.0.50"
-    
+
     # Update access list with new allow rules
     ./npm-api.sh --access-list-update 6 --allow "172.0.0.0/8"
-    
+
     # Create access list with users and IP rules
     ./npm-api.sh --access-list-create "full_config" --users "admin1,admin2" --allow "10.0.0.0/8" --deny "10.0.0.50"
     ```
@@ -254,7 +318,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - **Fixed `--access-list-update` command not working with arguments**
   - **Issue**: The command `./npm-api.sh --access-list-update 123 --name "new_name"` was failing with "Unknown option: 123" error
   - **Root Cause**: The argument parsing for `--access-list-update` was not properly capturing the access list ID and subsequent arguments
-  - **Solution**: 
+  - **Solution**:
     - Fixed argument parsing to properly capture the access list ID
     - Implemented proper argument storage and passing to the function
     - Corrected JSON payload structure to match API schema expectations
@@ -264,13 +328,14 @@ All notable changes to the npm-api.sh script will be documented in this file.
     - Removed unsupported fields (`auth_type`, `whitelist`) from API payload
     - Added support for `--name`, `--satisfy`, and `--pass-auth` options
   - **Usage Examples**:
+
     ```bash
     # Update access list name
     ./npm-api.sh --access-list-update 4 --name "new_name"
-    
+
     # Update satisfaction mode
     ./npm-api.sh --access-list-update 4 --satisfy any
-    
+
     # Update multiple properties
     ./npm-api.sh --access-list-update 4 --name "test_script" --satisfy any
     ```
@@ -312,6 +377,7 @@ All notable changes to the npm-api.sh script will be documented in this file.
 ### New Long Options Format
 
 - Certificate Generation:
+
   ```diff
   - OLD: ./npm-api.sh --cert-generate example.com admin@example.com
   + NEW: ./npm-api.sh --cert-generate example.com --cert-email admin@example.com
@@ -347,23 +413,22 @@ All notable changes to the npm-api.sh script will be documented in this file.
 - User-related commands now consistently use the `--user-` prefix
 - Certificate-related commands now consistently use the `--cert-` prefix
 
-
 ### ✨ New Features
 
 - **Smart certificate management in SSL configuration**:
   - Automatic detection of existing certificates for domains
   - Automatic selection of single existing certificates
   - Selection system for multiple certificates:
-    * Auto-selects most recent with `-y` flag
-    * Interactive selection without `-y` flag
+    - Auto-selects most recent with `-y` flag
+    - Interactive selection without `-y` flag
   - Integration with certificate generation workflow
 - Enhanced SSL status display with detailed configuration state
 - Improved error handling and debug information
 - Configurable SSL parameters:
-  * SSL Forced
-  * HTTP/2 Support
-  * HSTS
-  * HSTS Subdomains
+  - SSL Forced
+  - HTTP/2 Support
+  - HSTS
+  - HSTS Subdomains
 
 - **Enhanced Host Creation**
   - Simplified command syntax with positional domain argument
@@ -448,7 +513,6 @@ All notable changes to the npm-api.sh script will be documented in this file.
 
 Thanks to [zafar-2020](https://github.com/zafar-2020) for the testing and helpful issue reports during the development of this release!
 
-
 ## [2.7.0] - 2025-03-08
 
 ### Added
@@ -459,7 +523,7 @@ Thanks to [zafar-2020](https://github.com/zafar-2020) for the testing and helpfu
   - Added validation for DNS provider and API key parameters
 
 - Wildcard Certificate Support
-  - Added ability to generate wildcard certificates (*.domain.com)
+  - Added ability to generate wildcard certificates (\*.domain.com)
   - Automatic detection of wildcard certificate requirements
   - Enforced DNS challenge requirement for wildcard certificates
 
