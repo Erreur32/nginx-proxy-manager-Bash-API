@@ -1,0 +1,54 @@
+name: CI
+
+# Quality & security checks for the bash script.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck (bash lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          # Start non-blocking: only fail on real errors, not style warnings.
+          # Tighten to "warning" later once the warnings are triaged.
+          severity: error
+          additional_files: npm-api.sh
+
+  shfmt:
+    name: shfmt (format check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shfmt
+        run: |
+          SHFMT_VERSION=v3.8.0
+          curl -fsSL "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64" \
+            -o /usr/local/bin/shfmt
+          chmod +x /usr/local/bin/shfmt
+          shfmt --version
+      - name: Check formatting (shfmt -i 2)
+        run: shfmt -i 2 -d npm-api.sh
+
+  gitleaks:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so Gitleaks can scan all commits
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE only needed for GitHub *organization* repos.
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
