@@ -604,10 +604,9 @@ By following these steps, you can enable SSL for your proxy host for the first t
 </details>
 
 
-
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left)](https://www.star-history.com/#Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=Erreur32/nginx-proxy-manager-Bash-API&type=date&legend=top-left&sealed_token=uucJuNUQbi3Ew-_5JZrrOdo6mHC3xyhg0TJrfGMR0Tb01xtsD5DlTTUECTI2MvZ8t6vL5jP5PaorOoik2aQPVaQzCvH2-u2r1ybYdeB5qDYXfKoU_pZprZ5lmL9J7AsZCm_tKPYr_RViBJ8Q_qVvlZ1694aX1Z9X6Od_fdeQMN-nC6DZ4lTG4Nbcns9w)](https://www.star-history.com/?repos=Erreur32%2Fnginx-proxy-manager-Bash-API&type=date&legend=top-left)
 
 
 ## Credits & Thanks
