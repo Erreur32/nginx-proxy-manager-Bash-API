@@ -177,6 +177,7 @@ FIELD_VALUE=""
 # Control variables
 AUTO_YES=false
 CHECK_TOKEN=false
+CHECK_UPDATE=false
 EXAMPLES=false
 INFO=false
 SHOW_HELP=false
@@ -621,6 +622,7 @@ show_help() {
   help_row "  --info" "Display ${COLOR_GREY}Script Variables Information${CoR}"
   help_row "  --show-default" "Show ${COLOR_GREY}Default settings for host creation${CoR}"
   help_row "  --check-token" "Check ${COLOR_GREY}current token info${CoR}"
+  help_row "  --check-update" "${COLOR_GREEN}🆕 ${CoR}Check ${COLOR_GREY}GitHub for a newer script version${CoR}"
   help_row "  --backup" "${COLOR_GREEN}💾 ${CoR}Backup ${COLOR_GREY}All configurations to a different files in \$DATA_DIR${CoR}"
   #echo -e "  --clean-hosts                          ${COLOR_GREEN}📥 ${CoR}Reimport${CoR} ${COLOR_GREY}Clean Proxy ID and SSL ID in sqlite database ;)${CoR}"
   help_row "  --backup-host ${COLOR_CYAN}[id]${CoR}" "${COLOR_GREEN}📦 ${CoR}Backup  ${COLOR_GREY}One proxy host (with SSL cert), or all if no id${CoR}"
@@ -1016,6 +1018,40 @@ display_info() {
 
   echo -e "\n ${COLOR_YELLOW}💡 Use --help to see available commands${CoR}"
   echo -e "   ${COLOR_GREY} Check --examples for more help examples${CoR}\n"
+}
+
+################################
+# Check GitHub for a newer release of this script
+# Usage: check_update
+################################
+check_update() {
+  check_dependencies
+  local repo="Erreur32/nginx-proxy-manager-Bash-API"
+  echo -e "\n 🔍 ${COLOR_CYAN}Checking for script updates...${CoR}"
+
+  local latest_json
+  latest_json=$(curl -s --max-time 5 "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null || true)
+  local latest_version
+  latest_version=$(echo "$latest_json" | jq -r '.tag_name // empty' 2>/dev/null)
+  latest_version="${latest_version#v}"
+
+  if [ -z "$latest_version" ]; then
+    echo -e " ⛔ ${COLOR_RED}Unable to check for updates (no network or GitHub API unavailable).${CoR}\n"
+    return 1
+  fi
+
+  echo -e " • Current version : ${COLOR_YELLOW}${VERSION}${CoR}"
+  echo -e " • Latest  version : ${COLOR_YELLOW}${latest_version}${CoR}"
+
+  if [ "$latest_version" = "$VERSION" ]; then
+    echo -e "\n ✅ ${COLOR_GREEN}You are running the latest version!${CoR}\n"
+  else
+    local html_url
+    html_url=$(echo "$latest_json" | jq -r '.html_url // empty' 2>/dev/null)
+    echo -e "\n 🆕 ${COLOR_ORANGE}A new version is available: ${COLOR_GREEN}${latest_version}${CoR}"
+    [ -n "$html_url" ] && echo -e " 🔗 ${COLOR_CYAN}${html_url}${CoR}"
+    echo -e " 💡 ${COLOR_GREY}Update: git -C \"$SCRIPT_DIR\" pull${CoR} ${COLOR_GREY}(or download the release manually)${CoR}\n"
+  fi
 }
 
 # Function to display dashboard
@@ -5158,6 +5194,10 @@ while [[ "$#" -gt 0 ]]; do
     CHECK_TOKEN=true
     shift
     ;;
+  --check-update)
+    CHECK_UPDATE=true
+    shift
+    ;;
   --backup)
     BACKUP=true
     shift
@@ -6234,6 +6274,8 @@ elif [ "$EXAMPLES" = true ]; then
   examples_cli
 elif [ "$CHECK_TOKEN" = true ]; then
   check_token true
+elif [ "$CHECK_UPDATE" = true ]; then
+  check_update
 elif [ "$INFO" = true ]; then
   display_info
 # Actions users

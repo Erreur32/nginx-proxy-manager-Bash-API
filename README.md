@@ -105,6 +105,7 @@ API_PASS="changeme"
   --info                                  Display Script Variables Information
   --show-default                          Show Default settings for host creation
   --check-token                           Check current token info
+  --check-update                          🆕 Check GitHub for a newer script version
   --backup                                💾 Backup All configurations to a different files in $DATA_DIR
 
  Proxy Host Management:
@@ -265,6 +266,7 @@ API_PASS="changeme"
    ./npm-api.sh --info                      # Show configuration and dashboard
    ./npm-api.sh --show-default              # Show default settings
    ./npm-api.sh --check-token               # Verify token validity
+   ./npm-api.sh --check-update              # Check for a newer script version
    ./npm-api.sh --host-search domain.com    # Search for a specific domain
    ./npm-api.sh --host-list                 # List all hosts
    ./npm-api.sh --host-list-full            # List hosts with details
