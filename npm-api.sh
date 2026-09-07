@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.4.0"
+VERSION="3.4.1"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -966,6 +966,8 @@ display_info() {
   echo -e " ${COLOR_GREEN}BACKUP DIR ${CoR} : ${DATA_DIR_ID}"
   #echo -e " ${COLOR_GREEN}DOCKER Path${CoR} : ${NGINX_PATH_DOCKER}"
 
+  display_dashboard
+
   DATE=$(date +"_%Y_%m_%d__%H_%M_%S")
   BACKUP_PATH="$BACKUP_DIR"
 
@@ -981,9 +983,13 @@ display_info() {
       \) 2>/dev/null | wc -l)
 
     if [ "$total_files" -gt 0 ]; then
-      echo -e "\n ${COLOR_YELLOW}Backup Statistics:${CoR}"
+      echo -e "\n ${COLOR_CYAN}💾 Backup Statistics 📦${CoR}"
+      echo -e " ${COLOR_GREY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CoR}"
       local config_files=$(find "$BACKUP_PATH" -maxdepth 1 -type f -name "full_config*.json" 2>/dev/null | wc -l)
       local proxy_files=$(find "$BACKUP_PATH/.Proxy_Hosts" -type f -name "proxy_config.json" 2>/dev/null | wc -l)
+      local redirect_files=$(find "$BACKUP_PATH/.Redirection_Hosts" -type f -name "*.json" 2>/dev/null | wc -l)
+      local stream_files=$(find "$BACKUP_PATH/.Stream_Hosts" -type f -name "*.json" 2>/dev/null | wc -l)
+      local dead_files=$(find "$BACKUP_PATH/.Dead_Hosts" -type f -name "*.json" 2>/dev/null | wc -l)
       local ssl_files=$(find "$BACKUP_PATH" -type f \( \
         -name "certificate*.json" -o \
         -name "*.pem" -o \
@@ -996,6 +1002,9 @@ display_info() {
       # Show statistics only if there are files
       [ "$config_files" -gt 0 ] && echo -e " • Full Config Files : ${COLOR_CYAN}$config_files${CoR}"
       [ "$proxy_files" -gt 0 ] && echo -e " • Proxy Host Files  : ${COLOR_CYAN}$proxy_files${CoR}"
+      [ "$redirect_files" -gt 0 ] && echo -e " • Redirection Files : ${COLOR_CYAN}$redirect_files${CoR}"
+      [ "$stream_files" -gt 0 ] && echo -e " • Stream Host Files : ${COLOR_CYAN}$stream_files${CoR}"
+      [ "$dead_files" -gt 0 ] && echo -e " • 404 Host Files    : ${COLOR_CYAN}$dead_files${CoR}"
       [ "$ssl_files" -gt 0 ] && echo -e " • SSL Files         : ${COLOR_CYAN}$ssl_files${CoR}"
       [ "$access_files" -gt 0 ] && echo -e " • Access Lists      : ${COLOR_CYAN}$access_files${CoR}"
       [ "$settings_files" -gt 0 ] && echo -e " • Settings Files    : ${COLOR_CYAN}$settings_files${CoR}"
@@ -1009,7 +1018,8 @@ display_info() {
   echo -e "  • Backup: ${COLOR_GREY}$BACKUP_PATH${CoR}"
   echo -e "  • Token: ${COLOR_GREY}$BACKUP_PATH/token/${CoR}"
 
-  display_dashboard
+  echo -e "\n ${COLOR_YELLOW}💡 Use --help to see available commands${CoR}"
+  echo -e "   ${COLOR_GREY} Check --examples for more help examples${CoR}\n"
 }
 
 # Function to display dashboard
@@ -1025,18 +1035,24 @@ display_dashboard() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local stream_hosts=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/streams" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  local dead_hosts=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/dead-hosts" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  local access_lists=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/access-lists" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local certificates=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/certificates" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   local users=$(curl -s --max-redirs 0 -X GET "$BASE_URL/users" \
-    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
-  local access_lists=$(curl -s --max-redirs 0 -X GET "$BASE_URL/nginx/access-lists" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   # Calculate counts with error checking
   local proxy_count=0
   local enabled_proxy_count=0
   local redirect_count=0
+  local enabled_redirect_count=0
   local stream_count=0
+  local enabled_stream_count=0
+  local dead_count=0
+  local enabled_dead_count=0
   local cert_count=0
   local expired_cert_count=0
   local user_count=0
@@ -1049,14 +1065,30 @@ display_dashboard() {
   fi
   local disabled_proxy_count=$((proxy_count - enabled_proxy_count))
 
-  # Check and calculate redirections
+  # Check and calculate redirection hosts
   if [ "$(echo "$redirection_hosts" | jq -r 'type')" == "array" ]; then
     redirect_count=$(echo "$redirection_hosts" | jq '. | length')
+    enabled_redirect_count=$(echo "$redirection_hosts" | jq '[.[] | select(.enabled == true)] | length')
   fi
+  local disabled_redirect_count=$((redirect_count - enabled_redirect_count))
 
-  # Check and calculate streams
+  # Check and calculate stream hosts
   if [ "$(echo "$stream_hosts" | jq -r 'type')" == "array" ]; then
     stream_count=$(echo "$stream_hosts" | jq '. | length')
+    enabled_stream_count=$(echo "$stream_hosts" | jq '[.[] | select(.enabled == true)] | length')
+  fi
+  local disabled_stream_count=$((stream_count - enabled_stream_count))
+
+  # Check and calculate 404 hosts (dead hosts)
+  if [ "$(echo "$dead_hosts" | jq -r 'type')" == "array" ]; then
+    dead_count=$(echo "$dead_hosts" | jq '. | length')
+    enabled_dead_count=$(echo "$dead_hosts" | jq '[.[] | select(.enabled == true)] | length')
+  fi
+  local disabled_dead_count=$((dead_count - enabled_dead_count))
+
+  # Check and calculate access lists
+  if [ "$(echo "$access_lists" | jq -r 'type')" == "array" ]; then
+    access_list_count=$(echo "$access_lists" | jq '. | length')
   fi
 
   # Check and calculate certificates
@@ -1071,17 +1103,12 @@ display_dashboard() {
     user_count=$(echo "$users" | jq '. | length')
   fi
 
-  # Check and calculate access lists
-  if [ "$(echo "$access_lists" | jq -r 'type')" == "array" ]; then
-    access_list_count=$(echo "$access_lists" | jq '. | length')
-  fi
-
   # Get version and uptime
   local uptime=$(uptime | sed 's/.*up \([^,]*\),.*/\1/')
-  local version_info=$(curl -s --max-redirs 0 -X GET "${BASE_URL%/api}/version")
+  local version_info=$(curl -s --max-redirs 0 -X GET "$BASE_URL/")
   local npm_version="Unknown"
-  if [[ "$version_info" =~ \?v=([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-    npm_version="${BASH_REMATCH[1]}"
+  if echo "$version_info" | jq -e '.version' >/dev/null 2>&1; then
+    npm_version=$(echo "$version_info" | jq -r '"\(.version.major).\(.version.minor).\(.version.revision)"')
   fi
 
   print_row() {
@@ -1117,22 +1144,34 @@ display_dashboard() {
   echo -e " ${COLOR_GREY}┌─────────────────┬─────────┐${CoR}"
   echo -e " ${COLOR_GREY}│${CoR}  COMPONENT      ${COLOR_GREY}│${CoR} STATUS  ${COLOR_GREY}│${CoR}"
   echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
+  # --- Hosts (same order as the NPM web UI: Proxy / Redirection / Streams / 404) ---
   # Proxy Hosts
   print_row "🌐 Proxy Hosts " "$proxy_count" "$COLOR_YELLOW"
   print_row "├─ Enabled     " "$enabled_proxy_count"
   print_row "└─ Disabled    " "$disabled_proxy_count" "$COLOR_RED"
   echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
+  # Redirection Hosts
+  print_row "🔄 Redirections" "$redirect_count" "$COLOR_YELLOW"
+  print_row "├─ Enabled     " "$enabled_redirect_count"
+  print_row "└─ Disabled    " "$disabled_redirect_count" "$COLOR_RED"
+  echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
+  # Stream Hosts
+  print_row "🔌 Stream Hosts" "$stream_count" "$COLOR_YELLOW"
+  print_row "├─ Enabled     " "$enabled_stream_count"
+  print_row "└─ Disabled    " "$disabled_stream_count" "$COLOR_RED"
+  echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
+  # 404 Hosts (Dead Hosts)
+  print_row "🚫 404 Hosts   " "$dead_count" "$COLOR_YELLOW"
+  print_row "├─ Enabled     " "$enabled_dead_count"
+  print_row "└─ Disabled    " "$disabled_dead_count" "$COLOR_RED"
+  echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
+  # Access Lists
+  print_row "🔒 Access Lists" "$access_list_count"
+  echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
   # SSL Certificates
   print_row "🔒 Certificates" "$cert_count" "$COLOR_YELLOW"
   print_row "├─ Valid       " "$valid_cert_count"
   print_row "└─ Expired     " "$expired_cert_count" "$COLOR_RED"
-  echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
-  # Redirections & Streams
-  print_row "🔄 Redirections" "$redirect_count"
-  print_row "🔌 Stream Hosts" "$stream_count"
-  echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
-  # Access Lists
-  print_row "🔒 Access Lists" "$access_list_count"
   echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
   # Users
   print_row "👥 Users       " "$user_count"
@@ -1141,8 +1180,6 @@ display_dashboard() {
   print_row "⏱️ Uptime       " "$uptime" "$COLOR_YELLOW"
   print_row "📦 NPM Version " "$npm_version" "$COLOR_YELLOW"
   echo -e " ${COLOR_GREY}└─────────────────┴─────────┘${CoR}"
-  echo -e "\n ${COLOR_YELLOW}💡 Use --help to see available commands${CoR}"
-  echo -e "   ${COLOR_GREY} Check --examples for more help examples${CoR}\n"
 }
 
 ################################
@@ -4594,6 +4631,9 @@ full_backup() {
   local users_count=0
   local certs_count=0
   local hosts_count=0
+  local redirect_hosts_count=0
+  local stream_hosts_count=0
+  local dead_hosts_count=0
   local custom_certs_count=0
   local letsencrypt_certs_count=0
   local access_lists_count=0
@@ -4606,7 +4646,7 @@ full_backup() {
 
   # Create required subdirectories
   echo -e "\n📂 ${COLOR_CYAN}Creating backup directories...${CoR}"
-  for dir in ".user" ".settings" ".access_lists" ".Proxy_Hosts" ".ssl"; do
+  for dir in ".user" ".settings" ".access_lists" ".Proxy_Hosts" ".Redirection_Hosts" ".Stream_Hosts" ".Dead_Hosts" ".ssl"; do
     mkdir -p "$BACKUP_PATH/$dir" || {
       echo -e " ⛔ ${COLOR_RED}Failed to create $dir directory${CoR}"
       return 1
@@ -4822,10 +4862,73 @@ full_backup() {
     error_count=$((error_count + 1))
   fi
 
+  # 5. Backup redirection hosts
+  echo -e "\n🔄 ${COLOR_CYAN}Backing up redirection hosts...${CoR}"
+  REDIRECTION_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ -n "$REDIRECTION_HOSTS_RESPONSE" ] && echo "$REDIRECTION_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+    redirect_hosts_count=$(echo "$REDIRECTION_HOSTS_RESPONSE" | jq '. | length')
+    echo "$REDIRECTION_HOSTS_RESPONSE" | jq '.' >"$BACKUP_PATH/.Redirection_Hosts/redirection_hosts_${NGINX_IP//./_}$DATE.json"
+    ln -sf "$BACKUP_PATH/.Redirection_Hosts/redirection_hosts_${NGINX_IP//./_}$DATE.json" \
+      "$BACKUP_PATH/.Redirection_Hosts/redirection_hosts_latest.json"
+    jq --argjson hosts "$REDIRECTION_HOSTS_RESPONSE" '. + {redirection_hosts: $hosts}' \
+      "$BACKUP_PATH/full_config${DATE}.json" >"$BACKUP_PATH/full_config${DATE}.json.tmp"
+    mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
+    echo -e " ✅ ${COLOR_GREEN}Backed up $redirect_hosts_count redirection hosts${CoR}"
+    success_count=$((success_count + 1))
+  else
+    echo -e " ⚠️ ${COLOR_YELLOW}No redirection hosts found or invalid response${CoR}"
+    error_count=$((error_count + 1))
+  fi
+
+  # 6. Backup stream hosts
+  echo -e "\n🔌 ${COLOR_CYAN}Backing up stream hosts...${CoR}"
+  STREAM_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ -n "$STREAM_HOSTS_RESPONSE" ] && echo "$STREAM_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+    stream_hosts_count=$(echo "$STREAM_HOSTS_RESPONSE" | jq '. | length')
+    echo "$STREAM_HOSTS_RESPONSE" | jq '.' >"$BACKUP_PATH/.Stream_Hosts/stream_hosts_${NGINX_IP//./_}$DATE.json"
+    ln -sf "$BACKUP_PATH/.Stream_Hosts/stream_hosts_${NGINX_IP//./_}$DATE.json" \
+      "$BACKUP_PATH/.Stream_Hosts/stream_hosts_latest.json"
+    jq --argjson hosts "$STREAM_HOSTS_RESPONSE" '. + {streams: $hosts}' \
+      "$BACKUP_PATH/full_config${DATE}.json" >"$BACKUP_PATH/full_config${DATE}.json.tmp"
+    mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
+    echo -e " ✅ ${COLOR_GREEN}Backed up $stream_hosts_count stream hosts${CoR}"
+    success_count=$((success_count + 1))
+  else
+    echo -e " ⚠️ ${COLOR_YELLOW}No stream hosts found or invalid response${CoR}"
+    error_count=$((error_count + 1))
+  fi
+
+  # 7. Backup 404 hosts (dead hosts)
+  echo -e "\n🚫 ${COLOR_CYAN}Backing up 404 hosts...${CoR}"
+  DEAD_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ -n "$DEAD_HOSTS_RESPONSE" ] && echo "$DEAD_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+    dead_hosts_count=$(echo "$DEAD_HOSTS_RESPONSE" | jq '. | length')
+    echo "$DEAD_HOSTS_RESPONSE" | jq '.' >"$BACKUP_PATH/.Dead_Hosts/dead_hosts_${NGINX_IP//./_}$DATE.json"
+    ln -sf "$BACKUP_PATH/.Dead_Hosts/dead_hosts_${NGINX_IP//./_}$DATE.json" \
+      "$BACKUP_PATH/.Dead_Hosts/dead_hosts_latest.json"
+    jq --argjson hosts "$DEAD_HOSTS_RESPONSE" '. + {dead_hosts: $hosts}' \
+      "$BACKUP_PATH/full_config${DATE}.json" >"$BACKUP_PATH/full_config${DATE}.json.tmp"
+    mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
+    echo -e " ✅ ${COLOR_GREEN}Backed up $dead_hosts_count 404 hosts${CoR}"
+    success_count=$((success_count + 1))
+  else
+    echo -e " ⚠️ ${COLOR_YELLOW}No 404 hosts found or invalid response${CoR}"
+    error_count=$((error_count + 1))
+  fi
+
   # Generate backup report and statistics
   echo -e "\n📊 ${COLOR_YELLOW}Backup Summary:${CoR}"
   echo -e " • ${COLOR_CYAN}Users:${CoR} $users_count"
   echo -e " • ${COLOR_CYAN}Proxy Hosts:${CoR} $hosts_count"
+  echo -e " • ${COLOR_CYAN}Redirection Hosts:${CoR} $redirect_hosts_count"
+  echo -e " • ${COLOR_CYAN}Stream Hosts:${CoR} $stream_hosts_count"
+  echo -e " • ${COLOR_CYAN}404 Hosts:${CoR} $dead_hosts_count"
   echo -e " • ${COLOR_CYAN}SSL Certificates:${CoR} $certs_count"
   echo -e "   ├─ Custom: $custom_certs_count"
   echo -e "   └─ Let's Encrypt: $letsencrypt_certs_count"
@@ -4842,6 +4945,9 @@ full_backup() {
     \) | wc -l)
   local config_files=$(find "$BACKUP_PATH" -maxdepth 1 -type f -name "full_config*.json" | wc -l)
   local proxy_files=$(find "$BACKUP_PATH/.Proxy_Hosts" -type f -name "proxy_config.json" | wc -l)
+  local redirect_files=$(find "$BACKUP_PATH/.Redirection_Hosts" -type f -name "*.json" | wc -l)
+  local stream_files=$(find "$BACKUP_PATH/.Stream_Hosts" -type f -name "*.json" | wc -l)
+  local dead_files=$(find "$BACKUP_PATH/.Dead_Hosts" -type f -name "*.json" | wc -l)
   local ssl_files=$(find "$BACKUP_PATH" -type f \( \
     -name "certificate*.json" -o \
     -name "*.pem" -o \
@@ -4854,6 +4960,9 @@ full_backup() {
   echo -e "\n📁 ${COLOR_YELLOW}Backup Files Count:${CoR}"
   echo -e " • Full Configurations: ${COLOR_GREY}$config_files files${CoR}"
   echo -e " • Proxy Host Files: ${COLOR_GREY}$proxy_files files${CoR}"
+  echo -e " • Redirection Host Files: ${COLOR_GREY}$redirect_files files${CoR}"
+  echo -e " • Stream Host Files: ${COLOR_GREY}$stream_files files${CoR}"
+  echo -e " • 404 Host Files: ${COLOR_GREY}$dead_files files${CoR}"
   echo -e " • SSL Certificate Files: ${COLOR_GREY}$ssl_files files${CoR}"
   echo -e " • Access List Files: ${COLOR_GREY}$access_files files${CoR}"
   echo -e " • Settings Files: ${COLOR_GREY}$settings_files files${CoR}"

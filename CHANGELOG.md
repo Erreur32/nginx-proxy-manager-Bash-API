@@ -2,6 +2,19 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.4.1] - 2026-09-07
+
+### 🐛 Fixes
+
+- **`display_dashboard()` now includes 404 Hosts and is grouped by category** — The dashboard shown by `./npm-api.sh` (no args) was missing 404 Hosts (Dead Hosts) entirely, and Redirection/Stream Hosts only showed a raw total with no Enabled/Disabled breakdown. The table is now grouped in the same order as the NPM web UI: Proxy Hosts → Redirection Hosts → Stream Hosts → 404 Hosts (each with Enabled/Disabled counts) → Access Lists → Certificates → Users.
+- **`full_backup()` now backs up Redirection Hosts, Stream Hosts and 404 Hosts** — These three host types (added in 3.4.0) were never included in `--backup`: no dedicated JSON files, no entry in `full_config*.json`, and no mention in the backup summary/file counts. A restore from a pre-3.4.1 backup would silently lose them. Each type now gets its own `.Redirection_Hosts/`, `.Stream_Hosts/` and `.Dead_Hosts/` directory (with a `_latest.json` symlink) and is merged into `full_config*.json` under `redirection_hosts`, `streams` and `dead_hosts`.
+- **`display_info()` backup statistics** — Same three host types now counted in the "Backup Statistics" block shown on script startup.
+- **NPM Version always showed "Unknown" in the dashboard** — `display_dashboard()` queried `${BASE_URL%/api}/version`, which returns the NPM web app's HTML shell, not JSON. It now queries `$BASE_URL/` (the API root, `{"version":{"major":...}}`) and parses it with `jq`.
+
+### 💅 UI
+
+- **Startup output reordered** — The dashboard table now appears right after "Script Variables Information" and before the "Backup Statistics" section (previously it was printed last). The "Backup Statistics" section also got a titled header with an underline, matching the style already used for the dashboard title. The `💡 Use --help...` hint now prints at the very end of the output, after "Backup Locations".
+
 ## [3.4.0] - 2026-09-07
 
 ### ✨ New Features
