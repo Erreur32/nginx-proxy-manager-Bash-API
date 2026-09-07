@@ -2,6 +2,24 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.0] - 2026-09-07
+
+### ✨ New Features
+
+- **`--json` global modifier** — Any read command (`--host-list`, `--host-show`, `--cert-list`, `--cert-show`, `--redirect-host-list`, `--stream-host-list`, `--dead-host-list`, `--access-list`, `--access-list-show`) now accepts a `--json` flag that outputs pure, unformatted JSON on stdout instead of the colored human tables — no decorative text, safe to pipe straight into `jq` or any monitoring/CI tool. Mutating commands (create/update/delete/enable/disable) and purely decorative ones (`--help`, `--info`, `--backup`, ...) are unaffected — this is opt-in and additive, the default (colored) output is unchanged.
+  - Success returns valid JSON (array for lists, object for a single item) and exit 0.
+  - A search with no match (e.g. `--cert-show` on an unknown domain) returns `[]` and exit 0 — not an error.
+  - An unknown ID or an API error returns `{"error": "..."}` and exit 1.
+  - `--json` can be placed before or after a command that takes no positional argument. For commands with an argument right after them (`--host-show <id>`, `--cert-show <domain>`, ...), place `--json` before the command or after its argument, never in between.
+
+### 🆕 New Commands
+
+- **`--list`** — Lists every command compatible with `--json`, each with a ready-to-use example command (as a colored table, or as a JSON array of `{command, description, example}` objects when combined with `--json`).
+
+### 📝 Documentation
+
+- `show_help()` and `README.md` — New `--json` / `--json --list` entries, corrected the misleading `--cert-show ... (JSON)` claim to `(add --json for raw JSON)`, and added a scripter-facing tip with usage examples near the top of the README.
+
 ## [3.5.0] - 2026-09-07
 
 ### ✨ New Features

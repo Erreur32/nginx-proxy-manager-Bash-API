@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.5.0"
+VERSION="3.6.0"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -176,6 +176,8 @@ FIELD_VALUE=""
 
 # Control variables
 AUTO_YES=false
+JSON_OUTPUT=false
+LIST_JSON_COMMANDS=false
 CHECK_TOKEN=false
 CHECK_UPDATE=false
 EXAMPLES=false
@@ -619,6 +621,8 @@ help_row() {
 show_help() {
   echo -e "\n Options available:                       ${COLOR_GREY}(see --examples for more details)${CoR}"
   help_row "   -y" "Automatic ${COLOR_YELLOW}yes${CoR} prompts!"
+  help_row "  --json" "${COLOR_GREEN}🤖 ${CoR}Modifier: force ${COLOR_GREY}pure JSON output${CoR} on read commands (list/show), for scripts"
+  help_row "  --json --list" "${COLOR_GREEN}🤖 ${CoR}List ${COLOR_GREY}the commands compatible with --json${CoR}"
   help_row "  --info" "Display ${COLOR_GREY}Script Variables Information${CoR}"
   help_row "  --show-default" "Show ${COLOR_GREY}Default settings for host creation${CoR}"
   help_row "  --check-token" "Check ${COLOR_GREY}current token info${CoR}"
@@ -665,7 +669,7 @@ show_help() {
   help_row "  --host-ssl-disable ${COLOR_CYAN}🆔${CoR}" "Disable SSL, HTTP/2, and HSTS for a proxy host"
   echo ""
   help_row "  --cert-list" "List ALL SSL certificates"
-  help_row "  --cert-show     ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}" "List SSL certificates filtered by [domain name] (${COLOR_YELLOW}JSON${CoR})"
+  help_row "  --cert-show     ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR}" "List SSL certificates filtered by [domain name] (add ${COLOR_YELLOW}--json${CoR} for raw JSON)"
   help_row "  --cert-delete   ${COLOR_CYAN}domain${CoR} Or ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[--purge]${CoR}" "Delete Certificate for the given '${COLOR_YELLOW}domain${CoR}' (${COLOR_GREY}--purge${CoR} also removes on-disk files)"
   help_row "  --cert-download ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[output_dir]${CoR} ${COLOR_CYAN}[cert_name]${CoR}" "Download certificate as ZIP with fallback support"
 
@@ -752,6 +756,36 @@ show_help() {
   help_row "  --examples" "${COLOR_ORANGE}🔖 ${CoR}Examples ${COLOR_GREY}commands, more explicits${CoR}"
   echo -e "  --help                                 ${COLOR_YELLOW} 👉 ${COLOR_GREY}It's me${CoR}"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  exit 0
+}
+
+# List read commands compatible with the global --json modifier.
+# Combine with --json (e.g. "--json --list") to get this list as raw JSON.
+list_json_commands() {
+  local cmds=(
+    "--host-list|List all proxy hosts|./npm-api.sh --host-list --json"
+    "--host-list-full|List all proxy hosts with full details (always pure JSON)|./npm-api.sh --host-list-full"
+    "--host-show <id>|Show one proxy host|./npm-api.sh --host-show 42 --json"
+    "--cert-list|List all SSL certificates|./npm-api.sh --cert-list --json"
+    "--cert-show <domain_or_id>|Show certificate(s) filtered by domain or id|./npm-api.sh --cert-show example.com --json"
+    "--redirect-host-list|List all redirection hosts|./npm-api.sh --redirect-host-list --json"
+    "--stream-host-list|List all stream hosts|./npm-api.sh --stream-host-list --json"
+    "--dead-host-list|List all dead hosts|./npm-api.sh --dead-host-list --json"
+    "--access-list|List all access lists|./npm-api.sh --access-list --json"
+    "--access-list-show <id>|Show one access list|./npm-api.sh --access-list-show 5 --json"
+  )
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    printf '%s\n' "${cmds[@]}" | jq -R -c 'split("|") | {command: .[0], description: .[1], example: .[2]}' | jq -s '.'
+  else
+    echo -e "\n${COLOR_ORANGE} 🤖 Commands compatible with --json:${CoR}\n"
+    local c flag desc example
+    for c in "${cmds[@]}"; do
+      IFS='|' read -r flag desc example <<<"$c"
+      help_row "  $flag" "$desc ${COLOR_GREY}— e.g. $example${CoR}"
+    done
+    echo ""
+  fi
   exit 0
 }
 
@@ -1585,15 +1619,23 @@ cert_show() {
 
   # Search by ID if numeric
   if [[ "$search_term" =~ ^[0-9]+$ ]]; then
-    echo -e "\n 🔍 Searching for certificate with ID: ${COLOR_YELLOW}$search_term${CoR}"
+    [ "$JSON_OUTPUT" = true ] || echo -e "\n 🔍 Searching for certificate with ID: ${COLOR_YELLOW}$search_term${CoR}"
 
     # Get specific certificate by ID
     CERT_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates/$search_term" \
       -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
     if echo "$CERT_RESPONSE" | jq -e '.error' >/dev/null; then
+      if [ "$JSON_OUTPUT" = true ]; then
+        echo '{"error": "Certificate not found with ID: '"$search_term"'"}'
+        exit 1
+      fi
       echo -e " ⛔ ${COLOR_RED}Certificate not found with ID: $search_term${CoR}"
     else
+      if [ "$JSON_OUTPUT" = true ]; then
+        echo "$CERT_RESPONSE" | jq .
+        exit 0
+      fi
       echo "$CERT_RESPONSE" | jq -r "$CERT_JQ_FMT" | cert_colorize
     fi
     echo ""
@@ -1601,6 +1643,11 @@ cert_show() {
   fi
 
   # Search by domain name (partial match)
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq --arg domain "$search_term" '[.[] | select(.domain_names[] | contains($domain))]'
+    exit 0
+  fi
+
   echo -e "\n 🔍 Searching certificates for domain: ${COLOR_YELLOW}$search_term${CoR}"
   DOMAIN_CERTS=$(echo "$RESPONSE" | jq -r --arg domain "$search_term" \
     '.[] | select(.domain_names[] | contains($domain))')
@@ -1625,6 +1672,11 @@ list_cert_all() {
   if [ -z "$RESPONSE" ] || [ "$RESPONSE" == "null" ]; then
     echo -e " ⛔ ${COLOR_RED}Error: Unable to retrieve certificates${CoR}"
     exit 1
+  fi
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq .
+    exit 0
   fi
 
   echo -e "\n 📜 SSL Certificates List:"
@@ -2068,11 +2120,16 @@ create_or_update_proxy_host() {
 # List all proxy hosts with basic details, including SSL certificate status and associated domain
 host_list() {
   check_token_notverbose
-  echo -e "\n${COLOR_ORANGE} 👉 List of proxy hosts ${CoR}\n"
-  printf "  %4s %-36s %-9s %-6s %-30s %-36s\n" "ID" " DOMAIN" " STATUS" " SSL" " TARGET" " CERT DOMAIN"
-
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq .
+    exit 0
+  fi
+
+  echo -e "\n${COLOR_ORANGE} 👉 List of proxy hosts ${CoR}\n"
+  printf "  %4s %-36s %-9s %-6s %-30s %-36s\n" "ID" " DOMAIN" " STATUS" " SSL" " TARGET" " CERT DOMAIN"
 
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
@@ -2151,11 +2208,16 @@ host_list_full() {
 # List all redirection hosts
 redirect_host_list() {
   check_token_notverbose
-  echo -e "\n${COLOR_ORANGE} 👉 List of Redirection hosts ${CoR}\n"
-  printf "  %4s %-36s %-9s %-7s %-7s %-36s\n" "ID" " DOMAIN" " STATUS" " CODE" " SSL" " FORWARD DOMAIN"
-
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq .
+    exit 0
+  fi
+
+  echo -e "\n${COLOR_ORANGE} 👉 List of Redirection hosts ${CoR}\n"
+  printf "  %4s %-36s %-9s %-7s %-7s %-36s\n" "ID" " DOMAIN" " STATUS" " CODE" " SSL" " FORWARD DOMAIN"
 
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
@@ -2438,11 +2500,16 @@ redirect_host_disable() {
 # List all stream hosts (TCP/UDP forwarding)
 stream_host_list() {
   check_token_notverbose
-  echo -e "\n${COLOR_ORANGE} 👉 List of Stream hosts ${CoR}\n"
-  printf "  %4s %-8s %-9s %-4s %-4s %-36s\n" "ID" " PORT" " STATUS" " TCP" " UDP" " FORWARD HOST:PORT"
-
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq .
+    exit 0
+  fi
+
+  echo -e "\n${COLOR_ORANGE} 👉 List of Stream hosts ${CoR}\n"
+  printf "  %4s %-8s %-9s %-4s %-4s %-36s\n" "ID" " PORT" " STATUS" " TCP" " UDP" " FORWARD HOST:PORT"
 
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
@@ -2694,11 +2761,16 @@ stream_host_disable() {
 # List all dead hosts (404 Hosts)
 dead_host_list() {
   check_token_notverbose
-  echo -e "\n${COLOR_ORANGE} 👉 List of Dead hosts (404) ${CoR}\n"
-  printf "  %4s %-36s %-9s %-7s\n" "ID" " DOMAIN" " STATUS" " SSL"
-
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq .
+    exit 0
+  fi
+
+  echo -e "\n${COLOR_ORANGE} 👉 List of Dead hosts (404) ${CoR}\n"
+  printf "  %4s %-36s %-9s %-7s\n" "ID" " DOMAIN" " STATUS" " SSL"
 
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
@@ -3487,14 +3559,22 @@ host_show() {
     return 1
   fi
   check_token_notverbose
-  echo -e "\n 🔍 Fetching details for proxy host ID: ${COLOR_YELLOW}$host_id${CoR}..."
+  [ "$JSON_OUTPUT" = true ] || echo -e "\n 🔍 Fetching details for proxy host ID: ${COLOR_YELLOW}$host_id${CoR}..."
   # get host details
   local response=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   # Check if the response contains an error
   if echo "$response" | jq -e '.error' >/dev/null; then
+    if [ "$JSON_OUTPUT" = true ]; then
+      echo "$response" | jq '{error: (.error.message // "Unknown error")}'
+      exit 1
+    fi
     echo -e " ⛔ ${COLOR_RED}Error: $(echo "$response" | jq -r '.error.message')${CoR}\n"
     return 1
+  fi
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$response" | jq .
+    exit 0
   fi
   # Format and display details
   echo -e "\n📋 ${COLOR_YELLOW}Host Details:${CoR}"
@@ -4514,7 +4594,6 @@ access_list_delete() {
 # Show all access lists with detailed information
 access_list() {
   check_token_notverbose
-  echo -e "\n📋 ${COLOR_CYAN}Access Lists Management${CoR}\n"
 
   # Get all access lists
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
@@ -4522,10 +4601,21 @@ access_list() {
 
   # Check for API errors
   if [ "$(echo "$RESPONSE" | jq -r 'if type=="object" then .error.message else empty end')" != "" ]; then
+    if [ "$JSON_OUTPUT" = true ]; then
+      echo "$RESPONSE" | jq '{error: (.error.message // "Failed to fetch access lists")}'
+      exit 1
+    fi
     echo -e " ⛔ ${COLOR_RED}Failed to fetch access lists${CoR}"
     echo -e "    Error: $(echo "$RESPONSE" | jq -r '.error.message')"
     return 1
   fi
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$RESPONSE" | jq .
+    exit 0
+  fi
+
+  echo -e "\n📋 ${COLOR_CYAN}Access Lists Management${CoR}\n"
 
   # Display table header
   echo "┌════════════════════════════════════════════════════════════════════════════════════┐"
@@ -4567,7 +4657,7 @@ access_list_show() {
     return 1
   fi
 
-  echo -e "\n📋 ${COLOR_CYAN}Access List Details${CoR}"
+  [ "$JSON_OUTPUT" = true ] || echo -e "\n📋 ${COLOR_CYAN}Access List Details${CoR}"
 
   # Get specific access list with expanded items and clients
   # Note: The expand parameter is required to get full details of items and clients
@@ -4576,14 +4666,27 @@ access_list_show() {
 
   # Check if response is valid JSON
   if ! echo "$response" | jq empty 2>/dev/null; then
+    if [ "$JSON_OUTPUT" = true ]; then
+      echo '{"error": "Invalid response from API"}'
+      exit 1
+    fi
     echo -e "\n⛔ ${COLOR_RED}Invalid response from API${CoR}"
     return 1
   fi
 
   # Check if access list exists
   if [ "$(echo "$response" | jq 'has("error")')" = "true" ]; then
+    if [ "$JSON_OUTPUT" = true ]; then
+      echo '{"error": "Access List not found"}'
+      exit 1
+    fi
     echo -e "\n⛔ ${COLOR_RED}Access List not found${CoR}"
     return 1
+  fi
+
+  if [ "$JSON_OUTPUT" = true ]; then
+    echo "$response" | jq .
+    exit 0
   fi
 
   # Create horizontal border
@@ -5167,6 +5270,14 @@ while [[ "$#" -gt 0 ]]; do
   case "$1" in
   -y)
     AUTO_YES=true
+    shift
+    ;;
+  --json)
+    JSON_OUTPUT=true
+    shift
+    ;;
+  --list)
+    LIST_JSON_COMMANDS=true
     shift
     ;;
   --purge)
@@ -6266,7 +6377,9 @@ done
 ##############################################################
 #echo "Debug after case: ACCESS_LIST_DELETE=$ACCESS_LIST_DELETE ACCESS_LIST_ID=$ACCESS_LIST_ID AUTO_YES=$AUTO_YES"
 
-if [ "$SHOW_HELP" = true ]; then
+if [ "$LIST_JSON_COMMANDS" = true ]; then
+  list_json_commands
+elif [ "$SHOW_HELP" = true ]; then
   show_help
 elif [ "$SHOW_DEFAULT" = true ]; then
   show_default
