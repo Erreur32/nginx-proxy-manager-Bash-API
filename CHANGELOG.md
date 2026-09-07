@@ -2,6 +2,20 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.5.0] - 2026-09-07
+
+### ✨ New Features
+
+- **Self-update check** — The script can now check GitHub for a newer release of itself.
+
+### 🆕 New Commands
+
+- **`--check-update`** — Queries the GitHub `releases/latest` API for this repo, compares the published release's `tag_name` to the script's own `VERSION`, and reports whether a newer version is available (with a link to the release). Requires a published GitHub Release on the newer tag to be detected — a bare `git tag` push is not enough.
+
+### 📝 Documentation
+
+- `show_help()` and `README.md` — New `--check-update` entry and usage example.
+
 ## [3.4.2] - 2026-09-07
 
 ### 🐛 Fixes
