@@ -2,6 +2,37 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.4.0] - 2026-09-07
+
+### ✨ New Features
+
+- **Full Stream Host management (TCP/UDP forwarding)** — Five new commands cover the complete lifecycle of a stream host: list, create/update, enable, disable, and delete. Requested in [discussion #32](https://github.com/Erreur32/nginx-proxy-manager-Bash-API/discussions/32) (e.g. forwarding port 53 TCP+UDP to a Pi-hole container).
+- **Full Dead Host (404 Host) management** — Same five-command lifecycle for NPM's "404 Hosts", discovered missing while auditing the [official NPM API schema](https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema) for the Stream Host work above.
+- **`cert_delete()` referencing-hosts check extended** — The warning shown before deleting/purging a certificate now also checks `/nginx/streams` and `/nginx/dead-hosts`, not just proxy/redirection hosts.
+
+### 🆕 New Commands
+
+- **`--stream-host-list`** — Display all Stream Hosts in a table (ID, incoming port, status, TCP/UDP, forward host:port).
+- **`--stream-host-create <incoming_port> --forward-host <host> --forward-port <port> [options]`** — Create a stream host (POST) or silently update it if the incoming port already exists (PUT). Options: `--tcp`, `--udp`, `--cert-id <id>`, `-y`.
+- **`--stream-host-delete <id> [-y]`** — Delete with interactive confirmation (skippable with `-y`).
+- **`--stream-host-enable <id>`** — Enable via NPM's native endpoint `POST /streams/{id}/enable`.
+- **`--stream-host-disable <id>`** — Disable via `POST /streams/{id}/disable`.
+- **`--dead-host-list`** — Display all Dead Hosts (404) in a table (ID, domain, status, SSL/certificate).
+- **`--dead-host-create <domain> [options]`** — Create a dead host (POST) or silently update it if the domain already exists (PUT). Options: `--cert-id <id>`, `--ssl-forced true|false`, `--http2 true|false`, `--hsts true|false`, `--hsts-subdomains true|false`, `-a/--advanced-config`, `-y`.
+- **`--dead-host-delete <id> [-y]`** — Delete with interactive confirmation (skippable with `-y`).
+- **`--dead-host-enable <id>`** — Enable via NPM's native endpoint `POST /dead-hosts/{id}/enable`.
+- **`--dead-host-disable <id>`** — Disable via `POST /dead-hosts/{id}/disable`.
+
+### 📝 Documentation
+
+- `show_help()` — New _Stream Host Management_ and _Dead Host (404) Management_ sections.
+- `examples_cli()` — New Stream Hosts and Dead Hosts (404) example subsections, including the Pi-hole DNS forwarding use case from discussion #32.
+- `README.md` — Options and Examples sections updated to match.
+
+### 🔎 Compatibility
+
+- Reviewed against the official NPM `develop` branch schema (`backend/schema/paths/nginx/{streams,dead-hosts}/`): field names, requiredness and endpoints confirmed unchanged, no breaking changes for the script.
+
 ## [3.3.0] - 2026-06-01
 
 ### ✨ New Features

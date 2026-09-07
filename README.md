@@ -168,6 +168,39 @@ API_PASS="changeme"
   --redirect-host-disable 🆔              Disable Redirection Host by ID
   --redirect-host-delete  🆔              Delete Redirection Host by ID
 
+ Stream Host Management (TCP/UDP forwarding):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  --stream-host-list                      List all Stream Hosts
+  --stream-host-create incoming_port --forward-host host --forward-port port [options]
+     Required:
+            incoming_port                 Port to listen on
+       --forward-host host                Target host or IP
+       --forward-port port                Target port
+     Optional:
+       --tcp                              Enable TCP forwarding
+       --udp                              Enable UDP forwarding
+       --cert-id id                       Certificate ID (default: 0)
+  --stream-host-enable  🆔                Enable Stream Host by ID
+  --stream-host-disable 🆔                Disable Stream Host by ID
+  --stream-host-delete  🆔                Delete Stream Host by ID
+
+ Dead Host (404) Management:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  --dead-host-list                        List all Dead Hosts (404)
+  --dead-host-create domain [options]
+     Required:
+            domain                        Domain name to serve 404 for
+     Optional:
+       --cert-id id                       Certificate ID (default: 0)
+       --ssl-forced true|false            Force SSL (default: false)
+       --http2 true|false                 Enable HTTP/2 (default: false)
+       --hsts true|false                  Enable HSTS (default: false)
+       --hsts-subdomains true|false       HSTS subdomains (default: false)
+       --advanced-config string           Custom nginx config
+  --dead-host-enable  🆔                  Enable Dead Host by ID
+  --dead-host-disable 🆔                  Disable Dead Host by ID
+  --dead-host-delete  🆔                  Delete Dead Host by ID
+
   --user-list                             List All Users
   --user-create username password email [--admin]
                                           Create User (--admin grants admin role; default standard)
@@ -328,6 +361,32 @@ API_PASS="changeme"
    # Enable / disable
    ./npm-api.sh --redirect-host-enable 5
    ./npm-api.sh --redirect-host-disable 5
+
+ 🔌 Stream Hosts:
+   # List all stream hosts
+   ./npm-api.sh --stream-host-list
+   # Forward DNS (TCP+UDP) port 53 to a Pi-hole container
+   ./npm-api.sh --stream-host-create 53 --forward-host pihole --forward-port 53 --tcp --udp
+   # TCP-only forward
+   ./npm-api.sh --stream-host-create 2222 --forward-host 192.168.1.10 --forward-port 22 --tcp
+   # Delete with auto-confirm
+   ./npm-api.sh --stream-host-delete 5 -y
+   # Enable / disable
+   ./npm-api.sh --stream-host-enable 5
+   ./npm-api.sh --stream-host-disable 5
+
+ 🚫 Dead Hosts (404):
+   # List all dead hosts
+   ./npm-api.sh --dead-host-list
+   # Create a 404 host for a decommissioned domain
+   ./npm-api.sh --dead-host-create old.example.com
+   # Create with SSL forced and a certificate
+   ./npm-api.sh --dead-host-create old.example.com --cert-id 3 --ssl-forced true --http2 true
+   # Delete with auto-confirm
+   ./npm-api.sh --dead-host-delete 5 -y
+   # Enable / disable
+   ./npm-api.sh --dead-host-enable 5
+   ./npm-api.sh --dead-host-disable 5
 
  👥 User Management:
    ./npm-api.sh --user-create newuser password123 user@example.com

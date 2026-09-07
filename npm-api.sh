@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.3.0"
+VERSION="3.4.0"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -250,6 +250,23 @@ REDIRECT_HOST_ID=""
 FORWARD_DOMAIN=""
 FORWARD_HTTP_CODE="301"
 PRESERVE_PATH=false
+
+STREAM_HOST_LIST=false
+STREAM_HOST_CREATE=false
+STREAM_HOST_DELETE=false
+STREAM_HOST_ENABLE=false
+STREAM_HOST_DISABLE=false
+STREAM_HOST_ID=""
+INCOMING_PORT=""
+TCP_FORWARDING=false
+UDP_FORWARDING=false
+
+DEAD_HOST_LIST=false
+DEAD_HOST_CREATE=false
+DEAD_HOST_DELETE=false
+DEAD_HOST_ENABLE=false
+DEAD_HOST_DISABLE=false
+DEAD_HOST_ID=""
 
 if [ $# -eq 0 ]; then
   INFO=true
@@ -677,6 +694,41 @@ show_help() {
   help_row "  --redirect-host-disable ${COLOR_CYAN}🆔${CoR}" "Disable Redirection Host by ${COLOR_YELLOW}ID${CoR}"
   help_row "  --redirect-host-delete  ${COLOR_CYAN}🆔${CoR}" "Delete Redirection Host by ${COLOR_YELLOW}ID${CoR}"
   echo ""
+  echo ""
+  echo -e " Stream Host Management (TCP/UDP forwarding):"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  help_row "  --stream-host-list" "List all Stream Hosts"
+  echo -e "  --stream-host-create ${COLOR_ORANGE}incoming_port${CoR} --forward-host ${COLOR_ORANGE}host${CoR} --forward-port ${COLOR_ORANGE}port${CoR} [options]"
+  echo -e "     Required:"
+  help_row "            incoming_port" "Port to listen on"
+  help_row "       --forward-host ${COLOR_ORANGE}host${CoR}" "Target host or IP"
+  help_row "       --forward-port ${COLOR_ORANGE}port${CoR}" "Target port"
+  echo -e "     Optional:"
+  help_row "       --tcp" "Enable TCP forwarding"
+  help_row "       --udp" "Enable UDP forwarding"
+  help_row "       --cert-id ${COLOR_GREY}id${CoR}" "Certificate ID (default: 0)"
+  help_row "  --stream-host-enable  ${COLOR_CYAN}🆔${CoR}" "Enable Stream Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --stream-host-disable ${COLOR_CYAN}🆔${CoR}" "Disable Stream Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --stream-host-delete  ${COLOR_CYAN}🆔${CoR}" "Delete Stream Host by ${COLOR_YELLOW}ID${CoR}"
+  echo ""
+  echo ""
+  echo -e " Dead Host (404) Management:"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  help_row "  --dead-host-list" "List all Dead Hosts (404)"
+  echo -e "  --dead-host-create ${COLOR_ORANGE}domain${CoR} [options]"
+  echo -e "     Required:"
+  help_row "            domain" "Domain name to serve 404 for"
+  echo -e "     Optional:"
+  help_row "       --cert-id ${COLOR_GREY}id${CoR}" "Certificate ID (default: 0)"
+  help_row "       --ssl-forced ${COLOR_GREY}true|false${CoR}" "Force SSL (default: false)"
+  help_row "       --http2 ${COLOR_GREY}true|false${CoR}" "Enable HTTP/2 (default: false)"
+  help_row "       --hsts ${COLOR_GREY}true|false${CoR}" "Enable HSTS (default: false)"
+  help_row "       --hsts-subdomains ${COLOR_GREY}true|false${CoR}" "HSTS subdomains (default: false)"
+  help_row "       --advanced-config ${COLOR_GREY}string${CoR}" "Custom nginx config"
+  help_row "  --dead-host-enable  ${COLOR_CYAN}🆔${CoR}" "Enable Dead Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --dead-host-disable ${COLOR_CYAN}🆔${CoR}" "Disable Dead Host by ${COLOR_YELLOW}ID${CoR}"
+  help_row "  --dead-host-delete  ${COLOR_CYAN}🆔${CoR}" "Delete Dead Host by ${COLOR_YELLOW}ID${CoR}"
+  echo ""
   help_row "  --user-list" "List All Users"
   help_row "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR} ${COLOR_CYAN}[--admin]${CoR}" "Create User (${COLOR_GREY}--admin${CoR} grants admin role; default standard)"
   help_row "  --user-delete ${COLOR_CYAN}🆔${CoR}" "Delete User by ${COLOR_YELLOW}username${CoR}"
@@ -789,6 +841,36 @@ examples_cli() {
   echo -e "${COLOR_GREY}  # Enable / disable a redirection host${CoR}"
   echo -e "  $0 --redirect-host-enable 5"
   echo -e "  $0 --redirect-host-disable 5"
+  echo
+
+  # Stream Host Management
+  echo -e "\n${COLOR_GREEN}🔌 Stream Hosts:${CoR}"
+  echo -e "${COLOR_GREY}  # List all stream hosts${CoR}"
+  echo -e "  $0 --stream-host-list"
+  echo -e "${COLOR_GREY}  # Forward DNS (TCP+UDP) port 53 to a Pi-hole container${CoR}"
+  echo -e "  $0 --stream-host-create 53 --forward-host pihole --forward-port 53 --tcp --udp"
+  echo -e "${COLOR_GREY}  # TCP-only forward${CoR}"
+  echo -e "  $0 --stream-host-create 2222 --forward-host 192.168.1.10 --forward-port 22 --tcp"
+  echo -e "${COLOR_GREY}  # Delete a stream host (with auto-confirm)${CoR}"
+  echo -e "  $0 --stream-host-delete 5 -y"
+  echo -e "${COLOR_GREY}  # Enable / disable a stream host${CoR}"
+  echo -e "  $0 --stream-host-enable 5"
+  echo -e "  $0 --stream-host-disable 5"
+  echo
+
+  # Dead Host (404) Management
+  echo -e "\n${COLOR_GREEN}🚫 Dead Hosts (404):${CoR}"
+  echo -e "${COLOR_GREY}  # List all dead hosts${CoR}"
+  echo -e "  $0 --dead-host-list"
+  echo -e "${COLOR_GREY}  # Create a 404 host for a decommissioned domain${CoR}"
+  echo -e "  $0 --dead-host-create old.example.com"
+  echo -e "${COLOR_GREY}  # Create with SSL forced and a certificate${CoR}"
+  echo -e "  $0 --dead-host-create old.example.com --cert-id 3 --ssl-forced true --http2 true"
+  echo -e "${COLOR_GREY}  # Delete a dead host (with auto-confirm)${CoR}"
+  echo -e "  $0 --dead-host-delete 5 -y"
+  echo -e "${COLOR_GREY}  # Enable / disable a dead host${CoR}"
+  echo -e "  $0 --dead-host-enable 5"
+  echo -e "  $0 --dead-host-disable 5"
   echo
 
   # User Management
@@ -2284,6 +2366,529 @@ redirect_host_disable() {
 }
 
 ################################
+# List all stream hosts (TCP/UDP forwarding)
+stream_host_list() {
+  check_token_notverbose
+  echo -e "\n${COLOR_ORANGE} 👉 List of Stream hosts ${CoR}\n"
+  printf "  %4s %-8s %-9s %-4s %-4s %-36s\n" "ID" " PORT" " STATUS" " TCP" " UDP" " FORWARD HOST:PORT"
+
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
+
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id)\t\(.incoming_port)\t\(.enabled)\t\(.tcp_forwarding)\t\(.udp_forwarding)\t\(.forwarding_host):\(.forwarding_port)"' |
+    while IFS=$'\t' read -r id port enabled tcp udp forward; do
+      if [ "$enabled" = "true" ]; then
+        status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
+      else
+        status="$(echo -e "${COLOR_RED} disable ${CoR}")"
+      fi
+      tcp_flag="✘"
+      [ "$tcp" = "true" ] && tcp_flag="✔"
+      udp_flag="✘"
+      [ "$udp" = "true" ] && udp_flag="✔"
+
+      printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%-7s${CoR} %-9s ${COLOR_CYAN}%-4s${CoR} ${COLOR_CYAN}%-4s${CoR} ${COLOR_CYAN}%s${CoR}\n" \
+        "$id" "$port" "$status" "$tcp_flag" "$udp_flag" "$(truncate_pad "$forward" 36)"
+    done
+  echo ""
+  exit 0
+}
+
+################################
+# Create or Update a stream host
+# Reads globals: INCOMING_PORT, FORWARD_HOST, FORWARD_PORT, TCP_FORWARDING,
+#                UDP_FORWARDING, CERT_ID, AUTO_YES
+create_or_update_stream_host() {
+  if [ -z "$INCOMING_PORT" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: Missing required parameters (incoming port, forward host, forward port).${CoR}"
+    echo -e "   Usage: ${COLOR_ORANGE}$0 --stream-host-create <incoming_port> --forward-host <host> --forward-port <port> [--tcp] [--udp]${CoR}"
+    exit 1
+  fi
+
+  if [ "$TCP_FORWARDING" != "true" ] && [ "$UDP_FORWARDING" != "true" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: At least one of --tcp or --udp must be enabled.${CoR}"
+    exit 1
+  fi
+
+  check_token_notverbose
+
+  # Check if a stream host for this incoming port already exists
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  EXISTING=$(echo "$RESPONSE" | jq -r --argjson PORT "$INCOMING_PORT" '.[] | select(.incoming_port == $PORT)')
+  STREAM_ID=$(echo "$EXISTING" | jq -r '.id // empty')
+
+  DATA=$(jq -n \
+    --argjson incoming_port "$INCOMING_PORT" \
+    --arg forwarding_host "$FORWARD_HOST" \
+    --argjson forwarding_port "$FORWARD_PORT" \
+    --argjson tcp_forwarding "$TCP_FORWARDING" \
+    --argjson udp_forwarding "$UDP_FORWARDING" \
+    --argjson certificate_id "${CERT_ID:-0}" \
+    '{
+            incoming_port: $incoming_port,
+            forwarding_host: $forwarding_host,
+            forwarding_port: $forwarding_port,
+            tcp_forwarding: $tcp_forwarding,
+            udp_forwarding: $udp_forwarding,
+            certificate_id: $certificate_id,
+            meta: {}
+        }')
+
+  if ! echo "$DATA" | jq empty >/dev/null 2>&1; then
+    echo -e " ${COLOR_RED}⛔ ERROR: Invalid JSON generated:\n$DATA${CoR}"
+    exit 1
+  fi
+
+  if [ -n "$STREAM_ID" ]; then
+    if [ "$AUTO_YES" != "true" ]; then
+      echo -e " ${COLOR_YELLOW}👉 Do you want to update this stream host ${CoR} port $INCOMING_PORT ${COLOR_YELLOW}?${CoR}"
+      read -n 1 -r -p "   (y/n):  " answer
+      echo
+      if [[ ! $answer =~ ^[Yy]$ ]]; then
+        echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}\n"
+        return 0
+      fi
+    fi
+    echo -e "\n ${COLOR_CYAN}🔄${CoR} Updating stream host: ${COLOR_GREEN}port $INCOMING_PORT${CoR}"
+    METHOD="PUT"
+    URL="$BASE_URL/nginx/streams/$STREAM_ID"
+  else
+    echo -e "\n ${COLOR_CYAN}🔌${CoR} Creating stream host: ${COLOR_GREEN}port $INCOMING_PORT${CoR} → ${COLOR_YELLOW}$FORWARD_HOST:$FORWARD_PORT${CoR}"
+    METHOD="POST"
+    URL="$BASE_URL/nginx/streams"
+  fi
+
+  RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "$DATA")
+
+  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  if [ -z "$ERROR_MSG" ]; then
+    RID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
+    if [ "$METHOD" = "PUT" ]; then
+      echo -e " ✅ ${COLOR_GREEN}Stream host 🔌port $INCOMING_PORT (ID: ${COLOR_YELLOW}$RID${COLOR_GREEN}) updated successfully! 🎉${CoR}\n"
+    else
+      echo -e " ✅ ${COLOR_GREEN}Stream host 🔌port $INCOMING_PORT (ID: ${COLOR_YELLOW}$RID${COLOR_GREEN}) created successfully! 🎉${CoR}\n"
+    fi
+  else
+    echo -e " ⛔ ${COLOR_RED}Operation failed. Error: $ERROR_MSG${CoR}\n"
+    exit 1
+  fi
+}
+
+################################
+# Delete a stream host by ID
+stream_host_delete() {
+  local host_id="$1"
+
+  if [ -z "$host_id" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: The --stream-host-delete option requires a host 🆔.${CoR}"
+    echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-delete <id>${CoR}"
+    echo -e "   Example: ${COLOR_GREEN}$0 --stream-host-delete 5${CoR}"
+    exit 1
+  fi
+
+  check_token_notverbose
+
+  CHECK_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+    "$BASE_URL/nginx/streams/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
+
+  CHECK_BODY=${CHECK_RESPONSE//HTTPSTATUS:*/}
+  CHECK_STATUS=${CHECK_RESPONSE##*HTTPSTATUS:}
+
+  if [ "$CHECK_STATUS" -eq 404 ]; then
+    echo -e " ⛔ ${COLOR_RED}ERROR: Stream host ID ${COLOR_YELLOW}$host_id${COLOR_RED} not found!${CoR}"
+    exit 1
+  elif [ "$CHECK_STATUS" -ne 200 ]; then
+    echo -e " ⛔ ${COLOR_RED}ERROR: Failed to check stream host. Status: $CHECK_STATUS${CoR}"
+    exit 1
+  fi
+
+  STREAM_PORT=$(echo "$CHECK_BODY" | jq -r '.incoming_port // "unknown"')
+
+  if [ "$AUTO_YES" != true ]; then
+    echo -e " ┌───────────────────────────────────────────"
+    echo -e " │ ID: ${COLOR_YELLOW}$host_id${CoR}"
+    echo -e " │ Port: ${COLOR_GREEN}$STREAM_PORT${CoR}"
+    echo -e " └───────────────────────────────────────────"
+    echo -e " ⚠️  ${COLOR_RED}WARNING: This action cannot be undone!${CoR}"
+    read -n 1 -r -p " 🔔 Confirm deletion? (y/n): " CONFIRM
+    echo
+    if [[ ! $CONFIRM =~ ^[Yy]$ ]]; then
+      echo -e " ❌ ${COLOR_RED}Operation cancelled${CoR}"
+      exit 1
+    fi
+  else
+    echo -e "\n ${COLOR_YELLOW}🔔 -y Auto-confirming deletion${CoR}"
+  fi
+
+  echo -e " 🗑️ Deleting stream host ${COLOR_GREEN}port $STREAM_PORT${CoR} (ID: ${COLOR_GREEN}$host_id${CoR})..."
+
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
+    "$BASE_URL/nginx/streams/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
+
+  HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+
+  if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
+    echo -e " ✅ ${COLOR_GREEN}Stream host ${COLOR_YELLOW}port $STREAM_PORT${CoR} (ID: $host_id) deleted successfully!${CoR}\n"
+    exit 0
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to delete stream host. Status: $HTTP_STATUS${CoR}"
+    exit 1
+  fi
+}
+
+################################
+# Enable a stream host by ID
+stream_host_enable() {
+  local host_id="$1"
+
+  if [ -z "$host_id" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: The --stream-host-enable option requires a host 🆔.${CoR}"
+    echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-enable <id>${CoR}"
+    echo -e "   Example: ${COLOR_GREEN}$0 --stream-host-enable 5${CoR}"
+    return 1
+  fi
+
+  check_token_notverbose
+
+  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if echo "$CHECK_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ⛔ ${COLOR_RED}Stream host with ID $host_id does not exist${CoR}"
+    return 1
+  fi
+
+  STREAM_PORT=$(echo "$CHECK_RESPONSE" | jq -r '.incoming_port')
+  echo -e "\n ${COLOR_YELLOW}🔄 Enabling stream host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🔌Port: ${COLOR_CYAN}$STREAM_PORT${CoR}"
+
+  RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/streams/$host_id/enable" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+    -H "Content-Type: application/json; charset=UTF-8")
+
+  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🔌Port: ${COLOR_CYAN}$STREAM_PORT${CoR}"
+  else
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    echo -e " ⛔ ${COLOR_RED}Failed to enable stream host: $ERROR_MSG${CoR}"
+    return 1
+  fi
+}
+
+################################
+# Disable a stream host by ID
+stream_host_disable() {
+  local host_id="$1"
+
+  if [ -z "$host_id" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: The --stream-host-disable option requires a host 🆔.${CoR}"
+    echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-disable <id>${CoR}"
+    echo -e "   Example: ${COLOR_GREEN}$0 --stream-host-disable 5${CoR}"
+    return 1
+  fi
+
+  check_token_notverbose
+
+  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if echo "$CHECK_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ⛔ ${COLOR_RED}Stream host with ID $host_id does not exist${CoR}"
+    return 1
+  fi
+
+  STREAM_PORT=$(echo "$CHECK_RESPONSE" | jq -r '.incoming_port')
+  echo -e "\n ${COLOR_YELLOW}🔄 Disabling stream host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🔌Port: ${COLOR_CYAN}$STREAM_PORT${CoR}"
+
+  RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/streams/$host_id/disable" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+    -H "Content-Type: application/json; charset=UTF-8")
+
+  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🔌Port: ${COLOR_CYAN}$STREAM_PORT${CoR}"
+  else
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    echo -e " ⛔ ${COLOR_RED}Failed to disable stream host: $ERROR_MSG${CoR}"
+    return 1
+  fi
+}
+
+################################
+# List all dead hosts (404 Hosts)
+dead_host_list() {
+  check_token_notverbose
+  echo -e "\n${COLOR_ORANGE} 👉 List of Dead hosts (404) ${CoR}\n"
+  printf "  %4s %-36s %-9s %-7s\n" "ID" " DOMAIN" " STATUS" " SSL"
+
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
+
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id)\t\(.domain_names | join(", "))\t\(.enabled)\t\(.certificate_id)"' |
+    while IFS=$'\t' read -r id domain enabled certificate_id; do
+      if [ "$enabled" = "true" ]; then
+        status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
+      else
+        status="$(echo -e "${COLOR_RED} disable ${CoR}")"
+      fi
+      ssl_status="$(pad "✘" 7)"
+      ssl_color="${COLOR_RED}"
+      if [ "$certificate_id" != "null" ] && [ -n "$certificate_id" ] && [ "$certificate_id" != "0" ]; then
+        ssl_status="$(pad "$certificate_id" 7)"
+        ssl_color="${COLOR_CYAN}"
+      fi
+
+      IFS=', ' read -ra domain_arr <<<"$domain"
+      primary_domain="${domain_arr[0]}"
+
+      printf "  ${COLOR_YELLOW}%4s${CoR}  ${COLOR_GREEN}%s${CoR} %-9s ${ssl_color}%-7s${CoR}\n" \
+        "$id" "$(truncate_pad "$primary_domain" 36)" "$status" "$ssl_status"
+
+      for ((i = 1; i < ${#domain_arr[@]}; i++)); do
+        printf "        ${COLOR_GREEN}%s${CoR}\n" "$(truncate_pad "${domain_arr[i]}" 36)"
+      done
+    done
+  echo ""
+  exit 0
+}
+
+################################
+# Create or Update a dead host (404 host)
+# Reads globals: DOMAIN_NAMES, CERT_ID, SSL_FORCED, HSTS_ENABLED, HSTS_SUBDOMAINS,
+#                HTTP2_SUPPORT, ADVANCED_CONFIG, AUTO_YES
+create_or_update_dead_host() {
+  if [ -z "$DOMAIN_NAMES" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: Missing required parameter (domain).${CoR}"
+    echo -e "   Usage: ${COLOR_ORANGE}$0 --dead-host-create domain.com [options]${CoR}"
+    exit 1
+  fi
+
+  check_token_notverbose
+
+  # Check if a dead host for this domain already exists
+  RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  EXISTING=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
+  DEAD_ID=$(echo "$EXISTING" | jq -r '.id // empty')
+
+  SSL_FORCED_JSON=$([ "$SSL_FORCED" == "true" ] && echo true || echo false)
+  HSTS_ENABLED_JSON=$([ "$HSTS_ENABLED" == "true" ] && echo true || echo false)
+  HSTS_SUBDOMAINS_JSON=$([ "$HSTS_SUBDOMAINS" == "true" ] && echo true || echo false)
+  HTTP2_SUPPORT_JSON=$([ "$HTTP2_SUPPORT" == "true" ] && echo true || echo false)
+
+  DATA=$(jq -n \
+    --arg domain "$DOMAIN_NAMES" \
+    --argjson certificate_id "${CERT_ID:-0}" \
+    --argjson ssl_forced "$SSL_FORCED_JSON" \
+    --argjson hsts_enabled "$HSTS_ENABLED_JSON" \
+    --argjson hsts_subdomains "$HSTS_SUBDOMAINS_JSON" \
+    --argjson http2_support "$HTTP2_SUPPORT_JSON" \
+    --arg advanced_config "$ADVANCED_CONFIG" \
+    '{
+            domain_names: [$domain],
+            certificate_id: $certificate_id,
+            ssl_forced: $ssl_forced,
+            hsts_enabled: $hsts_enabled,
+            hsts_subdomains: $hsts_subdomains,
+            http2_support: $http2_support,
+            advanced_config: $advanced_config,
+            meta: {}
+        }')
+
+  if ! echo "$DATA" | jq empty >/dev/null 2>&1; then
+    echo -e " ${COLOR_RED}⛔ ERROR: Invalid JSON generated:\n$DATA${CoR}"
+    exit 1
+  fi
+
+  if [ -n "$DEAD_ID" ]; then
+    if [ "$AUTO_YES" != "true" ]; then
+      echo -e " ${COLOR_YELLOW}👉 Do you want to update this dead host ${CoR} $DOMAIN_NAMES ${COLOR_YELLOW}?${CoR}"
+      read -n 1 -r -p "   (y/n):  " answer
+      echo
+      if [[ ! $answer =~ ^[Yy]$ ]]; then
+        echo -e " ${COLOR_YELLOW}🚫 No changes made.${CoR}\n"
+        return 0
+      fi
+    fi
+    echo -e "\n ${COLOR_CYAN}🔄${CoR} Updating dead host: ${COLOR_GREEN}$DOMAIN_NAMES${CoR}"
+    METHOD="PUT"
+    URL="$BASE_URL/nginx/dead-hosts/$DEAD_ID"
+  else
+    echo -e "\n ${COLOR_CYAN}🚫${CoR} Creating dead host (404): ${COLOR_GREEN}$DOMAIN_NAMES${CoR}"
+    METHOD="POST"
+    URL="$BASE_URL/nginx/dead-hosts"
+  fi
+
+  RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-raw "$DATA")
+
+  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  if [ -z "$ERROR_MSG" ]; then
+    RID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
+    if [ "$METHOD" = "PUT" ]; then
+      echo -e " ✅ ${COLOR_GREEN}Dead host 🚫$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$RID${COLOR_GREEN}) updated successfully! 🎉${CoR}\n"
+    else
+      echo -e " ✅ ${COLOR_GREEN}Dead host 🚫$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$RID${COLOR_GREEN}) created successfully! 🎉${CoR}\n"
+    fi
+  else
+    echo -e " ⛔ ${COLOR_RED}Operation failed. Error: $ERROR_MSG${CoR}\n"
+    exit 1
+  fi
+}
+
+################################
+# Delete a dead host by ID
+dead_host_delete() {
+  local host_id="$1"
+
+  if [ -z "$host_id" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: The --dead-host-delete option requires a host 🆔.${CoR}"
+    echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-delete <id>${CoR}"
+    echo -e "   Example: ${COLOR_GREEN}$0 --dead-host-delete 5${CoR}"
+    exit 1
+  fi
+
+  check_token_notverbose
+
+  CHECK_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+    "$BASE_URL/nginx/dead-hosts/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
+
+  CHECK_BODY=${CHECK_RESPONSE//HTTPSTATUS:*/}
+  CHECK_STATUS=${CHECK_RESPONSE##*HTTPSTATUS:}
+
+  if [ "$CHECK_STATUS" -eq 404 ]; then
+    echo -e " ⛔ ${COLOR_RED}ERROR: Dead host ID ${COLOR_YELLOW}$host_id${COLOR_RED} not found!${CoR}"
+    exit 1
+  elif [ "$CHECK_STATUS" -ne 200 ]; then
+    echo -e " ⛔ ${COLOR_RED}ERROR: Failed to check dead host. Status: $CHECK_STATUS${CoR}"
+    exit 1
+  fi
+
+  DOMAIN_NAME=$(echo "$CHECK_BODY" | jq -r '.domain_names[0] // "unknown"')
+
+  if [ "$AUTO_YES" != true ]; then
+    echo -e " ┌───────────────────────────────────────────"
+    echo -e " │ ID: ${COLOR_YELLOW}$host_id${CoR}"
+    echo -e " │ Domain: ${COLOR_GREEN}$DOMAIN_NAME${CoR}"
+    echo -e " └───────────────────────────────────────────"
+    echo -e " ⚠️  ${COLOR_RED}WARNING: This action cannot be undone!${CoR}"
+    read -n 1 -r -p " 🔔 Confirm deletion? (y/n): " CONFIRM
+    echo
+    if [[ ! $CONFIRM =~ ^[Yy]$ ]]; then
+      echo -e " ❌ ${COLOR_RED}Operation cancelled${CoR}"
+      exit 1
+    fi
+  else
+    echo -e "\n ${COLOR_YELLOW}🔔 -y Auto-confirming deletion${CoR}"
+  fi
+
+  echo -e " 🗑️ Deleting dead host ${COLOR_GREEN}$DOMAIN_NAME${CoR} (ID: ${COLOR_GREEN}$host_id${CoR})..."
+
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
+    "$BASE_URL/nginx/dead-hosts/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" 2>/dev/null)
+
+  HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+
+  if [ "${HTTP_STATUS:-0}" -eq 200 ]; then
+    echo -e " ✅ ${COLOR_GREEN}Dead host ${COLOR_YELLOW}$DOMAIN_NAME${CoR} (ID: $host_id) deleted successfully!${CoR}\n"
+    exit 0
+  else
+    echo -e " ⛔ ${COLOR_RED}Failed to delete dead host. Status: $HTTP_STATUS${CoR}"
+    exit 1
+  fi
+}
+
+################################
+# Enable a dead host by ID
+dead_host_enable() {
+  local host_id="$1"
+
+  if [ -z "$host_id" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: The --dead-host-enable option requires a host 🆔.${CoR}"
+    echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-enable <id>${CoR}"
+    echo -e "   Example: ${COLOR_GREEN}$0 --dead-host-enable 5${CoR}"
+    return 1
+  fi
+
+  check_token_notverbose
+
+  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if echo "$CHECK_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ⛔ ${COLOR_RED}Dead host with ID $host_id does not exist${CoR}"
+    return 1
+  fi
+
+  DOMAIN_NAME=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[0]')
+  echo -e "\n ${COLOR_YELLOW}🔄 Enabling dead host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+
+  RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/dead-hosts/$host_id/enable" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+    -H "Content-Type: application/json; charset=UTF-8")
+
+  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+  else
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    echo -e " ⛔ ${COLOR_RED}Failed to enable dead host: $ERROR_MSG${CoR}"
+    return 1
+  fi
+}
+
+################################
+# Disable a dead host by ID
+dead_host_disable() {
+  local host_id="$1"
+
+  if [ -z "$host_id" ]; then
+    echo -e "\n ⛔ ${COLOR_RED}ERROR: The --dead-host-disable option requires a host 🆔.${CoR}"
+    echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-disable <id>${CoR}"
+    echo -e "   Example: ${COLOR_GREEN}$0 --dead-host-disable 5${CoR}"
+    return 1
+  fi
+
+  check_token_notverbose
+
+  CHECK_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts/$host_id" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+
+  if echo "$CHECK_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ⛔ ${COLOR_RED}Dead host with ID $host_id does not exist${CoR}"
+    return 1
+  fi
+
+  DOMAIN_NAME=$(echo "$CHECK_RESPONSE" | jq -r '.domain_names[0]')
+  echo -e "\n ${COLOR_YELLOW}🔄 Disabling dead host ${CoR} 🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+
+  RESPONSE=$(curl -s -X POST "$BASE_URL/nginx/dead-hosts/$host_id/disable" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+    -H "Content-Type: application/json; charset=UTF-8")
+
+  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
+  else
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    echo -e " ⛔ ${COLOR_RED}Failed to disable dead host: $ERROR_MSG${CoR}"
+    return 1
+  fi
+}
+
+################################
 # Update an existing proxy host
 update_proxy_host() {
   check_token_notverbose
@@ -2990,6 +3595,12 @@ cert_delete() {
       curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
         -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" |
         jq -r --argjson id "$CERT_ID" '.[]? | select(.certificate_id == $id) | "redirection host #\(.id) (\(.domain_names | join(", ")))"' 2>/dev/null
+      curl -s -X GET "$BASE_URL/nginx/streams" \
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" |
+        jq -r --argjson id "$CERT_ID" '.[]? | select(.certificate_id == $id) | "stream #\(.id) (port \(.incoming_port))"' 2>/dev/null
+      curl -s -X GET "$BASE_URL/nginx/dead-hosts" \
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" |
+        jq -r --argjson id "$CERT_ID" '.[]? | select(.certificate_id == $id) | "dead host #\(.id) (\(.domain_names | join(", ")))"' 2>/dev/null
     } | grep -v '^$' || true
   )
 
@@ -5157,6 +5768,245 @@ while [[ "$#" -gt 0 ]]; do
     REDIRECT_HOST_DISABLE=true
     shift
     ;;
+  --stream-host-list)
+    STREAM_HOST_LIST=true
+    shift
+    ;;
+  --stream-host-create)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]] || ! [[ "$1" =~ ^[0-9]+$ ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --stream-host-create requires an incoming port (number).${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-create <incoming_port> --forward-host <host> --forward-port <port> [options]${CoR}"
+      echo -e "   Options:"
+      echo -e "     --forward-host  host|ip     Target host (${COLOR_RED}required${CoR})"
+      echo -e "     --forward-port  port        Target port (${COLOR_RED}required${CoR})"
+      echo -e "     --tcp                       Enable TCP forwarding"
+      echo -e "     --udp                       Enable UDP forwarding"
+      echo -e "     --cert-id       id          Certificate ID (default: 0)"
+      exit 1
+    fi
+    INCOMING_PORT="$1"
+    shift
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --forward-host)
+        if [[ -n "$2" && "$2" != -* ]]; then
+          FORWARD_HOST="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--forward-host requires a value${CoR}"
+          exit 1
+        fi
+        ;;
+      --forward-port)
+        if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+          FORWARD_PORT="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--forward-port must be a number${CoR}"
+          exit 1
+        fi
+        ;;
+      --tcp)
+        TCP_FORWARDING=true
+        shift
+        ;;
+      --udp)
+        UDP_FORWARDING=true
+        shift
+        ;;
+      --cert-id)
+        if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+          CERT_ID="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--cert-id must be a number${CoR}"
+          exit 1
+        fi
+        ;;
+      -y)
+        AUTO_YES=true
+        shift
+        ;;
+      *)
+        if [[ "$1" == -* ]]; then echo -e "\n ⚠️ ${COLOR_YELLOW}WARNING: Unknown option ignored -> $1${CoR}"; fi
+        shift
+        ;;
+      esac
+    done
+    if [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --forward-host and --forward-port are required${CoR}"
+      echo -e "   Example: ${COLOR_GREEN}$0 --stream-host-create 53 --forward-host pihole --forward-port 53 --tcp --udp${CoR}"
+      exit 1
+    fi
+    STREAM_HOST_CREATE=true
+    ;;
+  --stream-host-delete)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --stream-host-delete requires a host 🆔.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-delete <id> [-y]${CoR}"
+      echo -e "   Example: ${COLOR_GREEN}$0 --stream-host-delete 5${CoR}"
+      exit 1
+    fi
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+      STREAM_HOST_ID="$1"
+      STREAM_HOST_DELETE=true
+      shift
+    else
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: ID must be a number.${CoR}"
+      exit 1
+    fi
+    ;;
+  --stream-host-enable)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --stream-host-enable requires a host 🆔.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-enable <id>${CoR}"
+      exit 1
+    fi
+    STREAM_HOST_ID="$1"
+    STREAM_HOST_ENABLE=true
+    shift
+    ;;
+  --stream-host-disable)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --stream-host-disable requires a host 🆔.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --stream-host-disable <id>${CoR}"
+      exit 1
+    fi
+    STREAM_HOST_ID="$1"
+    STREAM_HOST_DISABLE=true
+    shift
+    ;;
+  --dead-host-list)
+    DEAD_HOST_LIST=true
+    shift
+    ;;
+  --dead-host-create)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --dead-host-create requires a domain name.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-create domain.com [options]${CoR}"
+      echo -e "   Options:"
+      echo -e "     --cert-id          id          Certificate ID (default: 0)"
+      echo -e "     --ssl-forced       true|false  (default: false)"
+      echo -e "     --http2            true|false  (default: false)"
+      echo -e "     --hsts             true|false  (default: false)"
+      echo -e "     --hsts-subdomains  true|false  (default: false)"
+      echo -e "     --advanced-config  string      Custom nginx config"
+      exit 1
+    fi
+    DOMAIN_NAMES="$1"
+    shift
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --cert-id)
+        if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+          CERT_ID="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--cert-id must be a number${CoR}"
+          exit 1
+        fi
+        ;;
+      --ssl-forced)
+        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+          SSL_FORCED="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--ssl-forced must be 'true' or 'false'${CoR}"
+          exit 1
+        fi
+        ;;
+      --http2)
+        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+          HTTP2_SUPPORT="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--http2 must be 'true' or 'false'${CoR}"
+          exit 1
+        fi
+        ;;
+      --hsts)
+        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+          HSTS_ENABLED="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--hsts must be 'true' or 'false'${CoR}"
+          exit 1
+        fi
+        ;;
+      --hsts-subdomains)
+        if [[ -n "$2" && "$2" =~ ^(true|false)$ ]]; then
+          HSTS_SUBDOMAINS="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--hsts-subdomains must be 'true' or 'false'${CoR}"
+          exit 1
+        fi
+        ;;
+      -a | --advanced-config)
+        if [[ -n "$2" && "$2" != -* ]]; then
+          ADVANCED_CONFIG="$2"
+          shift 2
+        else
+          echo -e "\n ⛔ ${COLOR_RED}--advanced-config requires a value${CoR}"
+          exit 1
+        fi
+        ;;
+      -y)
+        AUTO_YES=true
+        shift
+        ;;
+      *)
+        if [[ "$1" == -* ]]; then echo -e "\n ⚠️ ${COLOR_YELLOW}WARNING: Unknown option ignored -> $1${CoR}"; fi
+        shift
+        ;;
+      esac
+    done
+    DEAD_HOST_CREATE=true
+    ;;
+  --dead-host-delete)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --dead-host-delete requires a host 🆔.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-delete <id> [-y]${CoR}"
+      echo -e "   Example: ${COLOR_GREEN}$0 --dead-host-delete 5${CoR}"
+      exit 1
+    fi
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+      DEAD_HOST_ID="$1"
+      DEAD_HOST_DELETE=true
+      shift
+    else
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: ID must be a number.${CoR}"
+      exit 1
+    fi
+    ;;
+  --dead-host-enable)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --dead-host-enable requires a host 🆔.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-enable <id>${CoR}"
+      exit 1
+    fi
+    DEAD_HOST_ID="$1"
+    DEAD_HOST_ENABLE=true
+    shift
+    ;;
+  --dead-host-disable)
+    shift
+    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+      echo -e "\n ⛔ ${COLOR_RED}INVALID: --dead-host-disable requires a host 🆔.${CoR}"
+      echo -e "   Usage  : ${COLOR_ORANGE}$0 --dead-host-disable <id>${CoR}"
+      exit 1
+    fi
+    DEAD_HOST_ID="$1"
+    DEAD_HOST_DISABLE=true
+    shift
+    ;;
   *)
     echo -e "\n ${COLOR_RED}⛔ Unknown option:${CoR} $1"
     echo -e "    ${COLOR_GREY}Use --help to see available commands.${CoR}\n"
@@ -5274,6 +6124,30 @@ elif [ "$REDIRECT_HOST_ENABLE" = true ]; then
   redirect_host_enable "$REDIRECT_HOST_ID"
 elif [ "$REDIRECT_HOST_DISABLE" = true ]; then
   redirect_host_disable "$REDIRECT_HOST_ID"
+
+# Stream Host Management
+elif [ "$STREAM_HOST_LIST" = true ]; then
+  stream_host_list
+elif [ "$STREAM_HOST_CREATE" = true ]; then
+  create_or_update_stream_host
+elif [ "$STREAM_HOST_DELETE" = true ]; then
+  stream_host_delete "$STREAM_HOST_ID"
+elif [ "$STREAM_HOST_ENABLE" = true ]; then
+  stream_host_enable "$STREAM_HOST_ID"
+elif [ "$STREAM_HOST_DISABLE" = true ]; then
+  stream_host_disable "$STREAM_HOST_ID"
+
+# Dead Host (404) Management
+elif [ "$DEAD_HOST_LIST" = true ]; then
+  dead_host_list
+elif [ "$DEAD_HOST_CREATE" = true ]; then
+  create_or_update_dead_host
+elif [ "$DEAD_HOST_DELETE" = true ]; then
+  dead_host_delete "$DEAD_HOST_ID"
+elif [ "$DEAD_HOST_ENABLE" = true ]; then
+  dead_host_enable "$DEAD_HOST_ID"
+elif [ "$DEAD_HOST_DISABLE" = true ]; then
+  dead_host_disable "$DEAD_HOST_ID"
 
 elif [ "$HOST_SSL_ENABLE" = true ]; then
   host_ssl_enable "$HOST_ID" "$CERT_ID"
