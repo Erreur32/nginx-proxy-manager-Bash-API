@@ -1209,7 +1209,7 @@ display_dashboard() {
   print_row "👥 Users       " "$user_count"
   echo -e " ${COLOR_GREY}├─────────────────┼─────────┤${CoR}"
   # System
-  print_row "⏱️ Uptime       " "$uptime" "$COLOR_YELLOW"
+  print_row "⏱️  Uptime      " "$uptime" "$COLOR_YELLOW"
   print_row "📦 NPM Version " "$npm_version" "$COLOR_YELLOW"
   echo -e " ${COLOR_GREY}└─────────────────┴─────────┘${CoR}"
 }
