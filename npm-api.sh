@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.4.1"
+VERSION="3.4.2"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -237,8 +237,6 @@ BACKUP=false
 BACKUP_LIST=false
 ### in progress
 BACKUP_HOST=false
-RESTORE_HOST=false
-RESTORE_BACKUP=false
 CLEAN_HOSTS=false
 
 REDIRECT_HOST_LIST=false
@@ -625,11 +623,9 @@ show_help() {
   help_row "  --check-token" "Check ${COLOR_GREY}current token info${CoR}"
   help_row "  --backup" "${COLOR_GREEN}💾 ${CoR}Backup ${COLOR_GREY}All configurations to a different files in \$DATA_DIR${CoR}"
   #echo -e "  --clean-hosts                          ${COLOR_GREEN}📥 ${CoR}Reimport${CoR} ${COLOR_GREY}Clean Proxy ID and SSL ID in sqlite database ;)${CoR}"
-  #echo -e "  --backup-host                          📦 ${COLOR_GREEN}Backup${CoR}   All proxy hosts and SSL certificates in Single file"
-  #echo -e "  --backup-host 5                        📦 ${COLOR_GREEN}Backup${CoR}   Proxy host ID 5 and its SSL certificate"
+  help_row "  --backup-host ${COLOR_CYAN}[id]${CoR}" "${COLOR_GREEN}📦 ${CoR}Backup  ${COLOR_GREY}One proxy host (with SSL cert), or all if no id${CoR}"
+  help_row "  --backup-host-list" "${COLOR_GREEN}📋 ${CoR}List    ${COLOR_GREY}Available per-host proxy backups${CoR}"
   #echo -e "  --host-list-full > backup.txt          💾 ${COLOR_YELLOW}Export${CoR}   Full host configuration to file"
-  #echo -e "  --restore                              📦 ${COLOR_GREEN}Restore${CoR} All configurations from a backup file"
-  #echo -e "  --restore-host id                      📦 ${COLOR_GREEN}Restore${CoR} Restore single host with list with empty arguments or a Domain name"
   echo ""
   echo -e " Proxy Host Management:"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -4995,6 +4991,122 @@ full_backup() {
   return $error_count
 }
 
+# Backup a single proxy host (via $HOST_ID) or all proxy hosts (if $HOST_ID is empty),
+# including its SSL certificate, using the same on-disk layout as full_backup().
+backup_host() {
+  check_dependencies
+  check_nginx_access
+  check_token_notverbose
+
+  BACKUP_PATH="$BACKUP_DIR"
+  mkdir -p "$BACKUP_PATH/.Proxy_Hosts"
+
+  local hosts_json
+  if [ -n "$HOST_ID" ]; then
+    echo -e "\n📦 ${COLOR_YELLOW}Backing up proxy host ID $HOST_ID...${CoR}"
+    local single_host
+    single_host=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+    if ! echo "$single_host" | jq -e '.id' >/dev/null 2>&1; then
+      echo -e " ⛔ ${COLOR_RED}Proxy host ID $HOST_ID not found.${CoR}\n"
+      return 1
+    fi
+    hosts_json="[$single_host]"
+  else
+    echo -e "\n📦 ${COLOR_YELLOW}Backing up all proxy hosts...${CoR}"
+    hosts_json=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  fi
+
+  if [ -z "$hosts_json" ] || ! echo "$hosts_json" | jq empty 2>/dev/null; then
+    echo -e " ⚠️  ${COLOR_YELLOW}No proxy hosts found or invalid response${CoR}\n"
+    return 1
+  fi
+
+  local count=0
+  while IFS= read -r host; do
+    local host_id=$(echo "$host" | jq -r '.id')
+    local domain_name=$(echo "$host" | jq -r '.domain_names[0]' | sed 's/[^a-zA-Z0-9.]/_/g')
+    local cert_id=$(echo "$host" | jq -r '.certificate_id')
+
+    echo -e "\n 📥 Processing host: ${COLOR_GREEN}$domain_name${CoR} (ID: ${COLOR_YELLOW}$host_id${CoR})"
+
+    local PROXY_DIR="$BACKUP_PATH/.Proxy_Hosts/$domain_name"
+    mkdir -p "$PROXY_DIR/ssl" "$PROXY_DIR/logs"
+
+    echo "$host" | jq '.' >"$PROXY_DIR/proxy_config.json"
+
+    local NGINX_CONFIG
+    NGINX_CONFIG=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/nginx" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+    [ -n "$NGINX_CONFIG" ] && echo "$NGINX_CONFIG" >"$PROXY_DIR/nginx.conf"
+
+    curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/access.log" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/access.log"
+    curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/error.log" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/error.log"
+
+    if [ -n "$cert_id" ] && [ "$cert_id" != "null" ] && [ "$cert_id" != "0" ]; then
+      echo -e "   🔒 Downloading SSL certificate (ID: $cert_id)"
+      local CERT_META
+      CERT_META=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id" \
+        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+      if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
+        echo "$CERT_META" | jq '.' >"$PROXY_DIR/ssl/certificate_meta.json"
+        local CERT_CONTENT
+        CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
+          -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
+          -H "Accept: application/json")
+        if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
+          echo "$CERT_CONTENT" | jq -r '.certificate' >"$PROXY_DIR/ssl/certificate.pem"
+          echo "$CERT_CONTENT" | jq -r '.private' >"$PROXY_DIR/ssl/private.key"
+          chmod 600 "$PROXY_DIR/ssl/private.key"
+          echo "$CERT_CONTENT" | jq -r '.intermediate // empty' >"$PROXY_DIR/ssl/chain.pem"
+          echo -e "   ✅ ${COLOR_GREEN}SSL certificate backed up${CoR}"
+        else
+          echo -e "   ⚠️ ${COLOR_YELLOW}Failed to download certificate content${CoR}"
+        fi
+      else
+        echo -e "   ⚠️ ${COLOR_YELLOW}Failed to get certificate metadata${CoR}"
+      fi
+    fi
+
+    echo -e " ✅ ${COLOR_GREEN}Host $domain_name backed up successfully${CoR}"
+    count=$((count + 1))
+  done < <(echo "$hosts_json" | jq -c '.[]')
+
+  echo -e "\n📝 ${COLOR_GREY}Backup completed at: $(date '+%Y-%m-%d %H:%M:%S')${CoR}"
+  echo -e " ${COLOR_CYAN}$count${CoR} proxy host(s) backed up in ${COLOR_GREY}$BACKUP_PATH/.Proxy_Hosts/${CoR}\n"
+}
+
+# List available per-host proxy backups (written by full_backup() or backup_host()).
+# Purely local (no API call), so it works even without a valid/fresh token.
+list_backups() {
+  check_dependencies
+  local ip_port_dir="${NGINX_IP//[.:]/_}_${NGINX_PORT}"
+  BACKUP_DIR="${BACKUP_DIR:-$DATA_DIR/$ip_port_dir/backups}"
+  BACKUP_PATH="$BACKUP_DIR"
+  local dir="$BACKUP_PATH/.Proxy_Hosts"
+
+  if [ ! -d "$dir" ] || [ -z "$(find "$dir" -mindepth 2 -maxdepth 2 -name "proxy_config.json" -print -quit 2>/dev/null)" ]; then
+    echo -e "\n ⚠️  ${COLOR_YELLOW}No proxy host backups found in ${COLOR_GREY}$dir${CoR}"
+    echo -e "    Run ${COLOR_CYAN}--backup-host${CoR} or ${COLOR_CYAN}--backup${CoR} first.\n"
+    return 1
+  fi
+
+  echo -e "\n 📋 ${COLOR_YELLOW}Available proxy host backups:${CoR}"
+  echo -e " ${COLOR_GREY}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CoR}"
+  printf " %-4s %-35s %s\n" "ID" "Domain" "Last backup"
+  while IFS= read -r file; do
+    local id domain mtime
+    id=$(jq -r '.id // "?"' "$file" 2>/dev/null)
+    domain=$(jq -r '.domain_names[0] // "?"' "$file" 2>/dev/null)
+    mtime=$(date -r "$file" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+    printf " ${COLOR_CYAN}%-4s${CoR} %-35s ${COLOR_GREY}%s${CoR}\n" "$id" "$domain" "$mtime"
+  done < <(find "$dir" -mindepth 2 -maxdepth 2 -name "proxy_config.json" | sort)
+  echo ""
+}
+
 ######################################
 # Main menu logic
 ######################################
@@ -5060,22 +5172,6 @@ while [[ "$#" -gt 0 ]]; do
     ;;
   --backup-host-list)
     BACKUP_LIST=true
-    shift
-    ;;
-  --restore-host)
-    shift
-    if [[ -n "$1" && "$1" != -* ]]; then
-      DOMAIN="$1"
-      shift
-    else
-      list_backups
-      echo -n "Enter domain to restore: "
-      read -r DOMAIN
-    fi
-    RESTORE_HOST=true
-    ;;
-  --restore-backup)
-    RESTORE_BACKUP=true
     shift
     ;;
   --clean-hosts)
@@ -6272,12 +6368,6 @@ elif [ "$BACKUP_HOST" = true ]; then
   backup_host
 elif [ "$BACKUP_LIST" = true ]; then
   list_backups
-
-# restore all configurations or specific domain or certificates only
-elif [ "$RESTORE_BACKUP" = true ]; then
-  restore_backup
-elif [ "$RESTORE_HOST" = true ]; then
-  restore_host
 elif [ "$CLEAN_HOSTS" = true ]; then
   clean-hosts
   #reimport_hosts "$@"

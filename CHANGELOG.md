@@ -2,6 +2,14 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.4.2] - 2026-09-07
+
+### 🐛 Fixes
+
+- **`--backup-host`, `--backup-host-list`, `--restore-host` and `--restore-backup` crashed with "command not found"** — Their dispatch functions (`backup_host`, `list_backups`, `restore_host`, `restore_backup`) were called but never defined anywhere in the script.
+  - `backup_host()` and `list_backups()` are now implemented: `--backup-host [id]` backs up one proxy host (or all if no id given), including its SSL certificate, using the same on-disk layout as `--backup`; `--backup-host-list` lists available per-host backups (domain, ID, last backup date) — purely local, no API call needed.
+  - `--restore-host` and `--restore-backup` are **removed** rather than implemented: restoring proxy hosts (and especially SSL certificates) through the NPM API is not reliably possible, which is also why the pre-existing `restore_ssl_certificates` function was already dead code (gated behind a flag no CLI option ever set). Use `--backup-host`/`--backup` to keep exportable JSON snapshots, and recreate hosts through the NPM web UI if needed.
+
 ## [3.4.1] - 2026-09-07
 
 ### 🐛 Fixes
