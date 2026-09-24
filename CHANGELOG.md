@@ -2,6 +2,16 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.1] - 2026-09-24
+
+### 🔎 Compatibility
+
+- Reviewed against **NPM v2.16.0**: no breaking API/data-model changes for the script. Token invalidation on password change is already handled transparently (`check_token()` live-tests the token via `GET /tokens` and regenerates it on any non-200 response). The new per-path access lists (Proxy Host modal) pass through unaffected via the existing `-l/--locations` raw-JSON flag. The `PermissionError` fix (403 instead of 404) does not affect the script's existing `404` "not found" checks. Certbot was updated upstream (may require DNS-plugin dependency tweaks server-side) — no code impact on the client script itself.
+
+### 📝 Documentation
+
+- **`--cert-generate` help** — Added the two new Certbot DNS plugins introduced in NPM v2.16.0: `lws` (LWS) and `tencentcloud-edgeone` (Tencent Cloud EdgeOne).
+
 ## [3.6.0] - 2026-09-07
 
 ### ✨ New Features
