@@ -2,6 +2,13 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.2] - 2026-09-27
+
+### 📝 Documentation
+
+- **README Description rewritten** — concise intro plus a feature list (hosts, SSL, access, scriptability, tokens, backup, deps).
+- **README fixes** — typo `Ngins` → `Nginx`; examples used non-existent `--update-host` (→ `--host-update`) and `--list-access` (→ `--access-list`); `--host-acl-enable 42,5` → `--host-acl-enable 42 5` (two separate args); stale `Script Info: 3.0.0` in the `--info` sample output.
+
 ## [3.6.1] - 2026-09-24
 
 ### 🔎 Compatibility

@@ -5,13 +5,19 @@
 [![Issues][issues-shield]][issue]
 [![Stargazers][stars-shield]][stars]
 
-# Nginx Proxy Manager CLI Script v3.6.1 🚀
+# Nginx Proxy Manager CLI Script v3.6.2 🚀
 
 ## Description
 
-🛠️ This script allows you to efficiently manage [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager) via its **API**. It provides advanced features such as proxy host creation, redirection host management, user management, and configuration display, while also integrating a configuration export (BACKUP) system with a user-friendly interface.
+`npm-api.sh` is a single-file Bash CLI that drives [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager) through its REST API — everything you do in the web UI, scriptable from the terminal, cron or CI.
 
-It simplifies task automation, including proxy creation, SSL certificate management, and full reverse proxy administration.
+- 🌐 **Hosts** — create, update, enable/disable, delete proxy, redirection, stream (TCP/UDP) and dead (404) hosts
+- 🔒 **SSL** — Let's Encrypt certs, wildcard via DNS challenge (Cloudflare, OVH, Route53…), download, purge
+- 🛡️ **Access** — access lists (IP allow/deny, basic auth) and user management
+- 🤖 **Scriptable** — `--json` on read commands for `jq`, `-y` for non-interactive runs, proper exit codes
+- 🔑 **Zero token hassle** — tokens generated, cached and renewed automatically
+- 💾 **Backup** — exports the full config (hosts, certs, ACLs, users, settings) as JSON
+- 📦 **Minimal deps** — `curl` + `jq`, nothing else
 
 🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
 
@@ -50,7 +56,7 @@ Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la
 
 ## Prerequisites
 
-The excellent Ngins Proxy Manager [NPM](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager)
+The excellent Nginx Proxy Manager [NPM](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager)
 
 [![Nginx Proxy Manager](https://nginxproxymanager.com/github.png)](https://github.com/NginxProxyManager/nginx-proxy-manager?utm_source=nginx-proxy-manager)
 
@@ -335,7 +341,7 @@ API_PASS="changeme"
 
  🛡️ Access Control Lists:
    # List all access lists
-   ./npm-api.sh --list-access
+   ./npm-api.sh --access-list
    # Show detailed information for specific access list
    ./npm-api.sh --access-list-show 123
    # Create a basic access list
@@ -361,7 +367,7 @@ API_PASS="changeme"
    # Delete an access list (skip confirmation)
    ./npm-api.sh --access-list-delete 42 -y
    # Enable ACL for a host
-   ./npm-api.sh --host-acl-enable 42,5         # Enable ACL ID 5 for host 42
+   ./npm-api.sh --host-acl-enable 42 5         # Enable ACL ID 5 for host 42
    # Disable ACL for a host
    ./npm-api.sh --host-acl-disable 42          # Disable ACL for host 42
 
@@ -420,8 +426,8 @@ API_PASS="changeme"
      -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 
    # Update specific fields
-   ./npm-api.sh --update-host 42 forward_scheme=https
-   ./npm-api.sh --update-host 42 forward_port=8443
+   ./npm-api.sh --host-update 42 forward_scheme=https
+   ./npm-api.sh --host-update 42 forward_port=8443
 
 
  🔖 Full options:
@@ -587,7 +593,7 @@ The `--host-update` command allows you to **update specific fields** of an exist
 Simply specify the **proxy host ID** and the **field you want to update**, like this:
 
 ```bash
-./npm-api.sh --update-host 42 forward_host=new.backend.local
+./npm-api.sh --host-update 42 forward_host=new.backend.local
 ```
 
 | Field Name                | Type      | Description                                         |
@@ -630,7 +636,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  3.0.0
+ Script Info:  3.6.2
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -776,8 +782,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.6.1-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.1
+[release-shield]: https://img.shields.io/badge/version-v3.6.2-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.2
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
