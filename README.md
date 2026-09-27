@@ -9,28 +9,28 @@
 
 ## Description
 
-`npm-api.sh` is a single-file Bash CLI that drives [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager) through its REST API — everything you do in the web UI, scriptable from the terminal, cron or CI.
+`npm-api.sh` is a single-file Bash CLI that drives [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager) through its REST API: everything you do in the web UI, scriptable from the terminal, cron or CI.
 
-- 🌐 **Hosts** — create, update, enable/disable, delete proxy, redirection, stream (TCP/UDP) and dead (404) hosts
-- 🔒 **SSL** — Let's Encrypt certs, wildcard via DNS challenge (Cloudflare, OVH, Route53…), download, purge
-- 🛡️ **Access** — access lists (IP allow/deny, basic auth) and user management
-- 🤖 **Scriptable** — `--json` on read commands for `jq`, `-y` for non-interactive runs, proper exit codes
-- 🔑 **Zero token hassle** — tokens generated, cached and renewed automatically
-- 💾 **Backup** — exports the full config (hosts, certs, ACLs, users, settings) as JSON
-- 📦 **Minimal deps** — `curl` + `jq`, nothing else
+- 🌐 **Hosts**: create, update, enable/disable, delete proxy, redirection, stream (TCP/UDP) and dead (404) hosts
+- 🔒 **SSL**: Let's Encrypt certs, wildcard via DNS challenge (Cloudflare, OVH, Route53…), download, purge
+- 🛡️ **Access**: access lists (IP allow/deny, basic auth) and user management
+- 🤖 **Scriptable**: `--json` on read commands for `jq`, `-y` for non-interactive runs, proper exit codes
+- 🔑 **Zero token hassle**: tokens generated, cached and renewed automatically
+- 💾 **Backup**: exports the full config (hosts, certs, ACLs, users, settings) as JSON
+- 📦 **Minimal deps**: `curl` + `jq`, nothing else
 
 > [!TIP]
-> 🤖 **For scripters:** add the global `--json` flag to any read command (`--host-list`, `--host-show`, `--cert-list`, `--cert-show`, `--redirect-host-list`, `--stream-host-list`, `--dead-host-list`, `--access-list`, `--access-list-show`) to get pure, unformatted JSON on stdout instead of the colored human output — perfect for piping into `jq`, monitoring, or CI:
+> 🤖 **For scripters:** add the global `--json` flag to any read command (`--host-list`, `--host-show`, `--cert-list`, `--cert-show`, `--redirect-host-list`, `--stream-host-list`, `--dead-host-list`, `--access-list`, `--access-list-show`) to get pure, unformatted JSON on stdout instead of the colored human output, perfect for piping into `jq`, monitoring, or CI:
 >
 > ```bash
 > ./npm-api.sh --host-list --json | jq .
 > ./npm-api.sh --json --list          # list every command compatible with --json
 > ```
 >
-> ⚠️ `--json` works **before or after** a command with no argument (`--host-list`, `--cert-list`, ...). For commands with a positional argument right after them (`--host-show <id>`, `--cert-show <domain>`, ...), put `--json` **before** the command or **after** its argument — never right between the command and its argument, or it gets swallowed as the argument's value.
+> ⚠️ `--json` works **before or after** a command with no argument (`--host-list`, `--cert-list`, ...). For commands with a positional argument right after them (`--host-show <id>`, `--cert-show <domain>`, ...), put `--json` **before** the command or **after** its argument, never right between the command and its argument, or it gets swallowed as the argument's value.
 
 > [!NOTE]
-> **About backup & restore:** The `--backup` command exports your NPM configuration (hosts, SSL, access lists) via the API as JSON files — useful for auditing and re-creating hosts. However, **a full restore is not possible through the API alone**: NPM stores its state in a SQLite database and SSL private keys on disk, neither of which are accessible via the API. For a reliable full restore, back up your Docker volumes directly:
+> **About backup & restore:** The `--backup` command exports your NPM configuration (hosts, SSL, access lists) via the API as JSON files, useful for auditing and re-creating hosts. However, **a full restore is not possible through the API alone**: NPM stores its state in a SQLite database and SSL private keys on disk, neither of which are accessible via the API. For a reliable full restore, back up your Docker volumes directly:
 >
 > ```bash
 > # Volumes to back up
@@ -476,16 +476,16 @@ API_PASS="changeme"
 ```text
  🤖 Commands compatible with --json:
 
-  --host-list                             List all proxy hosts — e.g. ./npm-api.sh --host-list --json
-  --host-list-full                        List all proxy hosts with full details (always pure JSON) — e.g. ./npm-api.sh --host-list-full
-  --host-show <id>                        Show one proxy host — e.g. ./npm-api.sh --host-show 42 --json
-  --cert-list                             List all SSL certificates — e.g. ./npm-api.sh --cert-list --json
-  --cert-show <domain_or_id>              Show certificate(s) filtered by domain or id — e.g. ./npm-api.sh --cert-show example.com --json
-  --redirect-host-list                    List all redirection hosts — e.g. ./npm-api.sh --redirect-host-list --json
-  --stream-host-list                      List all stream hosts — e.g. ./npm-api.sh --stream-host-list --json
-  --dead-host-list                        List all dead hosts — e.g. ./npm-api.sh --dead-host-list --json
-  --access-list                           List all access lists — e.g. ./npm-api.sh --access-list --json
-  --access-list-show <id>                 Show one access list — e.g. ./npm-api.sh --access-list-show 5 --json
+  --host-list                             List all proxy hosts, e.g. ./npm-api.sh --host-list --json
+  --host-list-full                        List all proxy hosts with full details (always pure JSON), e.g. ./npm-api.sh --host-list-full
+  --host-show <id>                        Show one proxy host, e.g. ./npm-api.sh --host-show 42 --json
+  --cert-list                             List all SSL certificates, e.g. ./npm-api.sh --cert-list --json
+  --cert-show <domain_or_id>              Show certificate(s) filtered by domain or id, e.g. ./npm-api.sh --cert-show example.com --json
+  --redirect-host-list                    List all redirection hosts, e.g. ./npm-api.sh --redirect-host-list --json
+  --stream-host-list                      List all stream hosts, e.g. ./npm-api.sh --stream-host-list --json
+  --dead-host-list                        List all dead hosts, e.g. ./npm-api.sh --dead-host-list --json
+  --access-list                           List all access lists, e.g. ./npm-api.sh --access-list --json
+  --access-list-show <id>                 Show one access list, e.g. ./npm-api.sh --access-list-show 5 --json
 ```
 
 Same list as raw JSON (with a `command`, `description` and `example` field per entry), ready for a script to loop over:
@@ -754,7 +754,7 @@ Assuming the host ID is _1_, you would enable SSL for the host as follows:
 - [x] Clean/minimize output when using -y parameter for better script integration
 - [x] Creation of ACCESS list through CLI
 - [x] Add Create/Update/Delete/Enable/Disable for Redirection Hosts
-- ~~Restore via API~~ — not feasible (SQLite + SSL keys not exposed by API); use Docker volume backup instead
+- ~~Restore via API~~: not feasible (SQLite + SSL keys not exposed by API); use Docker volume backup instead
 
 </details>
 
