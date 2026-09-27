@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.2"
+VERSION="3.6.3"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -782,7 +782,7 @@ list_json_commands() {
     local c flag desc example
     for c in "${cmds[@]}"; do
       IFS='|' read -r flag desc example <<<"$c"
-      help_row "  $flag" "$desc ${COLOR_GREY}— e.g. $example${CoR}"
+      help_row "  $flag" "$desc ${COLOR_GREY}, e.g. $example${CoR}"
     done
     echo ""
   fi

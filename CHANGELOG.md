@@ -2,6 +2,13 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.3] - 2026-09-27
+
+### 📝 Documentation
+
+- **README**: removed all em dashes, dropped the token paragraph duplicated by the Description feature list.
+- **`--list` output**: example separator changed to ", e.g.".
+
 ## [3.6.2] - 2026-09-27
 
 ### 📝 Documentation
