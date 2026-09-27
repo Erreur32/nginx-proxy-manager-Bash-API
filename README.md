@@ -19,8 +19,6 @@
 - 💾 **Backup** — exports the full config (hosts, certs, ACLs, users, settings) as JSON
 - 📦 **Minimal deps** — `curl` + `jq`, nothing else
 
-🔑 **Automatically generates** and **manages tokens**, ensuring their validity, so you don't have to worry about token expiration.
-
 > [!TIP]
 > 🤖 **For scripters:** add the global `--json` flag to any read command (`--host-list`, `--host-show`, `--cert-list`, `--cert-show`, `--redirect-host-list`, `--stream-host-list`, `--dead-host-list`, `--access-list`, `--access-list-show`) to get pure, unformatted JSON on stdout instead of the colored human output — perfect for piping into `jq`, monitoring, or CI:
 >
