@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.6"
+VERSION="3.6.7"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -1165,7 +1165,7 @@ display_dashboard() {
   # Check and calculate certificates
   if [ "$(echo "$certificates" | jq -r 'type')" == "array" ]; then
     cert_count=$(echo "$certificates" | jq '. | length')
-    expired_cert_count=$(echo "$certificates" | jq '[.[] | select(.expired == true)] | length')
+    expired_cert_count=$(echo "$certificates" | jq "$CERT_JQ_EXPIRED"' [.[] | select(is_expired)] | length')
   fi
   local valid_cert_count=$((cert_count - expired_cert_count))
 
@@ -1578,10 +1578,15 @@ display_import_summary() {
 }
 
 ################################
+# jq helper: the NPM API has no `expired` field, derive it from expires_on
+# ("YYYY-MM-DD HH:MM:SS" on SQLite, ISO 8601 on MySQL/Postgres)
+CERT_JQ_EXPIRED='def is_expired: if has("expired") then .expired == true else ((.expires_on // "")[0:19] | sub(" "; "T") + "Z" | try fromdateiso8601 catch null) as $t | ($t != null and $t < now) end;'
+
+################################
 # Shared jq format + colorizer for certificate listings (used by cert_show and
 # list_cert_all). CERT_JQ_FMT formats one certificate object; cert_colorize
 # reads that output on stdin and colors the Status line.
-CERT_JQ_FMT='" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if .expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"'
+CERT_JQ_FMT='" 🔒 ID: \(.id)\n    • Domain(s): \(.domain_names | join(", "))\n    • Provider: \(.provider)\n    • Created on: \(.created_on // "N/A")\n    • Expires on: \(.expires_on // "N/A")\n    • Status: \(if is_expired then "❌ EXPIRED" else if .expires_on then "✅ VALID" else "⚠️ PENDING" end end)"'
 
 cert_colorize() {
   while IFS= read -r line; do
@@ -1641,7 +1646,7 @@ cert_show() {
         echo "$CERT_RESPONSE" | jq .
         exit 0
       fi
-      echo "$CERT_RESPONSE" | jq -r "$CERT_JQ_FMT" | cert_colorize
+      echo "$CERT_RESPONSE" | jq -r "$CERT_JQ_EXPIRED $CERT_JQ_FMT" | cert_colorize
     fi
     echo ""
     return 0
@@ -1660,7 +1665,7 @@ cert_show() {
   if [ -z "$DOMAIN_CERTS" ]; then
     echo -e " ℹ️ ${COLOR_YELLOW}No certificates found for domain: $search_term${CoR}"
   else
-    echo "$DOMAIN_CERTS" | jq -r "$CERT_JQ_FMT" | cert_colorize
+    echo "$DOMAIN_CERTS" | jq -r "$CERT_JQ_EXPIRED $CERT_JQ_FMT" | cert_colorize
     echo ""
   fi
 }
@@ -1693,13 +1698,11 @@ list_cert_all() {
   fi
 
   # Process and display all certificates
-  echo "$RESPONSE" | jq -r ".[] | $CERT_JQ_FMT" | cert_colorize
+  echo "$RESPONSE" | jq -r "$CERT_JQ_EXPIRED .[] | $CERT_JQ_FMT" | cert_colorize
   # Display statistics
   TOTAL_CERTS=$(echo "$RESPONSE" | jq '. | length')
-  # Use the API's own boolean: .expires_on is an ISO string, so comparing it to
-  # the numeric `now` was always wrong (every string sorts > every number in jq).
-  EXPIRED_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired == true)] | length')
-  VALID_CERTS=$(echo "$RESPONSE" | jq '[.[] | select(.expired != true)] | length')
+  EXPIRED_CERTS=$(echo "$RESPONSE" | jq "$CERT_JQ_EXPIRED"' [.[] | select(is_expired)] | length')
+  VALID_CERTS=$((TOTAL_CERTS - EXPIRED_CERTS))
 
   echo -e "\n 📊 Statistics"
   echo -e "    Total certs: ${COLOR_YELLOW}$TOTAL_CERTS${CoR}"
@@ -3876,7 +3879,7 @@ cert_generate() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
   EXISTING_CERT=$(echo "$RESPONSE" | jq -c --arg domain "$DOMAIN" \
-    'first(.[] | select(.domain_names | index($domain)) | select(.expired == false)) // empty')
+    "$CERT_JQ_EXPIRED"' first(.[] | select(.domain_names | index($domain)) | select(is_expired | not)) // empty')
 
   if [ -n "$EXISTING_CERT" ]; then
     CERT_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
@@ -4396,8 +4399,10 @@ access_list_update() {
   local current_name=$(echo "$current_list" | jq -r '.name // "unnamed"')
   local current_satisfy_any=$(echo "$current_list" | jq -r '.satisfy_any // false')
   local current_pass_auth=$(echo "$current_list" | jq -r '.pass_auth // false')
-  local current_items=$(echo "$current_list" | jq '.items // []')
-  local current_clients=$(echo "$current_list" | jq '.clients // []')
+  # Keep only the fields accepted by PUT (GET adds id, hint, created_on...);
+  # an empty password tells NPM to keep the existing one
+  local current_items=$(echo "$current_list" | jq '[(.items // [])[] | {username, password: ""}]')
+  local current_clients=$(echo "$current_list" | jq '[(.clients // [])[] | {address, directive}]')
 
   echo -e "\n🔑 ${COLOR_CYAN}Updating access list ID: ${COLOR_YELLOW}$access_list_id${CoR}"
   echo -e "\n${COLOR_CYAN}Current Access List Details:${CoR}"

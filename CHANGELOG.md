@@ -2,6 +2,17 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.7] - 2026-10-07
+
+### 🔎 Compatibility
+
+- Audited every write call (tokens, users, proxy/redirection/dead/stream hosts, access lists, certificates) against the NPM v2.16.0 request schemas. NPM validates with type coercion but rejects unknown properties; the two issues below were the only mismatches left after v3.6.6.
+
+### 🐛 Fixes
+
+- **`--access-list-update`**: the existing items/clients read from the API (with `id`, `hint`, `created_on`, `access_list_id`, ...) were sent back as-is and rejected with "must NOT have additional properties". They are now reduced to `{username, password}` (empty password keeps the current one) and `{address, directive}`.
+- **Certificate expiry**: the NPM API has no `expired` field, so `--cert-generate` never reused an existing valid certificate, `--cert-list`/`--cert-show` never showed "EXPIRED" and `--info`/stats always counted 0 expired. Expiry is now computed from `expires_on` (SQLite and ISO formats), `expired` is still used if present.
+
 ## [3.6.6] - 2026-10-07
 
 ### 🐛 Fixes
