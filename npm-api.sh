@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.4"
+VERSION="3.6.5"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -223,7 +223,8 @@ search_term=""
 # so an empty cache safely falls back to reading the file.
 TOKEN=""
 DNS_PROVIDER=""
-DNS_API_KEY=""
+CERT_DNS_PROVIDER=""
+CERT_DNS_CREDENTIALS=""
 DOMAIN_EXISTS=""
 HOST_SSL_ENABLE=false
 HOST_SSL_DISABLE=false
@@ -2023,27 +2024,36 @@ create_or_update_proxy_host() {
     if [ "$CERT_GENERATE" = true ]; then
       #echo -e " ${COLOR_YELLOW}🔐 Generate SSL certificate CREATE_OR_${CoR}"
 
-      # Check if it's a wildcard certificate
-      if [[ "$DOMAIN_NAMES" == *"*."* ]]; then
-        if [ -z "$DNS_PROVIDER" ] || [ -z "$DNS_API_KEY" ]; then
+      # Check if it's a wildcard certificate (the host itself can't be a wildcard)
+      if [[ "$CERT_DOMAIN" == \** ]]; then
+        # Use --dns-provider / --dns-credentials, prompt only when missing
+        if [ -z "$CERT_DNS_PROVIDER" ] || [ -z "$CERT_DNS_CREDENTIALS" ]; then
           echo -e " ⚠️ ${COLOR_YELLOW}Wildcard certificate requires DNS challenge${CoR}"
-          echo -e " 👉 Please provide DNS provider and API key:"
-          read -p "    DNS Provider (cloudflare, dynu, etc.): " DNS_PROVIDER
-          read -p "    DNS API Key: " DNS_API_KEY
+          if [ "$AUTO_YES" = true ]; then
+            echo -e " ⛔ ${COLOR_RED}Missing --dns-provider / --dns-credentials${CoR}\n"
+            exit 1
+          fi
+          echo -e " 👉 Please provide DNS provider and credentials:"
+          [ -z "$CERT_DNS_PROVIDER" ] && read -r -p "    DNS Provider (cloudflare, dynu, etc.): " CERT_DNS_PROVIDER
+          [ -z "$CERT_DNS_CREDENTIALS" ] && read -r -p "    DNS Credentials (JSON): " CERT_DNS_CREDENTIALS
         fi
 
-        # Verify Cloudflare API key if using Cloudflare
-        if [[ "${DNS_PROVIDER,,}" == "cloudflare" ]]; then
-          if ! verify_cloudflare_api_key "$DNS_API_KEY" "$CERT_EMAIL"; then
+        # Verify Cloudflare Global API key if provided (API tokens are not checked)
+        local cf_key cf_email
+        cf_key=$(echo "$CERT_DNS_CREDENTIALS" | jq -r '.dns_cloudflare_api_key // empty' 2>/dev/null || true)
+        cf_email=$(echo "$CERT_DNS_CREDENTIALS" | jq -r '.dns_cloudflare_email // empty' 2>/dev/null || true)
+        cf_email=${cf_email:-$CERT_EMAIL}
+        if [[ "${CERT_DNS_PROVIDER,,}" == "cloudflare" ]] && [ -n "$cf_key" ]; then
+          if ! verify_cloudflare_api_key "$cf_key" "$cf_email"; then
             echo -e " ⛔ ${COLOR_RED}Cannot proceed with invalid Cloudflare API Key${CoR}"
             return 1
           fi
 
           # Verify domain is managed by Cloudflare
-          local domain=${DOMAIN_NAMES#\*.}
+          local domain=${CERT_DOMAIN#\*.}
           local zone_check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$domain" \
-            -H "X-Auth-Email: $CERT_EMAIL" \
-            -H "X-Auth-Key: $DNS_API_KEY" \
+            -H "X-Auth-Email: $cf_email" \
+            -H "X-Auth-Key: $cf_key" \
             -H "Content-Type: application/json")
 
           if [ "$(echo "$zone_check" | jq -r '.result | length')" -eq 0 ]; then
@@ -2055,11 +2065,8 @@ create_or_update_proxy_host() {
           echo -e " ✅ ${COLOR_GREEN}Domain verification successful${CoR}"
         fi
       fi
-      # Set default value for DNS_CREDENTIALS_JSON if not defined
-      DNS_CREDENTIALS_JSON=${DNS_CREDENTIALS_JSON:-"{}"}
-
       # Generate the certificate
-      cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_CREDENTIALS_JSON" "$HOST_SSL_ENABLE" "$DOMAIN_NAMES"
+      cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_CREDENTIALS"
 
       # Check SSL creation
       CERT_CHECK=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
@@ -2103,9 +2110,11 @@ create_or_update_proxy_host() {
           exit 0
         else
           echo -e " ⛔ ${COLOR_RED}Failed to enable SSL. Status code: $UPDATE_STATUS${CoR}\n"
+          exit 1
         fi
       else
         echo -e " ⛔ ${COLOR_RED}Certificate not found after generation${CoR}\n"
+        exit 1
       fi
     fi
 
@@ -3842,15 +3851,17 @@ cert_generate() {
       echo -e " ⛔ ${COLOR_RED}Invalid JSON format for DNS credentials${CoR}\n"
       exit 1
     fi
+  fi
 
-  else
-    # Only check domain in NPM if it is not a wildcard
-    PROXY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  # Proxy host using this domain (needed by --host-ssl-enable)
+  PROXY_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-    DOMAIN_EXISTS=$(echo "$PROXY_RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
-      '.[] | select(.domain_names[] == $DOMAIN) | .id')
+  DOMAIN_EXISTS=$(echo "$PROXY_RESPONSE" | jq -r --arg DOMAIN "$DOMAIN" \
+    'first(.[] | select(.domain_names | index($DOMAIN)) | .id) // empty')
 
+  # Only require the host to exist in NPM if it is not a wildcard
+  if [ "$IS_WILDCARD" = false ]; then
     if [ -z "$DOMAIN_EXISTS" ]; then
       echo -e "\n ${COLOR_RED}❌${CoR} Domain ${COLOR_YELLOW}$DOMAIN${CoR} is not configured in NPM."
       echo -e " ${COLOR_YELLOW}💡${CoR} First create a proxy host with:"
@@ -3863,13 +3874,15 @@ cert_generate() {
   RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-  EXISTING_CERT=$(echo "$RESPONSE" | jq -r --arg domain "$DOMAIN" \
-    '.[] | select(.domain_names[] == $domain) | select(.expired == false)')
+  EXISTING_CERT=$(echo "$RESPONSE" | jq -c --arg domain "$DOMAIN" \
+    'first(.[] | select(.domain_names | index($domain)) | select(.expired == false)) // empty')
 
   if [ -n "$EXISTING_CERT" ]; then
     CERT_ID=$(echo "$EXISTING_CERT" | jq -r '.id')
     CERT_EXPIRES=$(echo "$EXISTING_CERT" | jq -r '.expires_on')
     echo -e " ${COLOR_GREEN}🔔${CoR} Valid certificate found for ${COLOR_YELLOW}$DOMAIN${CoR} (Certificate ID: ${COLOR_ORANGE}$CERT_ID${CoR}, expires in ${COLOR_YELLOW}$((($(date -d "$CERT_EXPIRES" +%s) - $(date +%s)) / 86400))${CoR} days)"
+    # Reuse it for --host-ssl-enable
+    GENERATED_CERT_ID="$CERT_ID"
     return 0
   fi
 
@@ -4015,7 +4028,8 @@ host_ssl_enable() {
 
   if [ "$CERT_GENERATE" = true ]; then
     if [ -z "$DOMAIN_EXISTS" ]; then
-      echo -e "\n ⛔ ${COLOR_RED}ERROR: No domain found in NPM${CoR}"
+      echo -e "\n ⛔ ${COLOR_RED}ERROR: No proxy host found for ${COLOR_YELLOW}$CERT_DOMAIN${CoR}"
+      echo -e "    Enable SSL manually: ${COLOR_ORANGE}$0 --host-ssl-enable <host_id> ${GENERATED_CERT_ID:-<cert_id>}${CoR}\n"
       exit 1
     fi
     if [ -z "$GENERATED_CERT_ID" ]; then
@@ -6445,14 +6459,8 @@ elif [ "$HOST_SHOW" = true ]; then
   host_show "$HOST_ID"
 
 elif [ "$HOST_CREATE" = true ]; then
+  # Certificate generation (--cert-generate) is handled inside create_or_update_proxy_host
   create_or_update_proxy_host "$DOMAIN_NAMES" "$FORWARD_HOST" "$FORWARD_PORT"
-  # Set CERT_DOMAIN if cert generation is requested
-  if [ "$CERT_GENERATE" = true ]; then
-    cert_generate "$DOMAIN_NAMES" "$CERT_EMAIL" "$CERT_DNS_PROVIDER" "$CERT_DNS_CREDENTIALS"
-    if [ "$HOST_SSL_ENABLE" = true ]; then
-      host_ssl_enable "$HOST_ID" "$GENERATED_CERT_ID"
-    fi
-  fi
   exit 0
 
 # Actions SSL

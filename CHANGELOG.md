@@ -2,6 +2,19 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.5] - 2026-10-07
+
+### 🐛 Fixes
+
+- **`--host-create ... --cert-generate "*.domain" --dns-provider ... --dns-credentials ...`**: the DNS options were ignored (the function read unset `DNS_PROVIDER`/`DNS_API_KEY`) and the provider/key were asked interactively; the wildcard test also looked at the host domain instead of the certificate domain. The `--dns-*` values are now used, the prompt only appears when they are missing (error with `-y`), and the Cloudflare pre-check reads `dns_cloudflare_api_key`/`dns_cloudflare_email` from the JSON (skipped for API tokens).
+- **`--host-create` with `--cert-generate`**: no longer runs a second certificate generation (with the host domain) when SSL activation fails; it now exits with an error.
+- **`--cert-generate <domain> --host-ssl-enable`**: failed with "No certificate ID available" when a valid certificate already existed, and with "No domain found in NPM" for wildcards. The existing certificate is now reused, the matching proxy host is looked up for every domain, and the error explains how to enable SSL manually.
+- `CERT_DNS_PROVIDER`/`CERT_DNS_CREDENTIALS` initialized globally (`set -u` safety).
+
+### 📝 Documentation
+
+- **README**: wildcard host examples used `--host-create "*.example.com"`, which the script refuses; they now create `app.example.com` with a `*.example.com` certificate.
+
 ## [3.6.4] - 2026-10-07
 
 ### 🐛 Fixes

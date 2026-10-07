@@ -5,7 +5,7 @@
 [![Issues][issues-shield]][issue]
 [![Stargazers][stars-shield]][stars]
 
-# Nginx Proxy Manager CLI Script v3.6.4 🚀
+# Nginx Proxy Manager CLI Script v3.6.5 🚀
 
 ## Description
 
@@ -315,8 +315,8 @@ API_PASS="changeme"
    ./npm-api.sh --cert-generate domain.com --host-ssl-enable -y
 
  🌟 Complete Examples with Wildcard Certificates:
-   # Create host with wildcard certificate using Cloudflare DNS
-   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+   # Create host app.example.com secured by a wildcard certificate (Cloudflare DNS)
+   ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 \
      --cert-generate "*.example.com" \
      --cert-email admin@example.com \
      --dns-provider cloudflare \
@@ -324,7 +324,7 @@ API_PASS="changeme"
      --host-ssl-enable -y
 
    # Same with DigitalOcean DNS
-   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+   ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 \
      --cert-generate "*.example.com" \
      --cert-email admin@example.com \
      --dns-provider digitalocean \
@@ -332,7 +332,7 @@ API_PASS="changeme"
      --host-ssl-enable -y
 
    # Same with GoDaddy DNS
-   ./npm-api.sh --host-create "*.example.com" -i 192.168.1.10 -p 8080 \
+   ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 \
      --cert-generate "*.example.com" \
      --cert-email admin@example.com \
      --dns-provider godaddy \
@@ -636,7 +636,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  3.6.4
+ Script Info:  3.6.5
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -782,8 +782,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.6.4-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.4
+[release-shield]: https://img.shields.io/badge/version-v3.6.5-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.5
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
