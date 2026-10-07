@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.7"
+VERSION="3.6.8"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -2047,7 +2047,7 @@ create_or_update_proxy_host() {
         cf_key=$(echo "$CERT_DNS_CREDENTIALS" | jq -r '.dns_cloudflare_api_key // empty' 2>/dev/null || true)
         cf_email=$(echo "$CERT_DNS_CREDENTIALS" | jq -r '.dns_cloudflare_email // empty' 2>/dev/null || true)
         cf_email=${cf_email:-$CERT_EMAIL}
-        if [[ "${CERT_DNS_PROVIDER,,}" == "cloudflare" ]] && [ -n "$cf_key" ]; then
+        if [[ "${CERT_DNS_PROVIDER,,}" == "cloudflare" ]] && [[ "$cf_key" =~ ^[0-9a-fA-F]{37}$ ]]; then
           if ! verify_cloudflare_api_key "$cf_key" "$cf_email"; then
             echo -e " ⛔ ${COLOR_RED}Cannot proceed with invalid Cloudflare API Key${CoR}"
             return 1
@@ -3936,6 +3936,13 @@ cert_generate() {
     # NPM writes the credentials as-is into a certbot INI file: convert JSON to "key = value" lines
     local dns_credentials_ini="$DNS_CREDENTIALS_JSON"
     if echo "$DNS_CREDENTIALS_JSON" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      # Cloudflare Global API Keys are 37 hex chars; anything else given as api_key
+      # (e.g. "cfut_..." tokens) is an API token, which certbot expects as api_token
+      if [[ "${DNS_PROVIDER,,}" == "cloudflare" ]] && echo "$DNS_CREDENTIALS_JSON" | jq -e \
+        '(.dns_cloudflare_api_token == null) and ((.dns_cloudflare_api_key // "") | test("^[0-9a-fA-F]{37}$") | not) and (.dns_cloudflare_api_key != null)' >/dev/null 2>&1; then
+        echo -e " ⚠️ ${COLOR_YELLOW}dns_cloudflare_api_key is not a Global API Key (37 hex chars): sending it as dns_cloudflare_api_token${CoR}"
+        DNS_CREDENTIALS_JSON=$(echo "$DNS_CREDENTIALS_JSON" | jq -c '{dns_cloudflare_api_token: .dns_cloudflare_api_key}')
+      fi
       dns_credentials_ini=$(echo "$DNS_CREDENTIALS_JSON" | jq -r 'to_entries[] | "\(.key) = \(.value)"')
     fi
     REQUEST_DATA=$(jq -n \
@@ -4026,12 +4033,17 @@ cert_generate() {
     echo -e "  • Check Nginx Proxy Manager logs:"
     echo -e "    ${COLOR_GREEN}docker logs nginx-proxy-manager${CoR}"
     echo -e "  • Check Let's Encrypt logs:"
-    echo -e "    ${COLOR_GREEN}docker exec nginx-proxy-manager cat /tmp/letsencrypt-log/letsencrypt.log${CoR}"
+    echo -e "    ${COLOR_GREEN}docker exec nginx-proxy-manager cat /data/logs/letsencrypt.log${CoR}"
+    if [ "$IS_WILDCARD" = true ]; then
+      echo -e "  • DNS challenge: check the --dns-credentials keys expected by the provider plugin"
+      echo -e "    (Cloudflare: dns_cloudflare_api_token, or dns_cloudflare_email + dns_cloudflare_api_key for the Global API Key)"
+    fi
 
     echo -e "\n 📋 Debug Information:"
     echo -e "  • HTTP Status: $HTTP_STATUS"
     echo -e "  • Response: $HTTP_BODY"
-    echo -e "  • Request Data: $REQUEST_DATA"
+    # Never print DNS provider secrets
+    echo -e "  • Request Data: $(echo "$REQUEST_DATA" | jq -c 'if .meta.dns_provider_credentials then .meta.dns_provider_credentials = "***" else . end')"
 
     return 1
   fi

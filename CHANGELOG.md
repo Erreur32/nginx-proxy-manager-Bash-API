@@ -2,6 +2,17 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.8] - 2026-10-07
+
+### 🔒 Security
+
+- **`--cert-generate` failure output** no longer prints the DNS provider credentials: `dns_provider_credentials` is masked in the "Request Data" debug line.
+
+### 🐛 Fixes
+
+- **Cloudflare API tokens given as `dns_cloudflare_api_key`** (e.g. `cfut_...`) made certbot send them as a Global API Key ("Invalid format for X-Auth-Key header"). A value that is not a 37 hex chars Global API Key is now sent as `dns_cloudflare_api_token`, with a warning. The `--host-create` Cloudflare pre-check only runs for real Global API Keys.
+- Let's Encrypt log path in the troubleshooting hints: `/data/logs/letsencrypt.log` (was `/tmp/letsencrypt-log/...`), plus a DNS credentials hint for wildcard certificates.
+
 ## [3.6.7] - 2026-10-07
 
 ### 🔎 Compatibility
