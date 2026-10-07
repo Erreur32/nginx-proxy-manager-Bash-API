@@ -2,6 +2,14 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.9] - 2026-10-07
+
+### 📝 Documentation
+
+- **README: new "Wildcard certificate with Cloudflare (step by step)" guide**: prerequisites (Cloudflare zone, NPM user email used by Let's Encrypt since NPM 2.13), API token creation and `verify` check, generation, reuse of one wildcard certificate on many hosts (`--cert-show` / `--host-create` / `--host-ssl-enable HOST_ID CERT_ID`), permissions for other NPM users, troubleshooting table of the errors seen in v3.6.4 to v3.6.8.
+- **`--help` / `--examples`**: Cloudflare examples use `dns_cloudflare_api_token` (Global API Key shown as alternative), new "reuse an existing wildcard certificate" example, note that `--cert-email` is ignored by NPM >= 2.13, `--cert-email` dropped from wildcard examples.
+- **Wrong credential keys in examples fixed** (checked against NPM `dns-plugins.json`): OVH `dns_ovh_application_key` / `dns_ovh_application_secret` (was `dns_ovh_app_key` / `dns_ovh_app_secret`), Dynu `dns_dynu_auth_token` (was `dns_dynu_api_key`).
+
 ## [3.6.8] - 2026-10-07
 
 ### 🔒 Security

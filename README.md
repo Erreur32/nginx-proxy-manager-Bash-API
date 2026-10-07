@@ -5,7 +5,7 @@
 [![Issues][issues-shield]][issue]
 [![Stargazers][stars-shield]][stars]
 
-# Nginx Proxy Manager CLI Script v3.6.8 🚀
+# Nginx Proxy Manager CLI Script v3.6.9 🚀
 
 ## Description
 
@@ -171,6 +171,9 @@ API_PASS="changeme"
                                            • DNS Challenge: Required for wildcard certificates
                                              - Format: --dns-provider PROVIDER --dns-credentials 'JSON' (or certbot INI text)
                                              - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, lws, tencentcloud-edgeone, ...
+                                             - Cloudflare: '{"dns_cloudflare_api_token":"TOKEN"}' (recommended, Zone:DNS:Edit)
+                                               or '{"dns_cloudflare_email":"EMAIL","dns_cloudflare_api_key":"GLOBAL_KEY"}'
+                                           • Reuse: one wildcard cert for many hosts: --host-ssl-enable HOST_ID CERT_ID
 
 
  Redirection Host Management:
@@ -301,17 +304,20 @@ API_PASS="changeme"
    # Generate standard Let's Encrypt certificate (email positional or via --cert-email)
    ./npm-api.sh --cert-generate domain.com [email] [-y]
    ./npm-api.sh --cert-generate domain.com --cert-email admin@example.com
-   # Generate wildcard certificate with Cloudflare
+   # Generate wildcard certificate with a Cloudflare API token (see "Wildcard certificate with Cloudflare" below)
    ./npm-api.sh --cert-generate "*.example.com" \
-     --cert-email admin@example.com \
      --dns-provider cloudflare \
-     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}'
+     --dns-credentials '{"dns_cloudflare_api_token":"your_token"}'
+   # Reuse an existing wildcard certificate on a new host
+   ./npm-api.sh --cert-show example.com
+   ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 -y
+   ./npm-api.sh --host-ssl-enable HOST_ID CERT_ID
 
    # Delete certificate
    ./npm-api.sh --cert-delete domain.com
    ./npm-api.sh --cert-delete 240 --purge -y   # also remove on-disk files (needs NGINX_PATH_DOCKER)
    # Enable SSL for host
-   ./npm-api.sh --host-ssl-enable HOST_ID
+   ./npm-api.sh --host-ssl-enable HOST_ID CERT_ID
    # Generate certificate and enable SSL for existing host
    ./npm-api.sh --cert-generate domain.com --host-ssl-enable -y
 
@@ -319,15 +325,13 @@ API_PASS="changeme"
    # Create host app.example.com secured by a wildcard certificate (Cloudflare DNS)
    ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 \
      --cert-generate "*.example.com" \
-     --cert-email admin@example.com \
      --dns-provider cloudflare \
-     --dns-credentials '{"dns_cloudflare_email":"your@email.com","dns_cloudflare_api_key":"your_api_key"}' \
+     --dns-credentials '{"dns_cloudflare_api_token":"your_token"}' \
      --host-ssl-enable -y
 
    # Same with DigitalOcean DNS
    ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 \
      --cert-generate "*.example.com" \
-     --cert-email admin@example.com \
      --dns-provider digitalocean \
      --dns-credentials '{"dns_digitalocean_token":"your_token"}' \
      --host-ssl-enable -y
@@ -335,7 +339,6 @@ API_PASS="changeme"
    # Same with GoDaddy DNS
    ./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 \
      --cert-generate "*.example.com" \
-     --cert-email admin@example.com \
      --dns-provider godaddy \
      --dns-credentials '{"dns_godaddy_key":"your_key","dns_godaddy_secret":"your_secret"}' \
      --host-ssl-enable -y
@@ -437,6 +440,74 @@ API_PASS="changeme"
     -a 'proxy_set_header X-Real-IP $remote_addr;' \
     -l '[{"path":"/api","forward_host":"192.168.1.11","forward_port":8081}]'
 ```
+
+</details>
+
+<details>
+<summary> 🌟 Wildcard certificate with Cloudflare (step by step)</summary>
+
+A wildcard certificate (`*.example.com`) covers every sub-domain, so you generate it **once** and attach it to as many hosts as you want. Let's Encrypt only issues wildcards through a **DNS challenge**: NPM (certbot) creates a temporary TXT record in your DNS zone, which needs DNS provider credentials.
+
+##### 1. Prerequisites
+
+- The domain is a zone of your Cloudflare account. A sub-zone such as `*.lan.example.com` works as long as `lan.example.com` is a normal sub-domain of the `example.com` zone (not delegated elsewhere with NS records).
+- Your **NPM user account has a valid email**: since NPM 2.13, Let's Encrypt is registered with the email of the NPM user the script logs in with (`API_USER`). `--cert-email` is only used by NPM < 2.13.
+- The script is up to date (`./npm-api.sh --check-update`).
+
+##### 2. Create a Cloudflare API token (recommended)
+
+Cloudflare > My Profile > API Tokens > **Create Token** > template **Edit zone DNS**:
+
+- Permissions: `Zone / DNS / Edit`
+- Zone Resources: `Include / Specific zone / example.com`
+
+Check the token before using it:
+
+```bash
+curl -s -H "Authorization: Bearer YOUR_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify
+# expected: "status":"active"
+```
+
+##### 3. Generate the certificate
+
+```bash
+./npm-api.sh --cert-generate "*.example.com" \
+  --dns-provider cloudflare \
+  --dns-credentials '{"dns_cloudflare_api_token":"YOUR_TOKEN"}'
+```
+
+It takes one to two minutes (DNS propagation). Always quote `"*.example.com"` so the shell does not expand the `*`.
+
+| Credential type | `--dns-credentials` |
+| --- | --- |
+| API token (recommended) | `{"dns_cloudflare_api_token":"TOKEN"}` |
+| Global API Key (37 hex chars, full account access) | `{"dns_cloudflare_email":"EMAIL","dns_cloudflare_api_key":"GLOBAL_KEY"}` |
+
+A token passed by mistake as `dns_cloudflare_api_key` (for example `cfut_...`) is detected and sent as `dns_cloudflare_api_token`. The script converts the JSON to the certbot INI format expected by NPM and never prints the credentials.
+
+##### 4. Use the certificate on hosts
+
+No DNS credentials are needed anymore:
+
+```bash
+./npm-api.sh --cert-show example.com          # note the certificate ID
+./npm-api.sh --host-create app.example.com -i 192.168.1.10 -p 8080 -y   # note the host ID
+./npm-api.sh --host-ssl-enable HOST_ID CERT_ID
+```
+
+`-i` / `-p` are the IP (or container name) and port of the service behind the proxy. Repeat for each sub-domain. NPM renews the certificate automatically.
+
+Other NPM users can attach the same certificate if their NPM permissions allow it: **Certificates: View** with visibility **All Items**, and **Proxy Hosts: Manage**.
+
+##### Troubleshooting
+
+| Error | Cause / fix |
+| --- | --- |
+| `data/meta must NOT have additional properties` | Script older than v3.6.6 with NPM >= 2.13: update the script. |
+| `Invalid format for X-Auth-Key header` (Cloudflare 6003/6103) | An API token was sent as a Global API Key: use `dns_cloudflare_api_token` (or script >= v3.6.8). |
+| `Error determining zone_id` / `Invalid request headers` | Token without access to the zone, or wrong zone: check the token permissions and the `verify` call above. |
+| `A valid email address must be set on your user account` | Set an email on the NPM user used by the script. |
+| Other certbot errors | `docker exec nginx-proxy-manager cat /data/logs/letsencrypt.log` |
 
 </details>
 
@@ -637,7 +708,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  3.6.8
+ Script Info:  3.6.9
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -783,8 +854,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.6.8-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.8
+[release-shield]: https://img.shields.io/badge/version-v3.6.9-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.9
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
