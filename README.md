@@ -5,7 +5,7 @@
 [![Issues][issues-shield]][issue]
 [![Stargazers][stars-shield]][stars]
 
-# Nginx Proxy Manager CLI Script v3.6.3 🚀
+# Nginx Proxy Manager CLI Script v3.6.4 🚀
 
 ## Description
 
@@ -164,11 +164,12 @@ API_PASS="changeme"
   --cert-download 🆔 [output_dir] [cert_name]
                                           Download certificate as ZIP with fallback support
   --cert-generate domain [email]          Generate Let's Encrypt Certificate or others Providers.
+                                           • Email: positional [email] or --cert-email email (default: $DEFAULT_EMAIL)
                                            • Standard domains: example.com, sub.example.com
                                            • Wildcard domains: *.example.com (requires DNS challenge)
                                            • DNS Challenge: Required for wildcard certificates
-                                             - Format: dns-provider PROVIDER dns-api-key KEY
-                                             - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, ...
+                                             - Format: --dns-provider PROVIDER --dns-credentials 'JSON'
+                                             - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, lws, tencentcloud-edgeone, ...
 
 
  Redirection Host Management:
@@ -296,8 +297,9 @@ API_PASS="changeme"
    # Download certificate as ZIP
    ./npm-api.sh --cert-download 123
    ./npm-api.sh --cert-download 123 ./certs mydomain
-   # Generate standard Let's Encrypt certificate
-   ./npm-api.sh --cert-generate domain.com [email] [dns_provider] [dns_credentials] [-y]
+   # Generate standard Let's Encrypt certificate (email positional or via --cert-email)
+   ./npm-api.sh --cert-generate domain.com [email] [-y]
+   ./npm-api.sh --cert-generate domain.com --cert-email admin@example.com
    # Generate wildcard certificate with Cloudflare
    ./npm-api.sh --cert-generate "*.example.com" \
      --cert-email admin@example.com \
@@ -634,7 +636,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  3.6.3
+ Script Info:  3.6.4
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -780,8 +782,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.6.3-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.3
+[release-shield]: https://img.shields.io/badge/version-v3.6.4-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.4
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg

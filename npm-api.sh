@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.3"
+VERSION="3.6.4"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -47,7 +47,9 @@ VERSION="3.6.3"
 #    ./npm-api.sh --host-list
 #
 # 5. Generate SSL certificate:
-#    ./npm-api.sh --cert-generate *.example.com admin@example.com
+#    ./npm-api.sh --cert-generate example.com admin@example.com
+#    ./npm-api.sh --cert-generate "*.example.com" --cert-email admin@example.com \
+#      --dns-provider cloudflare --dns-credentials '{"dns_cloudflare_email":"you@example.com","dns_cloudflare_api_key":"key"}'
 #
 # 6. Show host details:
 #    ./npm-api.sh --host-show 1
@@ -674,10 +676,11 @@ show_help() {
   help_row "  --cert-download ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[output_dir]${CoR} ${COLOR_CYAN}[cert_name]${CoR}" "Download certificate as ZIP with fallback support"
 
   help_row "  --cert-generate ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}" "Generate Let's Encrypt Certificate or others Providers."
+  echo -e "                                           • ${COLOR_YELLOW}Email:${CoR} positional [email] or ${COLOR_CYAN}--cert-email${CoR} email (default: \$DEFAULT_EMAIL)"
   echo -e "                                           • ${COLOR_YELLOW}Standard domains:${CoR} example.com, sub.example.com"
   echo -e "                                           • ${COLOR_YELLOW}Wildcard domains:${CoR} *.example.com (requires DNS challenge)${CoR}"
   echo -e "                                           • DNS Challenge:${CoR} Required for wildcard certificates"
-  echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} dns-provider PROVIDER dns-api-key KEY"
+  echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} --dns-provider PROVIDER --dns-credentials 'JSON'"
   echo -e "                                             - ${COLOR_YELLOW}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, lws, tencentcloud-edgeone, ..."
   echo ""
   echo ""
@@ -851,11 +854,11 @@ examples_cli() {
   echo -e "    --dns-credentials '{\"dns_godaddy_key\":\"your_key\",\"dns_godaddy_secret\":\"your_secret\"}'"
 
   echo -e "${COLOR_GREY}  # Generate wildcard certificate with ${COLOR_CYAN}OVH${CoR}"
-  echo -e " $0 --cert-generate \"*.example.com\" --cert-email admin@example.com \\"
+  echo -e "  $0 --cert-generate \"*.example.com\" --cert-email admin@example.com \\"
   echo -e "    --dns-provider ovh \\"
   echo -e "    --dns-credentials '{\"dns_ovh_endpoint\":\"ovh-eu\",\"dns_ovh_app_key\":\"key\",\"dns_ovh_app_secret\":\"secret\",\"dns_ovh_consumer_key\":\"consumer_key\"}'${CoR}"
 
-  echo -e "${COLOR_GREY} # Generate wildcard certificate with ${COLOR_CYAN}Dynu${CoR}"
+  echo -e "${COLOR_GREY}  # Generate wildcard certificate with ${COLOR_CYAN}Dynu${CoR}"
   echo -e "  $0 --cert-generate \"*.example.com\" --cert-email admin@example.com \\"
   echo -e "    --dns-provider dynu \\"
   echo -e "    --dns-credentials '{\"dns_dynu_api_key\":\"your_key\"}'${CoR}"
@@ -3815,7 +3818,7 @@ cert_generate() {
   # 2. Basic validation
   if [ -z "$DOMAIN_NAMES" ]; then
     echo -e "\n ${COLOR_RED}❌${CoR} Error: Domain is required $DOMAIN"
-    echo -e "    Usage: $0 --cert-generate <domain> [email] [dns_provider] [dns_credentials]\n"
+    echo -e "    Usage: $0 --cert-generate <domain> [email] [--cert-email <email>] [--dns-provider <provider>] [--dns-credentials <json>]\n"
     exit 1
   fi
 
@@ -5766,8 +5769,9 @@ while [[ "$#" -gt 0 ]]; do
     shift
     if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
       echo -e "\n 🛡️ ${COLOR_RED}The --cert-generate option requires a domain.${CoR}"
-      echo -e "\n    ${COLOR_ORANGE}Usage: $0 --cert-generate domain [email] [dns-provider <provider>] [dns-credentials <json>]${CoR}"
+      echo -e "\n    ${COLOR_ORANGE}Usage: $0 --cert-generate domain [email] [--cert-email <email>] [--dns-provider <provider>] [--dns-credentials <json>]${CoR}"
       echo -e "\n    ${COLOR_YELLOW}Options${CoR}:"
+      echo -e "      • --cert-email <email>          : Email for Let's Encrypt (alternative to positional email)"
       echo -e "      • --dns-provider <provider>     : DNS provider for wildcard certificates"
       echo -e "      • --dns-credentials <json>      : DNS credentials in JSON format"
       echo -e "      • --host-ssl-enable             : Enable SSL after certificate generation"
@@ -5777,7 +5781,8 @@ while [[ "$#" -gt 0 ]]; do
       echo -e "   Examples:"
       echo -e "     ${COLOR_GREEN}$0 --cert-generate example.com${CoR}"
       echo -e "     ${COLOR_GREEN}$0 --cert-generate example.com admin@example.com${CoR}"
-      echo -e "     ${COLOR_GREEN}$0 --cert-generate *.example.com --dns-provider cloudflare --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your-api-key\"}'${CoR}\n"
+      echo -e "     ${COLOR_GREEN}$0 --cert-generate example.com --cert-email admin@example.com${CoR}"
+      echo -e "     ${COLOR_GREEN}$0 --cert-generate \"*.example.com\" --cert-email admin@example.com --dns-provider cloudflare --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your-api-key\"}'${CoR}\n"
       exit 1
     fi
     # Store domain
@@ -5797,6 +5802,16 @@ while [[ "$#" -gt 0 ]]; do
     # Parse DNS options
     while [ $# -gt 0 ] && [[ "$1" == --* ]]; do
       case "$1" in
+      --cert-email)
+        shift
+        if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+          CERT_EMAIL="$1"
+          shift
+        else
+          echo -e "\n ⛔ ${COLOR_RED}Missing certificate email${CoR}"
+          exit 1
+        fi
+        ;;
       --dns-provider)
         shift
         if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
@@ -5832,7 +5847,7 @@ while [[ "$#" -gt 0 ]]; do
     if [[ "$CERT_DOMAIN" == \** ]]; then
       if [ -z "$CERT_DNS_PROVIDER" ] || [ -z "$CERT_DNS_CREDENTIALS" ]; then
         echo -e "\n ⛔ ${COLOR_RED}Wildcard certificates require DNS challenge. Please provide --dns-provider and --dns-credentials.${CoR}"
-        echo -e " Example: ${COLOR_GREEN}$0 --cert-generate *.example.com --dns-provider cloudflare --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your-api-key\"}'${CoR}\n"
+        echo -e " Example: ${COLOR_GREEN}$0 --cert-generate \"*.example.com\" --cert-email admin@example.com --dns-provider cloudflare --dns-credentials '{\"dns_cloudflare_email\":\"your@email.com\",\"dns_cloudflare_api_key\":\"your-api-key\"}'${CoR}\n"
         exit 1
       fi
     fi

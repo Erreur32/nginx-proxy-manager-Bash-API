@@ -2,6 +2,17 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.4] - 2026-10-07
+
+### 🐛 Fixes
+
+- **`--cert-generate`**: `--cert-email <email>` was documented in `--help` but rejected as "Unknown option"; the parser then stopped, so `--dns-provider`/`--dns-credentials` were ignored and wildcard DNS certificates failed with "Wildcard certificates require DNS challenge". The option is now parsed (positional email still works).
+
+### 📝 Documentation
+
+- **`--cert-generate` help and examples**: `--cert-email` documented in `--help`, the option usage and error messages; DNS format fixed (`--dns-provider PROVIDER --dns-credentials 'JSON'` instead of the non-existent `dns-api-key`); wildcard examples now quote `"*.example.com"`; header example no longer shows a wildcard without DNS challenge.
+- **README**: same help/format fixes, missing `lws`/`tencentcloud-edgeone` providers added, `--cert-generate` usage no longer suggests positional DNS arguments.
+
 ## [3.6.3] - 2026-09-27
 
 ### 📝 Documentation
