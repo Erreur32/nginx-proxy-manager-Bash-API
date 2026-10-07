@@ -464,7 +464,8 @@ Cloudflare > My Profile > API Tokens > **Create Token** > template **Edit zone D
 Check the token before using it:
 
 ```bash
-curl -s -H "Authorization: Bearer YOUR_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify
+CF_API_TOKEN="your_token"
+curl -s -H "Authorization: Bearer $CF_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify
 # expected: "status":"active"
 ```
 
