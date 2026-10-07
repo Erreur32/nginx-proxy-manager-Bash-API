@@ -2,6 +2,17 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.6] - 2026-10-07
+
+### 🐛 Fixes
+
+- **`--cert-generate` on NPM >= 2.13**: requests failed with "data/meta must NOT have additional properties" because NPM 2.13.0 removed `meta.letsencrypt_email` and `meta.letsencrypt_agree` (the email now comes from the NPM user account, TOS is always agreed). The script detects the NPM version and only sends these fields to NPM < 2.13.
+- **DNS challenge credentials**: NPM writes `dns_provider_credentials` as-is into the certbot INI file, so the JSON sent by the script could not be read by certbot. JSON objects passed to `--dns-credentials` are now converted to `key = value` lines; raw INI text is also accepted.
+
+### 📝 Documentation
+
+- `--help` / README: `--cert-email` noted as NPM < 2.13 only, `--dns-credentials` accepts JSON or certbot INI text.
+
 ## [3.6.5] - 2026-10-07
 
 ### 🐛 Fixes

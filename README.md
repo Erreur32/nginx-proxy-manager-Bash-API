@@ -5,7 +5,7 @@
 [![Issues][issues-shield]][issue]
 [![Stargazers][stars-shield]][stars]
 
-# Nginx Proxy Manager CLI Script v3.6.5 🚀
+# Nginx Proxy Manager CLI Script v3.6.6 🚀
 
 ## Description
 
@@ -164,11 +164,12 @@ API_PASS="changeme"
   --cert-download 🆔 [output_dir] [cert_name]
                                           Download certificate as ZIP with fallback support
   --cert-generate domain [email]          Generate Let's Encrypt Certificate or others Providers.
-                                           • Email: positional [email] or --cert-email email (default: $DEFAULT_EMAIL)
+                                           • Email: positional [email] or --cert-email email (default: $DEFAULT_EMAIL), NPM < 2.13 only
+                                             - NPM >= 2.13 uses the email of the NPM user account
                                            • Standard domains: example.com, sub.example.com
                                            • Wildcard domains: *.example.com (requires DNS challenge)
                                            • DNS Challenge: Required for wildcard certificates
-                                             - Format: --dns-provider PROVIDER --dns-credentials 'JSON'
+                                             - Format: --dns-provider PROVIDER --dns-credentials 'JSON' (or certbot INI text)
                                              - Providers: dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, lws, tencentcloud-edgeone, ...
 
 
@@ -636,7 +637,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  3.6.5
+ Script Info:  3.6.6
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -782,8 +783,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.6.5-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.5
+[release-shield]: https://img.shields.io/badge/version-v3.6.6-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.6
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg

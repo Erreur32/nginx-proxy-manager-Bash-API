@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.5"
+VERSION="3.6.6"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -677,11 +677,12 @@ show_help() {
   help_row "  --cert-download ${COLOR_CYAN}🆔${CoR} ${COLOR_CYAN}[output_dir]${CoR} ${COLOR_CYAN}[cert_name]${CoR}" "Download certificate as ZIP with fallback support"
 
   help_row "  --cert-generate ${COLOR_CYAN}domain${CoR} ${COLOR_CYAN}[email]${CoR}" "Generate Let's Encrypt Certificate or others Providers."
-  echo -e "                                           • ${COLOR_YELLOW}Email:${CoR} positional [email] or ${COLOR_CYAN}--cert-email${CoR} email (default: \$DEFAULT_EMAIL)"
+  echo -e "                                           • ${COLOR_YELLOW}Email:${CoR} positional [email] or ${COLOR_CYAN}--cert-email${CoR} email (default: \$DEFAULT_EMAIL), NPM < 2.13 only"
+  echo -e "                                             - NPM >= 2.13 uses the email of the NPM user account"
   echo -e "                                           • ${COLOR_YELLOW}Standard domains:${CoR} example.com, sub.example.com"
   echo -e "                                           • ${COLOR_YELLOW}Wildcard domains:${CoR} *.example.com (requires DNS challenge)${CoR}"
   echo -e "                                           • DNS Challenge:${CoR} Required for wildcard certificates"
-  echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} --dns-provider PROVIDER --dns-credentials 'JSON'"
+  echo -e "                                             - ${COLOR_YELLOW}Format:${CoR} --dns-provider PROVIDER --dns-credentials 'JSON' (or certbot INI text)"
   echo -e "                                             - ${COLOR_YELLOW}Providers:${CoR} dynu, cloudflare, digitalocean, godaddy, namecheap, route53, ovh, gcloud, hostinger, rcodezero, hoster.by, lws, tencentcloud-edgeone, ..."
   echo ""
   echo ""
@@ -3846,8 +3847,8 @@ cert_generate() {
       exit 1
     fi
 
-    # JSON format validation
-    if ! echo "$DNS_CREDENTIALS_JSON" | jq '.' >/dev/null 2>&1; then
+    # Credentials: JSON object or raw certbot INI text ("key = value" lines)
+    if [[ "$DNS_CREDENTIALS_JSON" == \{* ]] && ! echo "$DNS_CREDENTIALS_JSON" | jq -e 'type == "object"' >/dev/null 2>&1; then
       echo -e " ⛔ ${COLOR_RED}Invalid JSON format for DNS credentials${CoR}\n"
       exit 1
     fi
@@ -3916,13 +3917,28 @@ cert_generate() {
   echo -e " ${COLOR_CYAN}🚀 Sending certificate generation request${CoR}"
   echo -e " ${COLOR_ORANGE}⏳ This process may take a few minutes...${CoR}"
 
+  # NPM >= 2.13 takes the Let's Encrypt email from the NPM user account and
+  # rejects meta.letsencrypt_email / meta.letsencrypt_agree
+  local npm_ver legacy_le=false
+  npm_ver=$(curl -s --max-redirs 0 "$BASE_URL/" | jq -r '"\(.version.major // 0).\(.version.minor // 0)"' 2>/dev/null || echo "0.0")
+  # Unknown version (0.0) is treated as current NPM
+  if [ "$npm_ver" != "0.0" ] && [ $((${npm_ver%%.*} * 1000 + ${npm_ver#*.})) -lt 2013 ]; then
+    legacy_le=true
+  else
+    echo -e " 📧 ${COLOR_GREY}NPM $npm_ver uses the email of the NPM user account for Let's Encrypt${CoR}"
+  fi
+
   if [ "$IS_WILDCARD" = true ]; then
     echo -e " 🔑 Using DNS challenge with provider: $DNS_PROVIDER"
+    # NPM writes the credentials as-is into a certbot INI file: convert JSON to "key = value" lines
+    local dns_credentials_ini="$DNS_CREDENTIALS_JSON"
+    if echo "$DNS_CREDENTIALS_JSON" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      dns_credentials_ini=$(echo "$DNS_CREDENTIALS_JSON" | jq -r 'to_entries[] | "\(.key) = \(.value)"')
+    fi
     REQUEST_DATA=$(jq -n \
       --arg domain "$DOMAIN" \
-      --arg email "$EMAIL" \
       --arg dns_provider "$DNS_PROVIDER" \
-      --arg credentials "$DNS_CREDENTIALS_JSON" \
+      --arg credentials "$dns_credentials_ini" \
       '{
                 provider: "letsencrypt",
                 domain_names: [$domain],
@@ -3930,23 +3946,21 @@ cert_generate() {
                     dns_challenge: true,
                     dns_provider: $dns_provider,
                     dns_provider_credentials: $credentials,
-                    letsencrypt_agree: true,
-                    letsencrypt_email: $email,
                     propagation_seconds: 60
                 }
             }')
   else
     REQUEST_DATA=$(jq -n \
       --arg domain "$DOMAIN" \
-      --arg email "$EMAIL" \
       '{
                 provider: "letsencrypt",
                 domain_names: [$domain],
-                meta: {
-                    letsencrypt_agree: true,
-                    letsencrypt_email: $email
-                }
+                meta: {}
             }')
+  fi
+  if [ "$legacy_le" = true ]; then
+    REQUEST_DATA=$(echo "$REQUEST_DATA" | jq --arg email "$EMAIL" \
+      '.meta += {letsencrypt_agree: true, letsencrypt_email: $email}')
   fi
 
   # 8. Send request and handle response
