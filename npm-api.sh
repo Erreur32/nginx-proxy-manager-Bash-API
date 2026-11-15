@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.9"
+VERSION="3.6.10"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -1724,6 +1724,39 @@ list_cert_all() {
 }
 
 ################################
+# Save a certificate's PEM files into <dest> for the backups:
+# certificate.pem, private.key (600), chain.pem and fullchain.pem when present.
+# NPM has no JSON endpoint for PEM contents: GET /nginx/certificates/:id/download
+# (zip of certbot's live/ dir) is the only one, and it only serves Let's Encrypt certs.
+# Returns 1 when nothing usable was fetched (caller reports it).
+cert_fetch_pem() {
+  local cert_id="$1" dest="$2" tmp code cert key chain full
+  command -v unzip >/dev/null 2>&1 || return 1
+  tmp=$(mktemp -d) || return 1
+  code=$(curl -s -o "$tmp/cert.zip" -w "%{http_code}" "$BASE_URL/nginx/certificates/$cert_id/download" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  if [ "$code" != "200" ] || ! unzip -q "$tmp/cert.zip" -d "$tmp/x" 2>/dev/null; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  cert=$(find "$tmp/x" -name "cert*.pem" | head -1)
+  key=$(find "$tmp/x" -name "privkey*.pem" | head -1)
+  chain=$(find "$tmp/x" -name "chain*.pem" | head -1)
+  full=$(find "$tmp/x" -name "fullchain*.pem" | head -1)
+  if [ -z "$cert" ] || [ -z "$key" ]; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  mkdir -p "$dest"
+  cp "$cert" "$dest/certificate.pem"
+  install -m 600 "$key" "$dest/private.key"
+  [ -n "$chain" ] && cp "$chain" "$dest/chain.pem"
+  [ -n "$full" ] && cp "$full" "$dest/fullchain.pem"
+  rm -rf "$tmp"
+  return 0
+}
+
+################################
 # Function to download certificate as ZIP with fallback support
 cert_download() {
   local cert_id="$1"
@@ -1772,56 +1805,7 @@ cert_download() {
   echo -e "    Provider: ${COLOR_YELLOW}$provider${CoR}"
   echo -e "    Expires: ${COLOR_YELLOW}$expires_on${CoR}"
 
-  # Try new API first (JSON format)
-  echo -e "\n 🔄 Trying new API format..."
-  local CERT_CONTENT
-  CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
-    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
-    -H "Accept: application/json")
-
-  if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
-    # Check if we got valid certificate data
-    local cert_data=$(echo "$CERT_CONTENT" | jq -r '.certificate // empty')
-    local private_data=$(echo "$CERT_CONTENT" | jq -r '.private // empty')
-
-    if [ -n "$cert_data" ] && [ -n "$private_data" ]; then
-      echo -e " ✅ ${COLOR_GREEN}New API format successful${CoR}"
-
-      # Save certificate files
-      echo "$cert_data" >"$output_dir/${cert_name}.crt"
-      echo "$private_data" >"$output_dir/${cert_name}.key"
-      chmod 600 "$output_dir/${cert_name}.key"
-
-      # Save intermediate certificate if available
-      local intermediate_data=$(echo "$CERT_CONTENT" | jq -r '.intermediate // empty')
-      if [ -n "$intermediate_data" ]; then
-        echo "$intermediate_data" >"$output_dir/${cert_name}.chain.crt"
-      fi
-
-      # Save metadata
-      echo "$CERT_META" | jq '.' >"$output_dir/${cert_name}_metadata.json"
-
-      # Create ZIP file
-      local zip_file="$output_dir/${cert_name}_certificate.zip"
-      cd "$output_dir" || exit 1
-      zip -q "$zip_file" "${cert_name}.crt" "${cert_name}.key" "${cert_name}_metadata.json"
-      [ -f "${cert_name}.chain.crt" ] && zip -q "$zip_file" "${cert_name}.chain.crt"
-      cd - >/dev/null || exit 1
-
-      echo -e " ✅ ${COLOR_GREEN}Certificate downloaded successfully${CoR}"
-      echo -e "    Files created:"
-      echo -e "      • ${COLOR_CYAN}${cert_name}.crt${CoR} (Certificate)"
-      echo -e "      • ${COLOR_CYAN}${cert_name}.key${CoR} (Private Key)"
-      [ -f "$output_dir/${cert_name}.chain.crt" ] && echo -e "      • ${COLOR_CYAN}${cert_name}.chain.crt${CoR} (Chain)"
-      echo -e "      • ${COLOR_CYAN}${cert_name}_metadata.json${CoR} (Metadata)"
-      echo -e "      • ${COLOR_CYAN}${cert_name}_certificate.zip${CoR} (ZIP Archive)"
-
-      return 0
-    fi
-  fi
-
-  # Fallback to old API (ZIP download)
-  echo -e " ⚠️ ${COLOR_YELLOW}New API failed, trying legacy ZIP download...${CoR}"
+  # GET /nginx/certificates/:id/download is the only endpoint serving the PEM files
 
   local TMP_DIR=$(mktemp -d)
   local zip_file="$TMP_DIR/certificate.zip"
@@ -1835,7 +1819,7 @@ cert_download() {
   local http_code="${download_response: -3}"
 
   if [ "$http_code" = "200" ] && [ -f "$zip_file" ] && [ -s "$zip_file" ]; then
-    echo -e " ✅ ${COLOR_GREEN}Legacy ZIP download successful${CoR}"
+    echo -e " ✅ ${COLOR_GREEN}ZIP download successful${CoR}"
 
     # Extract ZIP file
     if command -v unzip >/dev/null 2>&1; then
@@ -1874,7 +1858,7 @@ cert_download() {
         [ -f "${cert_name}.fullchain.crt" ] && zip -q "$final_zip" "${cert_name}.fullchain.crt"
         cd - >/dev/null || exit 1
 
-        echo -e " ✅ ${COLOR_GREEN}Certificate downloaded successfully (legacy method)${CoR}"
+        echo -e " ✅ ${COLOR_GREEN}Certificate downloaded successfully${CoR}"
         echo -e "    Files created:"
         echo -e "      • ${COLOR_CYAN}${cert_name}.crt${CoR} (Certificate)"
         echo -e "      • ${COLOR_CYAN}${cert_name}.key${CoR} (Private Key)"
@@ -4994,22 +4978,8 @@ full_backup() {
         if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
           echo "$CERT_META" | jq '.' >"$PROXY_DIR/ssl/certificate_meta.json"
 
-          # Get certificate content
-          local CERT_CONTENT
-          CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
-            -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
-            -H "Accept: application/json")
-
-          if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
-            # Save certificate files in proxy host directory
-            echo "$CERT_CONTENT" | jq -r '.certificate' >"$PROXY_DIR/ssl/certificate.pem"
-            echo "$CERT_CONTENT" | jq -r '.private' >"$PROXY_DIR/ssl/private.key"
-            chmod 600 "$PROXY_DIR/ssl/private.key"
-
-            if echo "$CERT_CONTENT" | jq -r '.intermediate' >/dev/null 2>&1; then
-              echo "$CERT_CONTENT" | jq -r '.intermediate' >"$PROXY_DIR/ssl/chain.pem"
-            fi
-
+          # Save certificate files in proxy host directory
+          if cert_fetch_pem "$cert_id" "$PROXY_DIR/ssl"; then
             # Create centralized SSL directory structure
             local CERT_NAME
             CERT_NAME=$(echo "$CERT_META" | jq -r '.nice_name // .domain_names[0]' | sed 's/[^a-zA-Z0-9.]/_/g')
@@ -5021,6 +4991,7 @@ full_backup() {
             ln -sf "$PROXY_DIR/ssl/certificate.pem" "$CENTRAL_SSL_DIR/certificate.pem"
             ln -sf "$PROXY_DIR/ssl/private.key" "$CENTRAL_SSL_DIR/private.key"
             [ -f "$PROXY_DIR/ssl/chain.pem" ] && ln -sf "$PROXY_DIR/ssl/chain.pem" "$CENTRAL_SSL_DIR/chain.pem"
+            [ -f "$PROXY_DIR/ssl/fullchain.pem" ] && ln -sf "$PROXY_DIR/ssl/fullchain.pem" "$CENTRAL_SSL_DIR/fullchain.pem"
 
             # Add symlink to latest version
             ln -sf "$CENTRAL_SSL_DIR" "$BACKUP_PATH/.ssl/${CERT_NAME}_latest"
@@ -5036,7 +5007,7 @@ full_backup() {
             certs_count=$((certs_count + 1))
             success_count=$((success_count + 1))
           else
-            echo -e "   ⚠️ ${COLOR_YELLOW}Failed to download certificate content${CoR}"
+            echo -e "   ⚠️ ${COLOR_YELLOW}Certificate files not downloadable (custom cert, or unzip missing): metadata only${CoR}"
             error_count=$((error_count + 1))
           fi
         else
@@ -5253,18 +5224,10 @@ backup_host() {
         -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
       if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
         echo "$CERT_META" | jq '.' >"$PROXY_DIR/ssl/certificate_meta.json"
-        local CERT_CONTENT
-        CERT_CONTENT=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id/certificates" \
-          -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
-          -H "Accept: application/json")
-        if [ -n "$CERT_CONTENT" ] && echo "$CERT_CONTENT" | jq empty 2>/dev/null; then
-          echo "$CERT_CONTENT" | jq -r '.certificate' >"$PROXY_DIR/ssl/certificate.pem"
-          echo "$CERT_CONTENT" | jq -r '.private' >"$PROXY_DIR/ssl/private.key"
-          chmod 600 "$PROXY_DIR/ssl/private.key"
-          echo "$CERT_CONTENT" | jq -r '.intermediate // empty' >"$PROXY_DIR/ssl/chain.pem"
+        if cert_fetch_pem "$cert_id" "$PROXY_DIR/ssl"; then
           echo -e "   ✅ ${COLOR_GREEN}SSL certificate backed up${CoR}"
         else
-          echo -e "   ⚠️ ${COLOR_YELLOW}Failed to download certificate content${CoR}"
+          echo -e "   ⚠️ ${COLOR_YELLOW}Certificate files not downloadable (custom cert, or unzip missing): metadata only${CoR}"
         fi
       else
         echo -e "   ⚠️ ${COLOR_YELLOW}Failed to get certificate metadata${CoR}"
@@ -5956,7 +5919,7 @@ while [[ "$#" -gt 0 ]]; do
       echo -e "    ${COLOR_GREEN}$0 --cert-download 240 ./certs mydomain${CoR}"
       echo -e "\n   ${COLOR_YELLOW}💡 Tips:${CoR}"
       echo -e "    • Use ${COLOR_GREEN}--cert-list${CoR} to see all certificates and their IDs"
-      echo -e "    • Supports both new API (JSON) and legacy API (ZIP) with automatic fallback"
+      echo -e "    • Let's Encrypt certificates only: NPM's /download endpoint does not serve custom certificates"
       echo -e "    • Creates standardized certificate files (.crt, .key, .chain.crt) and ZIP archive\n"
       exit 1
     fi
