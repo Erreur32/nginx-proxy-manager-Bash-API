@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.11"
+VERSION="3.6.12"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -374,10 +374,11 @@ check_token() {
         exit 1
       fi
     fi
-    # Token and backups (private keys) are secrets: owner only, also for dirs created by older versions
-    chmod 700 "$dir" 2>/dev/null || true
+    # Token and backups (private keys) are secrets: no access for "other", also for dirs created by older versions.
+    # Only "other" is removed: chmod 700 would zero the ACL mask and cut users granted on purpose (setfacl).
+    chmod o-rwx "$dir" 2>/dev/null || true
   done
-  chmod 600 "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null || true
+  chmod o-rwx "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null || true
 
   [ "$verbose" = true ] && echo -e " ✅ ${COLOR_GREEN}All dependencies and directories are properly set up${CoR}"
   [ "$verbose" = true ] && echo -e "    ${COLOR_GREY}├── System tools: OK${CoR}"
@@ -512,17 +513,14 @@ generate_new_token() {
   local token=$(echo "$body" | jq -r '.token')
   local expiry=$(echo "$body" | jq -r '.expires')
 
-  # Ensure token directory exists, owner only (the token is a 1-year admin credential)
+  # Ensure token directory exists, closed to "other" (the token is a 1-year admin credential)
   mkdir -p "$TOKEN_DIR" 2>/dev/null
-  chmod 700 "$TOKEN_DIR" 2>/dev/null || true
+  chmod o-rwx "$TOKEN_DIR" 2>/dev/null || true
 
-  # Save token and expiry, never readable by other local users
-  (
-    umask 077
-    echo "$token" >"$TOKEN_FILE"
-    echo "$expiry" >"$EXPIRY_FILE"
-  )
-  chmod 600 "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null || true
+  # Save token and expiry, never readable by "other" (owner, group and ACL grants are kept)
+  echo "$token" >"$TOKEN_FILE"
+  echo "$expiry" >"$EXPIRY_FILE"
+  chmod o-rwx "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null || true
 
   # Verify files were created successfully
   if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ] ||
@@ -5037,7 +5035,10 @@ full_backup() {
             success_count=$((success_count + 1))
           else
             echo -e "   ⚠️ ${COLOR_YELLOW}Certificate files not downloadable (custom cert, or unzip missing): metadata only${CoR}"
-            error_count=$((error_count + 1))
+            # NPM never serves custom certificate files: only a failed Let's Encrypt download is an error
+            if echo "$CERT_META" | jq -e '.provider == "letsencrypt"' >/dev/null 2>&1; then
+              error_count=$((error_count + 1))
+            fi
           fi
         else
           echo -e "   ⚠️ ${COLOR_YELLOW}Failed to get certificate metadata${CoR}"
