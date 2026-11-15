@@ -27,7 +27,7 @@
 > ./npm-api.sh --json --list          # list every command compatible with --json
 > ```
 >
-> ⚠️ `--json` works **before or after** a command with no argument (`--host-list`, `--cert-list`, ...). For commands with a positional argument right after them (`--host-show <id>`, `--cert-show <domain>`, ...), put `--json` **before** the command or **after** its argument, never right between the command and its argument, or it gets swallowed as the argument's value.
+> `--json` can be placed anywhere on the command line (since v3.7.0).
 
 > [!NOTE]
 > **About backup & restore:** The `--backup` command exports your NPM configuration (hosts, SSL, access lists) via the API as JSON files, useful for auditing and re-creating hosts. However, **a full restore is not possible through the API alone**: NPM stores its state in a SQLite database and SSL private keys on disk, neither of which are accessible via the API. For a reliable full restore, back up your Docker volumes directly:
@@ -37,6 +37,14 @@
 > /data          # SQLite database, nginx configs, SSL certs
 > /etc/letsencrypt   # Let's Encrypt certificates
 > ```
+>
+> Restore: stop NPM, put both folders back with `tar` (keeps the `live/` → `archive/` symlinks certbot needs), start NPM.
+>
+> ```bash
+> docker compose stop nginx-proxy-manager
+> tar -xpzf npm_backup.tar.gz -C /path/to/nginx_proxy   # restores data/ and letsencrypt/
+> docker compose start nginx-proxy-manager
+> ```
 
 <details>
 <summary>French description:</summary>
@@ -44,7 +52,7 @@ Ce script permet de gérer Nginx Proxy Manager via son API de manière simple et
 
 Il facilite l'automatisation des tâches courantes, comme l'ajout de proxies, la gestion des certificats SSL et l'administration complète de vos reverse proxies.
 
-> **Note sur le backup/restore :** La commande `--backup` exporte la configuration NPM via l'API (hosts, SSL, listes d'accès) sous forme de fichiers JSON. Un restore complet via l'API n'est pas possible : NPM stocke son état dans une base SQLite et les clés privées SSL sur disque, inaccessibles via l'API. Pour un restore fiable, sauvegardez directement vos volumes Docker (`/data` et `/etc/letsencrypt`).
+> **Note sur le backup/restore :** La commande `--backup` exporte la configuration NPM via l'API (hosts, SSL, listes d'accès) sous forme de fichiers JSON. Un restore complet via l'API n'est pas possible : NPM stocke son état dans une base SQLite et les clés privées SSL sur disque, inaccessibles via l'API. Pour un restore fiable, sauvegardez directement vos volumes Docker (`/data` et `/etc/letsencrypt`) avec `tar`, et restaurez-les NPM arrêté (`tar -xpzf`, qui garde les liens `live/` → `archive/` de certbot).
 
 </details>
 
