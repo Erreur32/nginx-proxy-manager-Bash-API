@@ -5,7 +5,7 @@
 [![Issues][issues-shield]][issue]
 [![Stargazers][stars-shield]][stars]
 
-# Nginx Proxy Manager CLI Script v3.6.10 🚀
+# Nginx Proxy Manager CLI Script v3.6.11 🚀
 
 ## Description
 
@@ -228,7 +228,7 @@ API_PASS="changeme"
   --user-list                             List All Users
   --user-create username password email [--admin]
                                           Create User (--admin grants admin role; default standard)
-  --user-delete 🆔                        Delete User by username
+  --user-delete 🆔                        Delete User by ID
 
   --access-list                           List All available Access Lists (ID and Name)
   --access-list-show 🆔                   Show detailed information for specific access list
@@ -608,13 +608,13 @@ echo $?   # 1
         ├── 📁 .access_lists/                    # Access list configurations
         ├── 📁 .Proxy_Hosts/                     # All proxy host configurations
         │   ├── 📁 [DOMAIN]/                     # Directory for each domain
-        │   │   ├── 📁 logs/                     # Log directory
+        │   │   ├── 📁 logs/                     # access.log, error.log (last 1000 lines)
         │   │   ├── 📁 ssl/                      # SSL directory
         │   │   │   ├── 📄 certificate_meta.json # Certificate metadata
         │   │   │   ├── 📄 certificate.pem       # Certificate
         │   │   │   ├── 📄 chain.pem             # Chain of certificates
-        │   │   │   └── 📄 private.key           # Private key
-        │   │   ├── 📄 nginx.conf                # Nginx configuration
+        │   │   │   ├── 📄 fullchain.pem         # Certificate + chain
+        │   │   │   └── 📄 private.key           # Private key (600)
         │   │   └── 📄 proxy_config.json         # Proxy configuration
         │   ├── 📄 all_hosts_[DATE].json         # List of all hosts
         │   └── 📄 all_hosts_latest.json         # Symlink to latest backup
@@ -629,7 +629,7 @@ echo $?   # 1
 
 1. **Proxy Hosts** (`/.Proxy_Hosts/`)
    - Individual host configurations
-   - Nginx configurations
+   - Access and error logs (NPM API has no endpoint for the rendered nginx config)
    - Complete host list with timestamps
 
 2. **SSL Certificates** (`/.ssl/`)
@@ -710,7 +710,7 @@ Some info of settings in the script with `./npm-api.sh --info`
  ✅ Token is valid
  📅 Expires: 2026-03-14T10:24:56.267Z
 
- Script Info:  3.6.10
+ Script Info:  3.6.11
  Script Variables Information:
  Config      : /home/tools/Project/nginx_proxy/npm-api.conf
  BASE  URL   : http://127.0.0.1:8099/api
@@ -856,8 +856,8 @@ MIT License - see the [LICENSE.md][license] file for details
 [license]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/blob/main/LICENSE.md
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2024.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
-[release-shield]: https://img.shields.io/badge/version-v3.6.10-blue.svg
-[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.10
+[release-shield]: https://img.shields.io/badge/version-v3.6.11-blue.svg
+[release]: https://github.com/Erreur32/nginx-proxy-manager-Bash-API/releases/tag/v3.6.11
 [contributors-shield]: https://img.shields.io/github/contributors/Erreur32/nginx-proxy-manager-Bash-API.svg
 [license-shield]: https://img.shields.io/github/license/Erreur32/nginx-proxy-manager-Bash-API.svg
 [issues-shield]: https://img.shields.io/github/issues/Erreur32/nginx-proxy-manager-Bash-API.svg
