@@ -2,6 +2,15 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.12] - 2026-11-15
+
+Found while testing v3.6.11 on a live NPM 2.17.0.
+
+### 🐛 Fixes
+
+- **v3.6.11 permissions cut users granted by ACL**: `chmod 700` / `600` zeroes the POSIX ACL mask, so a user given access with `setfacl` (e.g. a service account) could no longer read the token or backups. The script now only removes access for "other" (`chmod o-rwx`), keeping owner, group and ACL grants.
+- **`--backup` exit code with custom certificates**: NPM never serves custom certificate files, so hosts using one made every backup end with errors (exit code 2). Only a failed Let's Encrypt download is now counted as an error; custom ones keep the metadata-only warning.
+
 ## [3.6.11] - 2026-11-15
 
 Fixes from a full audit of the script (first batch).
