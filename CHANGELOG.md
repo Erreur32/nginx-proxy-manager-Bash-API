@@ -2,6 +2,19 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.7.1] - 2026-11-15
+
+Last batch of the full audit: cleanup.
+
+### 🐛 Fixes
+
+- **`--cert-show <domain>`, `--host-search` and `--cert-delete <domain>` listed the same item once per matching name** (a certificate for `a.com`, `www.a.com`, `*.a.com` appeared 3 times; `--cert-delete -y` then refused with "Multiple certificates found").
+
+### 🧹 Removed
+
+- Dead code never called (~230 lines): `sanitize_name`, `validate_json`, `delete_all_proxy_hosts`, `create_safety_backup`, `display_import_summary` (leftovers of an unfinished reimport), `update_proxy_host` (replaced by `create_or_update_proxy_host` / `--host-update`), the `--clean-hosts` option (exited without a message) and the `restore_ssl_certificates` branch (function never existed).
+- An unused `GET /version` request made on every run.
+
 ## [3.7.0] - 2026-11-15
 
 Second batch of fixes from the full audit, tested on a live NPM 2.17.0.
