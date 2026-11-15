@@ -2,6 +2,17 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.10] - 2026-11-15
+
+### 🔎 Compatibility
+
+- Audited against NPM v2.17.0 (request schemas and backend diff from v2.16.0): no payload change needed.
+
+### 🐛 Fixes
+
+- **`--backup` / `--backup-host`: SSL certificate files were never saved.** They called `GET /nginx/certificates/:id/certificates`, which does not exist in NPM: the 404 JSON was written as `null` into `certificate.pem` and `private.key` and reported as a success. Certificates are now fetched from `GET /nginx/certificates/:id/download` (zip of the certbot `live/` directory): `certificate.pem`, `private.key` (600), `chain.pem` and `fullchain.pem`. Custom certificates cannot be downloaded through the NPM API (only metadata is saved, with a warning). Requires `unzip`.
+- **`--cert-download`**: dropped the same non-existent endpoint call, the zip download is used directly.
+
 ## [3.6.9] - 2026-10-07
 
 ### 📝 Documentation
