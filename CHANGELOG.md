@@ -2,6 +2,23 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.6.11] - 2026-11-15
+
+Fixes from a full audit of the script (first batch).
+
+### 🔒 Security
+
+- **Token and backups readable by every local user**: the data, token and backup directories are now `700` and `token.txt` / `expiry.txt` `600` (they were `755` / `644`). Existing directories are fixed on the next run. The token is a 1-year NPM admin credential, and backups hold private keys.
+
+### 🐛 Fixes
+
+- **`--host-create` on an existing domain wiped the host**: the update sent the full create body, which removed the certificate, access list, forced SSL, extra domain names, custom locations and advanced config. The update now leaves those fields untouched (locations and advanced config are only changed when `-l` / `-a` are given).
+- **`--host-acl-disable` disabled the host instead of removing the ACL**: it also sent `enabled:false`, so NPM skipped the nginx rewrite and the ACL stayed active. `--host-acl-enable` sent `enabled:true` and brought a disabled host back online. Both now only send `access_list_id`.
+- **Success reported on failure**: host create/update (proxy, redirection, stream, dead, `--host-update`) now check the HTTP status, so an unreachable NPM or an HTML error page is an error. Enable/disable commands require NPM's `true` answer. `--cert-delete` and `--host-ssl-disable` exit 1 on failure.
+- **Backups**: NPM has no endpoint for the rendered nginx config nor `access.log` / `error.log`, so `nginx.conf` and the log files held a 404 error. Logs now come from `GET /nginx/proxy-hosts/:id/logs?type=access|error` (last 1000 lines), and the stale `nginx.conf` is removed. List responses must be JSON arrays (an NPM error object no longer creates a `null` host). No access list is now a success, not a backup error (exit code 1 on every run).
+- **`check_certificate_exists`** matched any domain as soon as a wildcard certificate existed.
+- `--info` showed a wrong token directory; help said `--user-delete` takes a username (it takes an ID).
+
 ## [3.6.10] - 2026-11-15
 
 ### 🔎 Compatibility

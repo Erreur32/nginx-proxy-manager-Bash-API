@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.6.10"
+VERSION="3.6.11"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -373,10 +373,11 @@ check_token() {
         echo -e "\n  ${COLOR_RED}Error: Failed to create directory $dir${CoR}"
         exit 1
       fi
-      # Set proper permissions
-      chmod 755 "$dir" 2>/dev/null
     fi
+    # Token and backups (private keys) are secrets: owner only, also for dirs created by older versions
+    chmod 700 "$dir" 2>/dev/null || true
   done
+  chmod 600 "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null || true
 
   [ "$verbose" = true ] && echo -e " ✅ ${COLOR_GREEN}All dependencies and directories are properly set up${CoR}"
   [ "$verbose" = true ] && echo -e "    ${COLOR_GREY}├── System tools: OK${CoR}"
@@ -449,6 +450,16 @@ check_token_notverbose() {
 }
 
 ################################
+# Print the error of an NPM create/update reply, nothing on success.
+# Empty or HTML replies (NPM down, proxy error page) have no .error, so the HTTP status decides.
+npm_error_msg() {
+  local status="$1" msg
+  msg=$(jq -r '.error.message // empty' <<<"$2" 2>/dev/null || true)
+  [[ "$status" =~ ^20[01]$ ]] || msg=${msg:-"HTTP ${status:-000} (NPM unreachable or not JSON)"}
+  echo "$msg"
+}
+
+################################
 # Generate a new API token
 generate_new_token() {
   echo -e "\n 🔄 ${COLOR_YELLOW}Generating a new API token...${CoR}"
@@ -501,16 +512,17 @@ generate_new_token() {
   local token=$(echo "$body" | jq -r '.token')
   local expiry=$(echo "$body" | jq -r '.expires')
 
-  # Ensure token directory exists with proper permissions
-  if [ ! -d "$TOKEN_DIR" ]; then
-    mkdir -p "$TOKEN_DIR" 2>/dev/null
-    chmod 755 "$TOKEN_DIR" 2>/dev/null
-  fi
+  # Ensure token directory exists, owner only (the token is a 1-year admin credential)
+  mkdir -p "$TOKEN_DIR" 2>/dev/null
+  chmod 700 "$TOKEN_DIR" 2>/dev/null || true
 
-  # Save token and expiry with proper permissions
-  echo "$token" >"$TOKEN_FILE"
-  echo "$expiry" >"$EXPIRY_FILE"
-  chmod 644 "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null
+  # Save token and expiry, never readable by other local users
+  (
+    umask 077
+    echo "$token" >"$TOKEN_FILE"
+    echo "$expiry" >"$EXPIRY_FILE"
+  )
+  chmod 600 "$TOKEN_FILE" "$EXPIRY_FILE" 2>/dev/null || true
 
   # Verify files were created successfully
   if [ ! -f "$TOKEN_FILE" ] || [ ! -f "$EXPIRY_FILE" ] ||
@@ -741,7 +753,7 @@ show_help() {
   echo ""
   help_row "  --user-list" "List All Users"
   help_row "  --user-create ${COLOR_CYAN}username${CoR} ${COLOR_CYAN}password${CoR} ${COLOR_CYAN}email${CoR} ${COLOR_CYAN}[--admin]${CoR}" "Create User (${COLOR_GREY}--admin${CoR} grants admin role; default standard)"
-  help_row "  --user-delete ${COLOR_CYAN}🆔${CoR}" "Delete User by ${COLOR_YELLOW}username${CoR}"
+  help_row "  --user-delete ${COLOR_CYAN}🆔${CoR}" "Delete User by ${COLOR_YELLOW}ID${CoR}"
   echo ""
   help_row "  --access-list" "List All available Access Lists (ID and Name)"
   help_row "  --access-list-show ${COLOR_CYAN}🆔${CoR}" "Show detailed information for specific access list"
@@ -1066,7 +1078,7 @@ display_info() {
   # Display backup locations
   echo -e "\n 📂 ${COLOR_YELLOW}Backup Locations:${CoR}"
   echo -e "  • Backup: ${COLOR_GREY}$BACKUP_PATH${CoR}"
-  echo -e "  • Token: ${COLOR_GREY}$BACKUP_PATH/token/${CoR}"
+  echo -e "  • Token: ${COLOR_GREY}$TOKEN_DIR/${CoR}"
 
   echo -e "\n ${COLOR_YELLOW}💡 Use --help to see available commands${CoR}"
   echo -e "   ${COLOR_GREY} Check --examples for more help examples${CoR}\n"
@@ -1488,8 +1500,7 @@ check_certificate_exists() {
     CERT_ID=$(echo "$RESPONSE" | jq -r --arg domain "$BASE_DOMAIN" \
       '.[] | select(
                 (.domain_names[] == $domain) or
-                (.domain_names[] | startswith("*.") and ($domain | endswith(.[2:]))) or
-                ($domain | startswith("*.") and (.domain_names[] | endswith(.[2:])))
+                (.domain_names[] as $n | $n | startswith("*.") and ($domain | endswith($n[1:])))
             ) | .id' | sort -n | tail -n1)
   fi
 
@@ -2003,6 +2014,10 @@ create_or_update_proxy_host() {
     echo -e "${CoR}"
     METHOD="PUT"
     URL="$BASE_URL/nginx/proxy-hosts/$HOST_ID"
+    # NPM patches every field sent: keep SSL, ACL, extra domains and anything not passed on the command line
+    DATA=$(jq -c 'del(.domain_names, .access_list_id, .certificate_id, .ssl_forced, .meta)' <<<"$DATA")
+    [[ -z "$CUSTOM_LOCATIONS" || "$CUSTOM_LOCATIONS" == "null" ]] && DATA=$(jq -c 'del(.locations)' <<<"$DATA")
+    [ -z "$ADVANCED_CONFIG" ] && DATA=$(jq -c 'del(.advanced_config)' <<<"$DATA")
   else
     # Create NEW HOST
     echo -e "\n ${COLOR_CYAN}🌍${CoR} Creating a new proxy host: ${COLOR_GREEN}$DOMAIN_NAMES${CoR}"
@@ -2011,13 +2026,14 @@ create_or_update_proxy_host() {
   fi
 
   # Send API request
-  RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X "$METHOD" "$URL" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
+  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+  RESPONSE=${RESPONSE%HTTPSTATUS:*}
 
-  # Check API response
-  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
   if [ -z "$ERROR_MSG" ]; then
     PROXY_ID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
 
@@ -2350,12 +2366,14 @@ create_or_update_redirect_host() {
     URL="$BASE_URL/nginx/redirection-hosts"
   fi
 
-  RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X "$METHOD" "$URL" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
+  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+  RESPONSE=${RESPONSE%HTTPSTATUS:*}
 
-  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
   if [ -z "$ERROR_MSG" ]; then
     RID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
     if [ "$METHOD" = "PUT" ]; then
@@ -2462,10 +2480,10 @@ redirect_host_enable() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
-  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+  if [ "$RESPONSE" = "true" ]; then # NPM answers true on success
     echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
   else
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
     echo -e " ⛔ ${COLOR_RED}Failed to enable redirect host: $ERROR_MSG${CoR}"
     return 1
   fi
@@ -2500,10 +2518,10 @@ redirect_host_disable() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
-  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+  if [ "$RESPONSE" = "true" ]; then # NPM answers true on success
     echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
   else
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
     echo -e " ⛔ ${COLOR_RED}Failed to disable redirect host: $ERROR_MSG${CoR}"
     return 1
   fi
@@ -2611,12 +2629,14 @@ create_or_update_stream_host() {
     URL="$BASE_URL/nginx/streams"
   fi
 
-  RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X "$METHOD" "$URL" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
+  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+  RESPONSE=${RESPONSE%HTTPSTATUS:*}
 
-  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
   if [ -z "$ERROR_MSG" ]; then
     RID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
     if [ "$METHOD" = "PUT" ]; then
@@ -2723,10 +2743,10 @@ stream_host_enable() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
-  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+  if [ "$RESPONSE" = "true" ]; then # NPM answers true on success
     echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🔌Port: ${COLOR_CYAN}$STREAM_PORT${CoR}"
   else
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
     echo -e " ⛔ ${COLOR_RED}Failed to enable stream host: $ERROR_MSG${CoR}"
     return 1
   fi
@@ -2761,10 +2781,10 @@ stream_host_disable() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
-  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+  if [ "$RESPONSE" = "true" ]; then # NPM answers true on success
     echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🔌Port: ${COLOR_CYAN}$STREAM_PORT${CoR}"
   else
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
     echo -e " ⛔ ${COLOR_RED}Failed to disable stream host: $ERROR_MSG${CoR}"
     return 1
   fi
@@ -2883,12 +2903,14 @@ create_or_update_dead_host() {
     URL="$BASE_URL/nginx/dead-hosts"
   fi
 
-  RESPONSE=$(curl -s -X "$METHOD" "$URL" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X "$METHOD" "$URL" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
+  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+  RESPONSE=${RESPONSE%HTTPSTATUS:*}
 
-  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
   if [ -z "$ERROR_MSG" ]; then
     RID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
     if [ "$METHOD" = "PUT" ]; then
@@ -2995,10 +3017,10 @@ dead_host_enable() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
-  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+  if [ "$RESPONSE" = "true" ]; then # NPM answers true on success
     echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
   else
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
     echo -e " ⛔ ${COLOR_RED}Failed to enable dead host: $ERROR_MSG${CoR}"
     return 1
   fi
@@ -3033,10 +3055,10 @@ dead_host_disable() {
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8")
 
-  if ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+  if [ "$RESPONSE" = "true" ]; then # NPM answers true on success
     echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
   else
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
     echo -e " ⛔ ${COLOR_RED}Failed to disable dead host: $ERROR_MSG${CoR}"
     return 1
   fi
@@ -3117,13 +3139,15 @@ update_proxy_host() {
   fi
 
   # 🚀 send the API request for update
-  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$DATA")
+  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+  RESPONSE=${RESPONSE%HTTPSTATUS:*}
 
   # 📢 check if the response is valid
-  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
   if [ -z "$ERROR_MSG" ]; then
     PROXY_ID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
     echo -e "\n ✅ ${COLOR_GREEN}SUCCESS: Proxy host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$PROXY_ID${COLOR_GREEN}) was created successfully! 🎉${CoR}\n"
@@ -3211,14 +3235,16 @@ host_update() {
   fi
 
   #  Sending update request to API..."
-  RESPONSE=$(curl -s -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
+  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
     --data-raw "$UPDATED_DATA")
+  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
+  RESPONSE=${RESPONSE%HTTPSTATUS:*}
 
   #echo -e "\n 🔄 DEBUG: API Response:\n$RESPONSE\n"
 
-  ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
   if [ -z "$ERROR_MSG" ]; then
     echo -e "\n ✅ ${COLOR_GREEN}SUCCESS:${CoR}  Proxy host 🆔 $HOST_ID updated successfully! 🎉"
 
@@ -3332,11 +3358,11 @@ host_enable() {
       -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
       -H "Content-Type: application/json; charset=UTF-8")
 
-    if [ $? -eq 0 ] && ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    if [ $? -eq 0 ] && [ "$RESPONSE" = "true" ]; then # NPM answers true on success
       echo -e " ✅ ${COLOR_GREEN}Successfully enabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
     #    echo -e " 🎯 ${COLOR_GREEN}Using NPM's native enable endpoint${CoR}\n"
     else
-      ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+      ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
       echo -e " ⛔ ${COLOR_RED}Failed to enable proxy host: $ERROR_MSG${CoR}"
       return 1
     fi
@@ -3398,11 +3424,11 @@ host_disable() {
       -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
       -H "Content-Type: application/json; charset=UTF-8")
 
-    if [ $? -eq 0 ] && ! echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+    if [ $? -eq 0 ] && [ "$RESPONSE" = "true" ]; then # NPM answers true on success
       echo -e " ✅ ${COLOR_GREEN}Successfully disabled ${CoR}🆔${COLOR_CYAN}$host_id${CoR} 🌐Domain: ${COLOR_CYAN}$DOMAIN_NAME${CoR}"
     #    echo -e " 🎯 ${COLOR_GREEN}Using NPM's native disable endpoint${CoR}\n"
     else
-      ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+      ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"' 2>/dev/null || echo "NPM unreachable or not JSON")
       echo -e " ⛔ ${COLOR_RED}Failed to disable proxy host: $ERROR_MSG${CoR}"
       return 1
     fi
@@ -3505,13 +3531,8 @@ host_acl_enable() {
   check_token_notverbose
   echo -e "\n ${COLOR_YELLOW}🔓 Enabling ACL${CoR} host 🆔${COLOR_CYAN}$HOST_ID${CoR} with access list 🆔${COLOR_CYAN}$ACCESS_LIST_ID${CoR}"
 
-  DATA=$(jq -n \
-    --argjson access_list_id "$ACCESS_LIST_ID" \
-    --argjson enabled true \
-    '{
-      access_list_id: $access_list_id,
-      enabled: $enabled
-    }')
+  # No "enabled" field: it would bring a disabled host back online
+  DATA=$(jq -n --argjson access_list_id "$ACCESS_LIST_ID" '{access_list_id: $access_list_id}')
 
   RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
@@ -3538,13 +3559,8 @@ host_acl_disable() {
   fi
   check_token_notverbose
 
-  DATA=$(jq -n \
-    --argjson access_list_id null \
-    --argjson enabled false \
-    '{
-      access_list_id: $access_list_id,
-      enabled: $enabled
-    }')
+  # No "enabled" field: with enabled=false NPM skips the nginx rewrite, the ACL would stay active
+  DATA='{"access_list_id": 0}'
   RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" \
     -H "Content-Type: application/json; charset=UTF-8" \
@@ -3810,6 +3826,7 @@ cert_delete() {
     fi
   else
     echo -e "  ⛔ ${COLOR_RED}Deletion failed. Status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}\n"
+    exit 1
   fi
 }
 
@@ -4157,9 +4174,11 @@ host_ssl_disable() {
     else
       echo " Data sent: $DATA" # Log the data sent
       echo -e " ⛔ ${COLOR_RED}Failed to disable SSL. HTTP status: $HTTP_STATUS. Response: $HTTP_BODY${CoR}\n"
+      exit 1
     fi
   else
     echo -e " ⛔ ${COLOR_RED}Proxy host with ID $HOST_ID does not exist.${CoR}\n"
+    exit 1
   fi
 }
 
@@ -4801,6 +4820,19 @@ access_list_show() {
 ## backup
 # Function to make a full backup
 
+################################
+# Save a proxy host's last access/error log lines (GET /nginx/proxy-hosts/:id/logs, NPM >= 2.16).
+# NPM has no endpoint for the rendered nginx config, so none is saved.
+backup_host_logs() {
+  local host_id="$1" dir="$2" t
+  rm -f "$dir/nginx.conf" # left by versions < 3.6.11, it only held a 404 error
+  for t in access error; do
+    curl -s "$BASE_URL/nginx/proxy-hosts/$host_id/logs?type=$t" \
+      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" |
+      jq -r '.logs // empty' >"$dir/logs/$t.log" 2>/dev/null || true
+  done
+}
+
 full_backup() {
   check_dependencies
   check_nginx_access
@@ -4845,7 +4877,7 @@ full_backup() {
   USERS_RESPONSE=$(curl -s -X GET "$BASE_URL/users" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-  if [ -n "$USERS_RESPONSE" ] && echo "$USERS_RESPONSE" | jq empty 2>/dev/null; then
+  if echo "$USERS_RESPONSE" | jq -e 'type=="array"' >/dev/null 2>&1; then # an NPM error object is valid JSON too
     users_count=$(echo "$USERS_RESPONSE" | jq '. | length')
     # Save users to dedicated file
     echo "$USERS_RESPONSE" | jq '.' >"$BACKUP_PATH/.user/users_${NGINX_IP//./_}$DATE.json"
@@ -4867,7 +4899,7 @@ full_backup() {
   SETTINGS_RESPONSE=$(curl -s -X GET "$BASE_URL/settings" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   #echo -e "\n🔍 DEBUG Settings Response: $SETTINGS_RESPONSE"  # Debug line
-  if [ -n "$SETTINGS_RESPONSE" ] && echo "$SETTINGS_RESPONSE" | jq empty 2>/dev/null; then
+  if echo "$SETTINGS_RESPONSE" | jq -e 'type=="array"' >/dev/null 2>&1; then
     # Save settings to dedicated file
     echo "$SETTINGS_RESPONSE" | jq '.' >"$BACKUP_PATH/.settings/settings_${NGINX_IP//./_}$DATE.json"
     # Add settings to full configuration
@@ -4884,10 +4916,19 @@ full_backup() {
   # 3. Backup access lists
   echo -e "\n🔑 ${COLOR_CYAN}Backing up access lists...${CoR}"
   # Get list of access list IDs first
-  ACCESS_LISTS_IDS=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
-    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" | jq -r '.[].id' 2>/dev/null)
+  local ACCESS_LISTS_RAW
+  ACCESS_LISTS_RAW=$(curl -s -X GET "$BASE_URL/nginx/access-lists" \
+    -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
+  ACCESS_LISTS_IDS=$(echo "$ACCESS_LISTS_RAW" | jq -r 'if type=="array" then .[].id else empty end' 2>/dev/null || true)
 
-  if [ -n "$ACCESS_LISTS_IDS" ]; then
+  if [ "$(echo "$ACCESS_LISTS_RAW" | jq -c . 2>/dev/null)" = "[]" ]; then
+    # No access list in NPM is a normal state, not a backup error
+    echo "[]" >"$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
+    jq '. + {access_lists: []}' "$BACKUP_PATH/full_config${DATE}.json" >"$BACKUP_PATH/full_config${DATE}.json.tmp"
+    mv "$BACKUP_PATH/full_config${DATE}.json.tmp" "$BACKUP_PATH/full_config${DATE}.json"
+    echo -e " ✅ ${COLOR_GREEN}No access lists to back up${CoR}"
+    success_count=$((success_count + 1))
+  elif [ -n "$ACCESS_LISTS_IDS" ]; then
     access_lists_count=$(echo "$ACCESS_LISTS_IDS" | wc -l | tr -d ' ')
     # Initialize JSON array for complete access lists
     echo "[" >"$BACKUP_PATH/.access_lists/access_lists_${NGINX_IP//./_}$DATE.json"
@@ -4922,7 +4963,7 @@ full_backup() {
       error_count=$((error_count + 1))
     fi
   else
-    echo -e " ⚠️ ${COLOR_YELLOW}No access lists found${CoR}"
+    echo -e " ⚠️ ${COLOR_YELLOW}Invalid access lists response${CoR}"
     error_count=$((error_count + 1))
   fi
 
@@ -4931,7 +4972,7 @@ full_backup() {
   ALL_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-  if [ -n "$ALL_HOSTS_RESPONSE" ] && echo "$ALL_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+  if echo "$ALL_HOSTS_RESPONSE" | jq -e 'type=="array"' >/dev/null 2>&1; then
     hosts_count=$(echo "$ALL_HOSTS_RESPONSE" | jq '. | length')
 
     # Save all hosts metadata
@@ -4952,19 +4993,7 @@ full_backup() {
       # Save proxy host configuration
       echo "$host" | jq '.' >"$PROXY_DIR/proxy_config.json"
 
-      # Get and save nginx configuration
-      local NGINX_CONFIG
-      NGINX_CONFIG=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/nginx" \
-        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
-      if [ -n "$NGINX_CONFIG" ]; then
-        echo "$NGINX_CONFIG" >"$PROXY_DIR/nginx.conf"
-      fi
-
-      # Get and save logs if they exist
-      curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/access.log" \
-        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/access.log"
-      curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/error.log" \
-        -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/error.log"
+      backup_host_logs "$host_id" "$PROXY_DIR"
 
       # Process SSL certificate if exists
       if [ -n "$cert_id" ] && [ "$cert_id" != "null" ] && [ "$cert_id" != "0" ]; then
@@ -4975,7 +5004,7 @@ full_backup() {
         CERT_META=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id" \
           -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-        if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
+        if echo "$CERT_META" | jq -e '.id' >/dev/null 2>&1; then
           echo "$CERT_META" | jq '.' >"$PROXY_DIR/ssl/certificate_meta.json"
 
           # Save certificate files in proxy host directory
@@ -5034,7 +5063,7 @@ full_backup() {
   REDIRECTION_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/redirection-hosts" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-  if [ -n "$REDIRECTION_HOSTS_RESPONSE" ] && echo "$REDIRECTION_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+  if echo "$REDIRECTION_HOSTS_RESPONSE" | jq -e 'type=="array"' >/dev/null 2>&1; then
     redirect_hosts_count=$(echo "$REDIRECTION_HOSTS_RESPONSE" | jq '. | length')
     echo "$REDIRECTION_HOSTS_RESPONSE" | jq '.' >"$BACKUP_PATH/.Redirection_Hosts/redirection_hosts_${NGINX_IP//./_}$DATE.json"
     ln -sf "$BACKUP_PATH/.Redirection_Hosts/redirection_hosts_${NGINX_IP//./_}$DATE.json" \
@@ -5054,7 +5083,7 @@ full_backup() {
   STREAM_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/streams" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-  if [ -n "$STREAM_HOSTS_RESPONSE" ] && echo "$STREAM_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+  if echo "$STREAM_HOSTS_RESPONSE" | jq -e 'type=="array"' >/dev/null 2>&1; then
     stream_hosts_count=$(echo "$STREAM_HOSTS_RESPONSE" | jq '. | length')
     echo "$STREAM_HOSTS_RESPONSE" | jq '.' >"$BACKUP_PATH/.Stream_Hosts/stream_hosts_${NGINX_IP//./_}$DATE.json"
     ln -sf "$BACKUP_PATH/.Stream_Hosts/stream_hosts_${NGINX_IP//./_}$DATE.json" \
@@ -5074,7 +5103,7 @@ full_backup() {
   DEAD_HOSTS_RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/dead-hosts" \
     -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
 
-  if [ -n "$DEAD_HOSTS_RESPONSE" ] && echo "$DEAD_HOSTS_RESPONSE" | jq empty 2>/dev/null; then
+  if echo "$DEAD_HOSTS_RESPONSE" | jq -e 'type=="array"' >/dev/null 2>&1; then
     dead_hosts_count=$(echo "$DEAD_HOSTS_RESPONSE" | jq '. | length')
     echo "$DEAD_HOSTS_RESPONSE" | jq '.' >"$BACKUP_PATH/.Dead_Hosts/dead_hosts_${NGINX_IP//./_}$DATE.json"
     ln -sf "$BACKUP_PATH/.Dead_Hosts/dead_hosts_${NGINX_IP//./_}$DATE.json" \
@@ -5189,7 +5218,7 @@ backup_host() {
       -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
   fi
 
-  if [ -z "$hosts_json" ] || ! echo "$hosts_json" | jq empty 2>/dev/null; then
+  if ! echo "$hosts_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
     echo -e " ⚠️  ${COLOR_YELLOW}No proxy hosts found or invalid response${CoR}\n"
     return 1
   fi
@@ -5207,22 +5236,14 @@ backup_host() {
 
     echo "$host" | jq '.' >"$PROXY_DIR/proxy_config.json"
 
-    local NGINX_CONFIG
-    NGINX_CONFIG=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/nginx" \
-      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
-    [ -n "$NGINX_CONFIG" ] && echo "$NGINX_CONFIG" >"$PROXY_DIR/nginx.conf"
-
-    curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/access.log" \
-      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/access.log"
-    curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$host_id/error.log" \
-      -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}" >"$PROXY_DIR/logs/error.log"
+    backup_host_logs "$host_id" "$PROXY_DIR"
 
     if [ -n "$cert_id" ] && [ "$cert_id" != "null" ] && [ "$cert_id" != "0" ]; then
       echo -e "   🔒 Downloading SSL certificate (ID: $cert_id)"
       local CERT_META
       CERT_META=$(curl -s -X GET "$BASE_URL/nginx/certificates/$cert_id" \
         -H "Authorization: Bearer ${TOKEN:-$(cat "$TOKEN_FILE")}")
-      if [ -n "$CERT_META" ] && echo "$CERT_META" | jq empty 2>/dev/null; then
+      if echo "$CERT_META" | jq -e '.id' >/dev/null 2>&1; then
         echo "$CERT_META" | jq '.' >"$PROXY_DIR/ssl/certificate_meta.json"
         if cert_fetch_pem "$cert_id" "$PROXY_DIR/ssl"; then
           echo -e "   ✅ ${COLOR_GREEN}SSL certificate backed up${CoR}"
