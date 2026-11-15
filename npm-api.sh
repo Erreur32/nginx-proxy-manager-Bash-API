@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.7.0"
+VERSION="3.7.1"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -229,7 +229,6 @@ CERT_DNS_CREDENTIALS=""
 DOMAIN_EXISTS=""
 HOST_SSL_ENABLE=false
 HOST_SSL_DISABLE=false
-SSL_RESTORE=false
 
 ACCESS_LIST=false
 ACCESS_LIST_CREATE=false
@@ -242,9 +241,7 @@ ACCESS_LIST_CREATE_ARGS=()
 
 BACKUP=false
 BACKUP_LIST=false
-### in progress
 BACKUP_HOST=false
-CLEAN_HOSTS=false
 
 REDIRECT_HOST_LIST=false
 REDIRECT_HOST_CREATE=false
@@ -320,7 +317,6 @@ check_nginx_access() {
     # Try to connect with timeout
     if curl --output /dev/null --silent --head --fail --connect-timeout $timeout --max-redirs 0 "$BASE_URL"; then
       #echo -e " ✅ NPM is accessible at: ${COLOR_GREEN}$BASE_URL${CoR}"
-      local version_info=$(curl -s --max-redirs 0 "${BASE_URL%/api}/version")
       return 0
     fi
     retry_count=$((retry_count + 1))
@@ -595,24 +591,6 @@ colorize_booleanh() {
   fi
 }
 
-# Function to sanitize names for directory
-sanitize_name() {
-  local name=$1
-  echo "${name//[^a-zA-Z0-9]/_}"
-}
-
-################################
-# Function to validate JSON files
-validate_json() {
-  local file=$1
-  if ! jq empty "$file" 2>/dev/null; then
-    echo -e "\n ⛔ Invalid JSON detected in file: $file"
-    cat "$file" # Show file content for debug
-    return 1
-  fi
-  return 0
-}
-
 ################################
 # Display help
 # Print one help line with its description aligned to a fixed column.
@@ -649,7 +627,6 @@ show_help() {
   help_row "  --check-token" "Check ${COLOR_GREY}current token info${CoR}"
   help_row "  --check-update" "${COLOR_GREEN}🆕 ${CoR}Check ${COLOR_GREY}GitHub for a newer script version${CoR}"
   help_row "  --backup" "${COLOR_GREEN}💾 ${CoR}Backup ${COLOR_GREY}All configurations to a different files in \$DATA_DIR${CoR}"
-  #echo -e "  --clean-hosts                          ${COLOR_GREEN}📥 ${CoR}Reimport${CoR} ${COLOR_GREY}Clean Proxy ID and SSL ID in sqlite database ;)${CoR}"
   help_row "  --backup-host ${COLOR_CYAN}[id]${CoR}" "${COLOR_GREEN}📦 ${CoR}Backup  ${COLOR_GREY}One proxy host (with SSL cert), or all if no id${CoR}"
   help_row "  --backup-host-list" "${COLOR_GREEN}📋 ${CoR}List    ${COLOR_GREY}Available per-host proxy backups${CoR}"
   #echo -e "  --host-list-full > backup.txt          💾 ${COLOR_YELLOW}Export${CoR}   Full host configuration to file"
@@ -1517,96 +1494,6 @@ check_certificate_exists() {
   fi
 }
 
-##############################################################
-# Function to delete all existing proxy hosts  # DEBUG
-##############################################################
-# Delete all existing proxy hosts
-delete_all_proxy_hosts() {
-  check_token_notverbose
-  echo -e "\n 🗑️ ${COLOR_ORANGE}Deleting all existing proxy hosts...${CoR}"
-
-  # Get all host IDs
-  local existing_hosts=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H @<(auth_header) | jq -r '.[].id')
-
-  local count=0
-  for host_id in $existing_hosts; do
-    echo -e " •  Deleting host ID ${COLOR_CYAN}$host_id${CoR}...${COLOR_GREEN}✓${CoR}"
-    local response=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE "$BASE_URL/nginx/proxy-hosts/$host_id" \
-      -H @<(auth_header))
-
-    local http_body=$(echo "$response" | sed -e 's/HTTPSTATUS\:.*//g')
-    local http_status=$(echo "$response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-    if [ "${http_status:-0}" -ne 200 ]; then
-      echo -e " ⛔ ${COLOR_RED}Failed to delete host ID $host_id. HTTP status: $http_status. Response: $http_body${CoR}"
-      return 1
-    fi
-    count=$((count + 1))
-  done
-
-  echo -e " ✅ ${COLOR_GREEN}Successfully deleted $count proxy hosts!${CoR}"
-  return 0
-}
-
-################################
-# --clean_hosts from_backup_file
-# Function to reimport hosts from backup file
-# Create a safety backup before major operations
-create_safety_backup() {
-  check_token_notverbose
-  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-  SAFETY_BACKUP="$BACKUP_DIR/pre_reimport_SAFETY_BACKUP_${TIMESTAMP}.json"
-  echo -e "📦 Creating safety backup..."
-  # Get the list of IDs
-  local host_ids=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
-    -H @<(auth_header) | jq -r '.[].id')
-  # Create a table to store the complete configurations
-  echo "[" >"$SAFETY_BACKUP"
-  local first=true
-  # Get the detailed configuration of each host
-  for id in $host_ids; do
-    if [ "$first" = true ]; then
-      first=false
-    else
-      echo "," >>"$SAFETY_BACKUP"
-    fi
-
-    curl -s -X GET "$BASE_URL/nginx/proxy-hosts/$id" \
-      -H @<(auth_header) >>"$SAFETY_BACKUP"
-  done
-
-  echo "]" >>"$SAFETY_BACKUP"
-  # Verify that the backup is valid
-  if ! jq empty "$SAFETY_BACKUP" 2>/dev/null; then
-    echo -e " ❌ ${COLOR_RED}Failed to create valid safety backup${CoR}"
-    exit 1
-  fi
-  echo -e " ✅ ${COLOR_GREEN}Safety backup created: ${COLOR_CYAN}$SAFETY_BACKUP${CoR}"
-  return 0
-}
-
-################################
-# Function to display import summary
-display_import_summary() {
-  echo -e "\n📊 ${COLOR_YELLOW}Import Summary:${CoR}"
-  echo -e " • Total hosts processed: ${COLOR_CYAN}$total${CoR}"
-  echo -e " • Successfully imported: ${COLOR_GREEN}$success${CoR}"
-  echo -e " • Failed imports: ${COLOR_RED}$failed${CoR}"
-  echo -e "\n🔒 SSL Certificates:"
-  echo -e " • Successfully configured: ${COLOR_GREEN}$ssl_success${CoR}"
-  echo -e " • Failed configurations: ${COLOR_RED}$ssl_failed${CoR}"
-
-  if [ ${#failed_ssl_domains[@]} -gt 0 ]; then
-    echo -e "\n⚠️ ${COLOR_YELLOW}Domains with failed SSL setup:${CoR}"
-    for domain in "${failed_ssl_domains[@]}"; do
-      echo -e " • $domain"
-    done
-  fi
-
-  echo -e "\n✨ ${COLOR_GREEN}Import process completed${CoR}"
-}
-
 ################################
 # jq helper: the NPM API has no `expired` field, derive it from expires_on
 # ("YYYY-MM-DD HH:MM:SS" on SQLite, ISO 8601 on MySQL/Postgres)
@@ -1684,13 +1571,13 @@ cert_show() {
 
   # Search by domain name (partial match)
   if [ "$JSON_OUTPUT" = true ]; then
-    echo "$RESPONSE" | jq --arg domain "$search_term" '[.[] | select(.domain_names[] | contains($domain))]'
+    echo "$RESPONSE" | jq --arg domain "$search_term" '[.[] | select(any(.domain_names[]; contains($domain)))]'
     exit 0
   fi
 
   echo -e "\n 🔍 Searching certificates for domain: ${COLOR_YELLOW}$search_term${CoR}"
   DOMAIN_CERTS=$(echo "$RESPONSE" | jq -r --arg domain "$search_term" \
-    '.[] | select(.domain_names[] | contains($domain))')
+    '.[] | select(any(.domain_names[]; contains($domain)))')
 
   if [ -z "$DOMAIN_CERTS" ]; then
     echo -e " ℹ️ ${COLOR_YELLOW}No certificates found for domain: $search_term${CoR}"
@@ -3094,99 +2981,6 @@ dead_host_disable() {
 }
 
 ################################
-# Update an existing proxy host
-update_proxy_host() {
-  check_token_notverbose
-  HOST_ID=$1
-  echo -e "\n 🔄 Updating proxy host for $DOMAIN_NAMES..."
-
-  # 🔥 check if the required parameters are set
-  if [ -z "$DOMAIN_NAMES" ] || [ -z "$FORWARD_HOST" ] || [ -z "$FORWARD_PORT" ] || [ -z "$FORWARD_SCHEME" ]; then
-    echo -e "  ⛔${COLOR_RED} ERROR: Missing required parameters (domain, forward host, forward port, forward scheme).${CoR}"
-    exit 1
-  fi
-
-  # 🔥 check if the FORWARD_PORT is a number
-  if ! [[ "$FORWARD_PORT" =~ ^[0-9]+$ ]]; then
-    echo -e "  ⛔${COLOR_RED} ERROR: FORWARD_PORT is not a number! Value: '$FORWARD_PORT'${CoR}"
-    exit 1
-  fi
-
-  # 🔥 Correct the CUSTOM_LOCATIONS
-  if [[ -z "$CUSTOM_LOCATIONS" || "$CUSTOM_LOCATIONS" == "null" ]]; then
-    CUSTOM_LOCATIONS_ESCAPED="[]"
-  else
-    CUSTOM_LOCATIONS_ESCAPED=$(echo "$CUSTOM_LOCATIONS" | jq -c . 2>/dev/null || echo '[]')
-  fi
-
-  # correct the boolean (true / false in JSON)
-  CACHING_ENABLED_JSON=$([ "$CACHING_ENABLED" == "true" ] && echo true || echo false)
-  BLOCK_EXPLOITS_JSON=$([ "$BLOCK_EXPLOITS" == "true" ] && echo true || echo false)
-  ALLOW_WEBSOCKET_UPGRADE_JSON=$([ "$ALLOW_WEBSOCKET_UPGRADE" == "true" ] && echo true || echo false)
-  HTTP2_SUPPORT_JSON=$([ "$HTTP2_SUPPORT" == "true" ] && echo true || echo false)
-
-  # 🔍 Debugging variables before JSON update:
-  debug_var
-
-  # 🔥 generate the JSON properly
-  DATA=$(
-    jq -n \
-      --arg domain "$DOMAIN_NAMES" \
-      --arg host "$FORWARD_HOST" \
-      --arg port "$FORWARD_PORT" \
-      --arg scheme "$FORWARD_SCHEME" \
-      --argjson caching "$CACHING_ENABLED_JSON" \
-      --argjson block_exploits "$BLOCK_EXPLOITS_JSON" \
-      --arg advanced_config "$ADVANCED_CONFIG" \
-      --argjson websocket_upgrade "$ALLOW_WEBSOCKET_UPGRADE_JSON" \
-      --argjson http2_support "$HTTP2_SUPPORT_JSON" \
-      --argjson enabled true \
-      --argjson locations "$CUSTOM_LOCATIONS_ESCAPED" \
-      '{
-      domain_names: [$domain],
-      forward_host: $host,
-      forward_port: ($port | tonumber),
-      access_list_id: null,
-      certificate_id: null,
-      ssl_forced: false,
-      caching_enabled: $caching,
-      block_exploits: $block_exploits,
-      advanced_config: $advanced_config,
-      meta: { dns_challenge: null },
-      allow_websocket_upgrade: $websocket_upgrade,
-      http2_support: $http2_support,
-      forward_scheme: $scheme,
-      enabled: $enabled,
-      locations: $locations
-    }'
-  )
-
-  # 🔍 check if the JSON is valid
-  if ! echo "$DATA" | jq empty >/dev/null 2>&1; then
-    echo -e "  ⛔${COLOR_RED} ERROR: Invalid JSON generated:\n$DATA ${CoR}"
-    exit 1
-  fi
-
-  # 🚀 send the API request for update
-  RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PUT "$BASE_URL/nginx/proxy-hosts/$HOST_ID" \
-    -H @<(auth_header) \
-    -H "Content-Type: application/json; charset=UTF-8" \
-    --data-binary @- <<<"$DATA")
-  local HTTP_STATUS=${RESPONSE##*HTTPSTATUS:}
-  RESPONSE=${RESPONSE%HTTPSTATUS:*}
-
-  # 📢 check if the response is valid
-  ERROR_MSG=$(npm_error_msg "$HTTP_STATUS" "$RESPONSE")
-  if [ -z "$ERROR_MSG" ]; then
-    PROXY_ID=$(echo "$RESPONSE" | jq -r '.id // "unknown"')
-    echo -e "\n ✅ ${COLOR_GREEN}SUCCESS: Proxy host 🔗$DOMAIN_NAMES (ID: ${COLOR_YELLOW}$PROXY_ID${COLOR_GREEN}) was created successfully! 🎉${CoR}\n"
-  else
-    echo -e " ⛔ ${COLOR_RED}Failed to create proxy host. Error: $ERROR_MSG ${CoR}"
-    exit 1
-  fi
-}
-
-################################
 # Update field of existing proxy host
 host_update() {
   check_token_notverbose
@@ -3322,7 +3116,7 @@ host_search() {
     exit 1
   fi
 
-  MATCHES=$(echo "$RESPONSE" | jq -c --arg search "$HOST_SEARCHNAME" '.[] | select(.domain_names[] | contains($search))')
+  MATCHES=$(echo "$RESPONSE" | jq -c --arg search "$HOST_SEARCHNAME" '.[] | select(any(.domain_names[]; contains($search)))')
 
   if [ -z "$MATCHES" ]; then
     echo -e " ❌ No proxy host found for: ${COLOR_YELLOW}$HOST_SEARCHNAME${CoR}"
@@ -3756,7 +3550,7 @@ cert_delete() {
   else
     # It's a domain - Get all matching certificates
     MATCHING_CERTS=$(echo "$CERTIFICATES" | jq -r --arg domain "$CERT_IDENTIFIER" \
-      '[.[] | select(.domain_names[] == $domain or .nice_name == $domain)]')
+      '[.[] | select((.domain_names | index($domain)) != null or .nice_name == $domain)]')
 
     CERT_COUNT=$(echo "$MATCHING_CERTS" | jq 'length')
 
@@ -5440,17 +5234,6 @@ while [[ "$#" -gt 0 ]]; do
     BACKUP_LIST=true
     shift
     ;;
-  --clean-hosts)
-    exit 1 # not use !
-    CLEAN_HOSTS=true
-    shift
-    if [[ -n "$1" && "$1" != -* ]]; then
-      BACKUP_FILE="$1"
-      shift
-    else
-      BACKUP_FILE="$DEFAULT_BACKUP_FILE"
-    fi
-    ;;
   --user-list)
     USER_LIST=true
     shift
@@ -6649,8 +6432,6 @@ elif [ "$HOST_SSL_ENABLE" = true ]; then
   host_ssl_enable "$HOST_ID" "$CERT_ID"
 elif [ "$HOST_SSL_DISABLE" = true ]; then
   host_ssl_disable
-elif [ "$SSL_RESTORE" = true ]; then
-  restore_ssl_certificates
 
 # Actions backup/restore
 elif [ "$BACKUP" = true ]; then
@@ -6659,12 +6440,6 @@ elif [ "$BACKUP_HOST" = true ]; then
   backup_host
 elif [ "$BACKUP_LIST" = true ]; then
   list_backups
-elif [ "$CLEAN_HOSTS" = true ]; then
-  clean-hosts
-  #reimport_hosts "$@"
-  #reimport_hosts "$BACKUP_FILE"
-  #exit $?
-  #check_validity_of_backup_file "$BACKUP_FILE"
 
 else
   display_info
