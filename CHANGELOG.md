@@ -2,6 +2,27 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.7.0] - 2026-11-15
+
+Second batch of fixes from the full audit, tested on a live NPM 2.17.0.
+
+### 🔒 Security
+
+- **Secrets no longer visible in the process list (`ps`)**: the API token, the admin password, user and access-list passwords and the Cloudflare key were passed as `curl` arguments. Headers now go through `-H @<(auth_header)` and request bodies through stdin (`--data-binary @-`).
+- **Login JSON built with `jq`**: an admin password containing `"` or `\` produced invalid JSON and login always failed.
+
+### 🐛 Fixes
+
+- **Short flags `-b -c -w -h -s` of `--host-create` were ignored** (only the long forms worked).
+- **`--host-create` update keeps settings that are not passed**: block exploits, cache, websocket, HTTP/2, forced SSL and scheme are only changed when their option is given. `-s/--ssl-force` is now applied on creation. With `--cert-generate`, SSL forced and HTTP/2 default to on but follow `-s` / `-h`, and HSTS / enabled are left untouched.
+- **`--dead-host-create` / `--stream-host-create` on an existing entry** no longer reset the certificate (and the SSL flags of dead hosts): only the options given are sent.
+- **`--dns-provider` is used for any domain**, not only wildcards (DNS challenge for LAN-only hosts).
+- **`--cert-download`**: default `./certificates` directory works (the zip went to a wrong relative path), key and zip are `600`, missing `zip` is reported.
+- **`-l/--custom-locations`**: invalid JSON or a non-array now stops with an error instead of creating the host without locations.
+- **Backups**: last run's PEM files are removed before writing (no stale key next to new metadata); `_latest` links no longer create `NAME/NAME` loops; folders of hosts deleted from NPM are moved to `.Proxy_Hosts_removed/<date>/` by `--backup`.
+- **Options**: `--json` works anywhere on the command line (`--cert-show --json x`, `--cert-show x --json`); `-y` is accepted after `--access-list-create` / `--access-list-update`; `--host-search` refuses an option as search term.
+- **Access-list users with an empty password** (Enter, or no terminal) are refused: NPM stored them but nobody could log in. Passwords are read with `read -r` (backslashes kept).
+
 ## [3.6.12] - 2026-11-15
 
 Found while testing v3.6.11 on a live NPM 2.17.0.
